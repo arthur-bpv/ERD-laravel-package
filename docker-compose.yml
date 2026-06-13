@@ -1,0 +1,51 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/var/www/html
+      - composer_cache:/root/.composer/cache
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: laravel
+      DB_USERNAME: laravel
+      DB_PASSWORD: secret
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_USER: laravel
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "laravel", "-psecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "9090:8080"
+    depends_on:
+      - db
+
+volumes:
+  db_data:
+  composer_cache:

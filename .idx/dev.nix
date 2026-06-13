@@ -5,8 +5,17 @@
   channel = "stable-24.11"; # or "unstable"
   # Use https://search.nixos.org/packages to find packages
   packages = [
-    pkgs.php82
-    pkgs.php82Packages.composer
+    pkgs.php83
+    pkgs.php83Packages.composer
+    pkgs.php83Extensions.pdo
+    pkgs.php83Extensions.pdo_mysql
+    pkgs.php83Extensions.pdo_sqlite
+    pkgs.php83Extensions.mbstring
+    pkgs.php83Extensions.xml
+    pkgs.php83Extensions.zip
+    pkgs.php83Extensions.bcmath
+    pkgs.php83Extensions.tokenizer
+    pkgs.php83Extensions.fileinfo
     pkgs.nodejs_22
   ];
   # Sets environment variables in the workspace
@@ -14,18 +23,22 @@
   idx = {
     # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
     extensions = [
-      # "vscodevim.vim"
       "google.gemini-cli-vscode-ide-companion"
+      "bmewburn.vscode-intelephense-client"
     ];
     workspace = {
       # Runs when a workspace is first created with this `dev.nix` file
       onCreate = {
-        # Example: install JS dependencies from NPM
-        # npm-install = "npm install";
-        # Open editors for the following files by default, if they exist:
+        install-deps = "composer install && npm install";
+        setup-env = "cp -n .env.example .env && php artisan key:generate --ansi";
+        setup-db = "php artisan migrate --force --ansi";
+        build-assets = "npm run build";
         default.openFiles = [ "README.md" "resources/views/welcome.blade.php" ];
       };
-      # To run something each time the workspace is (re)started, use the `onStart` hook
+      # Runs each time the workspace is (re)started
+      onStart = {
+        install-deps = "composer install --no-interaction && npm install --silent";
+      };
     };
     # Enable previews and customize configuration
     previews = {

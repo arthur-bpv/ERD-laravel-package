@@ -9,7 +9,7 @@ namespace App\Livewire;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 
 // Atributo do Livewire que define qual layout Blade envolve o componente.
-// Doc: https://livewire.laravel.com/docs/components#setting-a-custom-layout
+// Doc: https://livewire.laravel.com/docs/components
 use Livewire\Attributes\Layout;
 
 // Classe base de todo componente Livewire (estado em propriedades públicas,
@@ -46,7 +46,7 @@ class Organograma extends Component
     {
         // Estilo das arestas (edges). 'stroke' = cor da linha, 'strokeWidth' = espessura.
         // 'markerEnd' com type 'arrowclosed' desenha a setinha na ponta da linha.
-        // Doc de edges/markers: https://artisanflow.dev/docs/alpineflow/features/edges
+        // Doc de markers: https://artisanflow.dev/docs/alpineflow/edges/markers
         $edgeStyle = ['stroke' => '#3b82f6', 'strokeWidth' => 2];          // linhas do CEO p/ diretoria
         $edgeMarker = ['type' => 'arrowclosed', 'color' => '#3b82f6'];
         $edgeSubStyle = ['stroke' => '#4f46e5', 'strokeWidth' => 1.5];     // linhas diretoria p/ time
@@ -55,7 +55,7 @@ class Organograma extends Component
         // NÓS: cada item precisa de 'id' único e 'position' {x, y} em pixels.
         // O conteúdo de 'data' é livre — aqui usamos label/role/dept/avatar, que
         // são lidos no template do nó (<x-slot:node>) via node.data.*.
-        // Doc: https://artisanflow.dev/docs/alpineflow  (estrutura de nodes)
+        // Doc: https://artisanflow.dev/docs/alpineflow/nodes/basics  (estrutura de nodes)
         $this->nodes = [
             [
                 'id' => 'ceo', 
@@ -164,7 +164,7 @@ class Organograma extends Component
 
         // ARESTAS: ligam 'source' (origem) a 'target' (destino) por id de nó.
         // 'type' => 'smoothstep' = linha em "degraus" arredondados (boa p/ organograma).
-        // Doc: https://artisanflow.dev/docs/alpineflow/features/edges
+        // Doc: https://artisanflow.dev/docs/alpineflow/edges/types
         $this->edges = [
             [
                 'id' => 'e1', 

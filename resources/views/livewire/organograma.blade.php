@@ -68,7 +68,8 @@
             @node-click            -> ao clicar num nó, chama onNodeClick() no PHP
           As variáveis --flow-node-* no style sobrescrevem as cores dos quadros
           (fundo/texto/borda) — isto resolve o nó padrão branco com texto cinza.
-          Doc de theming/variáveis: https://artisanflow.dev/docs/alpineflow/features/theming
+          Doc de theming/variáveis: https://artisanflow.dev/docs/alpineflow/theming/css-variables
+          Doc do dark mode (class="dark"): https://artisanflow.dev/docs/alpineflow/theming/dark-mode
         --}}
 
         <x-flow

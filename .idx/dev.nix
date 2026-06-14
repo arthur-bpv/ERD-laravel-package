@@ -38,6 +38,8 @@
       # Runs each time the workspace is (re)started
       onStart = {
         install-deps = "composer install --no-interaction && npm install --silent";
+        clean-hot = "rm -f public/hot";
+        build-assets = "npm run build";
       };
     };
     # Enable previews and customize configuration

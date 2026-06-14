@@ -1,10 +1,8 @@
 <?php
-
+use App\Livewire\Organograma;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/ornograma', Organograma::class);
 
 Route::get('/hello', function () {
     return 'Hello World';

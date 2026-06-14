@@ -1,5 +1,11 @@
 <div style="height:100vh;display:flex;flex-direction:column;background:#030712;font-family:ui-sans-serif,system-ui,sans-serif;">
 
+    {{-- DEBUG: Alpine/AlpineFlow check --}}
+    <div x-data="{ fc: typeof flowCanvas !== 'undefined' }" style="background:#dc2626;color:white;font-size:11px;padding:2px 8px;display:flex;gap:16px;">
+        <span>Alpine: <strong x-text="$data ? 'OK' : 'FAIL'"></strong></span>
+        <span>flowCanvas: <strong x-text="fc ? 'OK' : 'MISSING'"></strong></span>
+    </div>
+
     {{-- Header --}}
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#0f172a;border-bottom:1px solid #1e293b;flex-shrink:0;">
         <div>
@@ -34,9 +40,8 @@
             background="dots"
             :minimap="true"
             :controls="true"
-            :fit-view-on-init="true"
             default-edge-type="smoothstep"
-            style="flex:1;background:#030712;"
+            style="flex:1;background:#030712;--flow-container-height:100%;"
             @node-click="onNodeClick"
         >
             <x-slot:node>

@@ -71,6 +71,15 @@ composer run dev
 
 Acesse em: **http://localhost:8000**
 
+Rotas disponíveis:
+
+| Rota | Descrição |
+|---|---|
+| `/organograma` | Organograma interativo (componente Livewire `Organograma` com WireFlow) |
+| `/hello` | Rota de teste — retorna `Hello World` |
+
+> No IDX, o preview web é servido automaticamente via `php artisan serve`; abra `/organograma` no painel de preview para validar o setup.
+
 ---
 
 ## Pacotes instalados
@@ -145,7 +154,7 @@ php artisan test
 ```
 composer.json
 ├── laravel/framework        ^12.0   — framework base
-├── livewire/livewire        ^4.0    — reatividade server-side
+├── livewire/livewire        ^4.3    — reatividade server-side
 ├── getartisanflow/wireflow  ^0.1    — diagramas de fluxo interativos
 └── laravel/tinker           ^2.10   — REPL para debugging
 ```

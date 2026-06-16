@@ -26,7 +26,16 @@ class AppServiceProvider extends ServiceProvider
         // mas nem sempre repassam o X-Forwarded-Proto de forma detectável pelo
         // Laravel. Sem isto, o asset() gera URLs http:// e o navegador bloqueia
         // os assets do Vite como "mixed content" (CSS/JS não carregam).
-        if (str_contains((string) request()->getHost(), 'cloudworkstations.dev')) {
+        //
+        // Obs: este boot() roda ANTES do middleware TrustProxies, então
+        // getHost() ainda pode ver o host interno. Por isso checamos também o
+        // header bruto X-Forwarded-Host, que o proxy sempre envia.
+        $forwardedHost = (string) request()->server('HTTP_X_FORWARDED_HOST', '');
+        $host = (string) request()->getHost();
+
+        if (request()->server('HTTP_X_FORWARDED_HOST')
+            || str_contains($host, 'cloudworkstations.dev')
+            || str_contains($forwardedHost, 'cloudworkstations.dev')) {
             URL::forceScheme('https');
         }
     }

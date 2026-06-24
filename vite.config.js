@@ -15,4 +15,9 @@ export default defineConfig({
             ignored: ['**/storage/framework/views/**'],
         },
     },
+    build: {
+        // Livewire + Alpine vêm empacotados juntos e precisam carregar no boot,
+        // então o bundle naturalmente passa de 500 kB. Subimos o limite do aviso.
+        chunkSizeWarningLimit: 800,
+    },
 });

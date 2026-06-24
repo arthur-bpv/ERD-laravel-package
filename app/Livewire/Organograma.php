@@ -71,6 +71,18 @@ class Organograma extends Component
             ]],
 
             [
+                'id' => 'decision-1',
+                'type' => 'decision',
+                'position' => [
+                    'x' => 300,
+                    'y' => 200,
+                ],
+                'data' => [
+                    'label' => 'Aprovado?'
+                ]
+                ],
+
+            [
                 'id' => 'cto', 
                 'position' => [
                     'x' => 60, 

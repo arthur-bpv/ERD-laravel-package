@@ -75,6 +75,11 @@
         <x-flow
             :nodes="$nodes"
             :edges="$edges"
+
+            :node-types="[
+        'decision' => 'components.flow.nodes.decision'
+    ]"
+
             background="dots"
             :minimap="true"
             :controls="true"

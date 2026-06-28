@@ -1,59 +1,126 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Projeto Livewire — Health Check (Livewire · Alpine · AlpineFlow · WireFlow)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplicação Laravel 12 que valida, numa única página, a stack **Livewire 4 + Alpine + AlpineFlow + WireFlow** rodando em **Firebase Studio / Google Cloud Workstations** (atrás de proxy HTTPS).
 
-## About Laravel
+A rota `/flow-check` exercita os quatro pilares:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+1. **Livewire (servidor):** contador que incrementa via `wire:click` (round-trip ao servidor).
+2. **Alpine (cliente):** toggle 100% no navegador, sem ir ao servidor.
+3. **AlpineFlow (diagrama JS+CSS):** um `<x-flow>` com nodes/edges arrastáveis.
+4. **WireFlow (ponte servidor → diagrama):** botão que cria um node pelo servidor.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Stack
 
-## Learning Laravel
+| Camada | Versão |
+|---|---|
+| PHP | 8.3+ |
+| Laravel | 12 |
+| Livewire | 4.3 |
+| WireFlow (empacota o AlpineFlow) | `getartisanflow/wireflow` ^0.1.2-alpha |
+| Vite / Tailwind | Vite 7 / Tailwind 4 |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+> **WireFlow já traz o AlpineFlow embutido** no pacote Composer (`vendor/getartisanflow/wireflow/dist/`). **Não** instale o AlpineFlow nem o Alpine via npm separadamente — o Alpine vem junto do bundle do Livewire. Importá-los de novo causaria conflito de duas instâncias do Alpine.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## Instalação do zero
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```bash
+composer require getartisanflow/wireflow   # service provider auto-descoberto
+php artisan wireflow:install               # publica config + assets e injeta imports no app.js/app.css
+npm install
+npm run build
+```
 
-### Premium Partners
+O `wireflow:install` deixa:
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+- `resources/js/app.js` — importa `AlpineFlow` do caminho `vendor/.../wireflow/dist/...` e registra `Alpine.plugin(AlpineFlow)`.
+- `resources/css/app.css` — `@import` do `alpineflow.css` + tema.
+- `config/wireflow.php`, `config/livewire.php` e `public/vendor/alpineflow`.
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## ⚠️ Ajustes obrigatórios em Cloud Workstations / Firebase Studio
 
-## Code of Conduct
+O app roda **atrás de um proxy HTTPS** que expõe cada porta num host `PORTA-…cloudworkstations.dev`. Sem os ajustes abaixo o setup parece quebrado mesmo estando correto — o `wire:click` simplesmente não funciona.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 1. Confiar no proxy — `bootstrap/app.php`
 
-## Security Vulnerabilities
+Sem `trustProxies`, o Laravel enxerga o host interno `127.0.0.1:PORT` e gera o endpoint `/livewire/update` num host que o navegador não alcança (`ERR_CONNECTION_REFUSED`).
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```php
+$middleware->trustProxies(at: '*', headers:
+    Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_HOST
+    | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_X_FORWARDED_PROTO);
+```
 
-## License
+### 2. Forçar HTTPS + assets via Vite — `app/Providers/AppServiceProvider.php`
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```php
+// Livewire JS vem do bundle do Vite (app.js); não deixe o Livewire injetar o dele.
+config(['livewire.inject_assets' => false]);
+
+// Sem https, o navegador bloqueia assets como "mixed content".
+URL::forceScheme('https'); // quando o host for *.cloudworkstations.dev
+```
+
+### 3. **NÃO** fixar `ASSET_URL` numa porta — `.env`
+
+Este foi o ponto que fazia **todo o `wire:click` morrer**. O `app.js` é um **ES module**, e módulos sempre carregam via **CORS**. Se `ASSET_URL` aponta para outra porta/host que não a da página, o navegador **bloqueia o `app.js`** (o proxy nginx não envia `Access-Control-Allow-Origin`) → nem Livewire nem Alpine iniciam.
+
+```dotenv
+# Deixe SEM valor — assets carregam na MESMA origem da página (qualquer host do proxy).
+# ASSET_URL=
+```
+
+> O `.env` é gitignored, então **este ajuste não está versionado**: ao clonar num novo workspace, confira que `ASSET_URL` está vazio.
+
+---
+
+## Rodar
+
+```bash
+composer run dev   # php artisan serve + queue + pail + vite, tudo junto
+# ou, em produção/preview:
+npm run build && php artisan serve --host 0.0.0.0 --port "$PORT"
+```
+
+Acesse `/flow-check` pelo host do preview (`PORTA-…cloudworkstations.dev`).
+
+---
+
+## Criando nodes pelo servidor (WireFlow)
+
+Para que um node criado pelo servidor seja **arrastável**, use os métodos do trait `WithWireFlow` — **não** empurre direto em `$this->nodes[]`. Push direto só sincroniza o *dado* via entangle: o AlpineFlow desenha o node, mas não o registra no store de interação, então ele "nasce sem deixar mexer".
+
+```php
+use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
+
+public function addNode(): void
+{
+    $id = (string) (++$this->seq);
+
+    $this->flowAddNodes([[                       // dispara flow:addNodes → pipeline do AlpineFlow
+        'id' => $id,
+        'position' => ['x' => 160, 'y' => 200],
+        'data' => ['label' => "Node servidor #{$id}"],
+    ]]);
+
+    $this->flowConnect('2', $id, edgeId: "e2-{$id}"); // dispara flow:connect
+}
+```
+
+No Blade, o canvas usa `:sync="true"` (entangle bidirecional) + `wire:ignore` (evita o morph do Livewire destruir o DOM gerenciado pelo AlpineFlow).
+
+---
+
+## Testes
+
+```bash
+php artisan test
+```
+
+- `HealthTest` — `/health` responde `200` com `status: ok`.
+- `FlowHealthCheckTest` — a página carrega, o contador Livewire incrementa, e `addNode` despacha os eventos `flow:addNodes` / `flow:connect`.

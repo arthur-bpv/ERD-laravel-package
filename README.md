@@ -1,6 +1,6 @@
 # Projeto Livewire — Health Check (Livewire · Alpine · AlpineFlow · WireFlow)
 
-Aplicação Laravel 12 que valida, numa única página, a stack **Livewire 4 + Alpine + AlpineFlow + WireFlow** rodando em **Firebase Studio / Google Cloud Workstations** (atrás de proxy HTTPS).
+Aplicação Laravel 12 com a stack **Livewire 4 + Alpine + AlpineFlow + WireFlow**.
 
 A rota `/flow-check` exercita os quatro pilares:
 
@@ -8,6 +8,120 @@ A rota `/flow-check` exercita os quatro pilares:
 2. **Alpine (cliente):** toggle 100% no navegador, sem ir ao servidor.
 3. **AlpineFlow (diagrama JS+CSS):** um `<x-flow>` com nodes/edges arrastáveis.
 4. **WireFlow (ponte servidor → diagrama):** botão que cria um node pelo servidor.
+
+---
+
+## Como rodar (Docker) 🐳
+
+Você só precisa do **Docker** instalado. Nada de PHP, Composer ou Node na sua máquina.
+
+```bash
+docker compose up
+```
+
+Pronto. Abra **http://localhost:8000/schema** no navegador.
+
+Na **primeira vez** demora alguns minutos (baixa o PHP, instala o `vendor/` e o `node_modules/`).
+Depois disso sobe em **2 segundos**.
+
+Para parar: `Ctrl+C` no terminal.
+
+### O que sobe
+
+| Container | O que faz | Endereço |
+|---|---|---|
+| `app` | PHP 8.3 rodando `php artisan serve` (o servidor embutido do Laravel) | http://localhost:8000 |
+| `vite` | Compila CSS/JS e atualiza o navegador sozinho quando você salva um arquivo | http://localhost:5173 |
+
+Você **não abre** o 5173 no navegador — quem usa ele é a página do 8000.
+
+O banco é um **arquivo SQLite** (`database/database.sqlite`). Não existe container de banco.
+
+### Páginas
+
+| Rota | O que é |
+|---|---|
+| `/` | Redireciona para `/schema` |
+| `/schema` | Modelador de ER (o que está sendo construído) |
+| `/board` | Board do AlpineFlow |
+| `/flow-check` | Página de diagnóstico da stack |
+| `/health` | Responde `{"status":"ok"}` — serve pra testar se o servidor está de pé |
+
+### Se o Docker roda em OUTRO computador
+
+Se você abre o navegador na sua máquina mas o `docker compose` roda num servidor/VM,
+a página carrega **sem estilo nenhum**. Motivo: o CSS e o JS são baixados do Vite, e o
+endereço gravado na página é `localhost` — que, no seu navegador, é a *sua* máquina.
+
+Conserto: diga ao projeto o endereço do servidor, no `.env`:
+
+```dotenv
+DEV_HOST=192.168.0.10      # IP ou nome do servidor, sem http:// e sem porta
+```
+
+```bash
+docker compose up -d       # recria o container do Vite com o endereço novo
+```
+
+Aí acesse `http://192.168.0.10:8000`. Use **o mesmo endereço** no `DEV_HOST` e na barra
+do navegador — se você entra por um IP de VPN, o `DEV_HOST` tem que ser o da VPN.
+
+A porta **5173 também precisa estar acessível** pela rede (é dela que vêm o CSS e o JS).
+
+**Sintoma clássico de `DEV_HOST` errado:** a página até carrega com estilo, mas o board
+não funciona — nada arrasta, nenhum botão responde. É que o `app.js` é um *ES module*, e
+módulos sempre passam por CORS: se a origem não bate, o navegador **bloqueia o JS**
+(Livewire, Alpine e AlpineFlow nem iniciam), enquanto o CSS passa numa boa, porque
+`<link rel=stylesheet>` não faz essa checagem. No console do navegador (F12) aparece
+`blocked by CORS policy`. Confira o `DEV_HOST` e recarregue com `Ctrl+Shift+R`.
+
+> O `vite.config.js` libera o CORS para **qualquer host na porta 8000**, então o nome que
+> você usa no navegador não precisa bater com o `DEV_HOST` para o JS ser aceito. Mesmo
+> assim, mantenha os dois iguais: o `DEV_HOST` é o endereço de onde o navegador vai
+> *baixar* os assets, e ele precisa ser alcançável a partir da sua máquina.
+
+### Comandos do dia a dia
+
+Rode os comandos **dentro do container**, com `docker compose exec app`:
+
+```bash
+docker compose exec app php artisan migrate      # rodar migrations
+docker compose exec app php artisan make:model Post
+docker compose exec app php artisan test
+docker compose exec app composer require pacote/novo
+docker compose exec vite npm install alguma-lib
+```
+
+Editar código no seu editor funciona normalmente — a pasta do projeto está montada dentro dos containers, então **não precisa reiniciar nada** ao mexer em PHP, Blade, CSS ou JS.
+
+### Quando algo der errado
+
+```bash
+docker compose logs app          # ver o que o backend reclamou
+docker compose logs vite         # ver o que o Vite reclamou
+docker compose down && docker compose up    # desligar e ligar de novo
+```
+
+Se quiser **começar do zero** (reinstalar tudo):
+
+```bash
+docker compose down
+rm -rf vendor node_modules public/hot
+docker compose up
+```
+
+Se o seu usuário do Linux **não for o UID 1000** (confira com `id -u`), troque o `user: "1000:1000"` no `docker-compose.yml` pelo seu número — senão os arquivos criados pelo container ficam com dono errado.
+
+No **Windows/macOS**, se o hot reload não perceber as edições, descomente a linha `VITE_POLLING: "1"` no `docker-compose.yml`.
+
+### Arquivos do ambiente
+
+```
+docker-compose.yml      # descreve os 2 containers
+docker/Dockerfile       # imagem do PHP 8.3 + Composer
+docker/start-app.sh     # o que o container app faz ao subir
+docker/start-vite.sh    # o que o container vite faz ao subir
+```
 
 ---
 
@@ -42,9 +156,14 @@ O `wireflow:install` deixa:
 
 ---
 
-## ⚠️ Ajustes obrigatórios em Cloud Workstations / Firebase Studio
+## 📜 Histórico — ajustes de Cloud Workstations / Firebase Studio
 
-O app roda **atrás de um proxy HTTPS** que expõe cada porta num host `PORTA-…cloudworkstations.dev`. Sem os ajustes abaixo o setup parece quebrado mesmo estando correto — o `wire:click` simplesmente não funciona.
+> O projeto **não usa mais** o Firebase Studio; agora roda em Docker (seção no topo).
+> Estes ajustes continuam no código porque são inofensivos em `localhost` (o
+> `AppServiceProvider` só força HTTPS quando detecta o proxy). Ficam registrados
+> aqui caso alguém volte a abrir o projeto atrás de um proxy HTTPS.
+
+O app rodava **atrás de um proxy HTTPS** que expunha cada porta num host `PORTA-…cloudworkstations.dev`. Sem os ajustes abaixo o setup parecia quebrado mesmo estando correto — o `wire:click` simplesmente não funcionava.
 
 ### 1. Confiar no proxy — `bootstrap/app.php`
 
@@ -79,15 +198,18 @@ Este foi o ponto que fazia **todo o `wire:click` morrer**. O `app.js` é um **ES
 
 ---
 
-## Rodar
+## Rodar sem Docker (opcional)
+
+Se você já tem PHP 8.3, Composer e Node 22 na máquina:
 
 ```bash
+composer install && npm install
+cp .env.example .env && php artisan key:generate
+touch database/database.sqlite && php artisan migrate
 composer run dev   # php artisan serve + queue + pail + vite, tudo junto
-# ou, em produção/preview:
-npm run build && php artisan serve --host 0.0.0.0 --port "$PORT"
 ```
 
-Acesse `/flow-check` pelo host do preview (`PORTA-…cloudworkstations.dev`).
+Mas o caminho recomendado para o time é o `docker compose up`.
 
 ---
 

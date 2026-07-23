@@ -1,0 +1,49 @@
+# Ambiente de desenvolvimento completo em 2 containers.
+#
+#   docker compose up      -> sobe tudo   (http://localhost:8000)
+#   Ctrl+C                 -> para tudo
+#
+# Vai acessar de OUTRO computador (o Docker roda num servidor/VM)? Coloque o
+# endereco do servidor no .env — sem isso o navegador tenta buscar o CSS/JS
+# no "localhost" DELE, e a pagina vem sem estilo nenhum:
+#
+#   DEV_HOST=192.168.3.10
+#
+# A pasta do projeto e montada dentro dos containers, entao editar um arquivo
+# aqui no seu editor ja reflete no container. Nao precisa rebuildar por causa
+# de codigo — so se voce mexer no docker/Dockerfile.
+
+services:
+    # Backend: PHP + servidor embutido do Laravel (php artisan serve).
+    app:
+        build: ./docker
+        # Roda com o mesmo usuario do Linux (1000) pra que os arquivos criados
+        # dentro do container (vendor/, .env, storage/logs) nao virem "do root".
+        # Se o seu `id -u` for diferente de 1000, troque aqui.
+        user: "1000:1000"
+        environment:
+            HOME: /tmp # onde o composer guarda o cache dele
+        volumes:
+            - .:/app
+        ports:
+            - "8000:8000"
+
+    # Frontend: Vite (Tailwind + JS do Livewire/AlpineFlow) com hot reload.
+    vite:
+        image: node:22-alpine
+        working_dir: /app
+        user: "1000:1000"
+        environment:
+            HOME: /tmp # onde o npm guarda o cache dele
+            # Diz ao Vite pra escutar fora do container e informa ao navegador
+            # qual endereco usar pros assets. DEV_HOST vem do .env (veja o topo
+            # deste arquivo); sem ele, vale "localhost".
+            VITE_DEV_ORIGIN: http://${DEV_HOST:-localhost}:5173
+            # Descomente APENAS no Windows ou macOS, se o hot reload nao pegar
+            # as mudancas de arquivo (custa um pouco de CPU):
+            # VITE_POLLING: "1"
+        volumes:
+            - .:/app
+        ports:
+            - "5173:5173"
+        command: sh /app/docker/start-vite.sh

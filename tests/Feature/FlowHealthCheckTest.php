@@ -15,7 +15,13 @@ class FlowHealthCheckTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('flow-container', false);       // AlpineFlow renderizou
         $response->assertSee('x-flow-viewport', false);      // diagrama (JS) montado
-        $response->assertSee('build/assets/app', false);     // @vite (CSS/JS) no layout
+        // O @vite gera caminhos diferentes conforme o modo: dev server
+        // (resources/js/app.js, via Vite rodando) ou build (build/assets/app-*.js).
+        // O teste só precisa saber que o app.js entrou no layout.
+        $this->assertMatchesRegularExpression(
+            '#(resources/js/app\.js|build/assets/app)#',
+            $response->getContent(),
+        );
     }
 
     /** Livewire (servidor): increment muda o estado. */

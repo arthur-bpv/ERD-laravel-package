@@ -21,7 +21,8 @@ docker compose up
 
 Pronto. Abra **http://localhost:8000/schema** no navegador.
 
-Na **primeira vez** demora alguns minutos (baixa o PHP, instala o `vendor/` e o `node_modules/`).
+Na **primeira vez** demora alguns minutos: baixa as imagens (~400 MB no total, PHP e
+Node em versão Alpine) e instala o `vendor/` e o `node_modules/`.
 Depois disso sobe em **2 segundos**.
 
 Para parar: `Ctrl+C` no terminal.

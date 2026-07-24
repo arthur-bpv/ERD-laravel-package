@@ -26,6 +26,39 @@ Depois disso sobe em **2 segundos**.
 
 Para parar: `Ctrl+C` no terminal.
 
+### Instalando o Docker
+
+| Sistema | Como instalar |
+|---|---|
+| **Windows** | [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/), aceitando o WSL2. **Clone o projeto dentro do WSL** (`~/projetos`), não em `C:\` — no disco do Windows o Docker fica lentíssimo |
+| **macOS** | [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) |
+| **Ubuntu / Mint / Debian** | `curl -fsSL https://get.docker.com \| sh` |
+| **Arch / Manjaro / EndeavourOS** | `sudo pacman -S docker docker-compose` |
+| **Fedora** | `sudo dnf install docker docker-compose-plugin` |
+
+No **Linux**, depois de instalar, faltam dois passos que quase todo mundo esquece:
+
+```bash
+sudo systemctl enable --now docker    # liga o serviço (e no boot)
+sudo usermod -aG docker $USER         # usar docker sem sudo
+```
+
+E então **reinicie a sessão** (logout/login), senão dá `permission denied`.
+
+Conferindo se ficou tudo certo:
+
+```bash
+docker compose version
+```
+
+> **No Arch, não use o script `get.docker.com`** — ele só conhece distros de família
+> Debian/RedHat e falha com "unsupported distribution". Use o `pacman` da tabela acima.
+>
+> **E não troque o `apt-get` do `docker/Dockerfile` por `pacman`.** Aquele `apt-get`
+> roda *dentro* do container, que é Debian por dentro, não importa qual Linux você usa
+> no seu computador. É justamente essa a graça do Docker: o ambiente é o mesmo para
+> quem está no Arch, no Ubuntu, no Windows ou no Mac.
+
 ### O que sobe
 
 | Container | O que faz | Endereço |

@@ -32,6 +32,7 @@ Para parar: `Ctrl+C` no terminal.
 | Sistema | Como instalar |
 |---|---|
 | **Windows** | [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/), aceitando o WSL2. **Clone o projeto dentro do WSL** (`~/projetos`), não em `C:\` — no disco do Windows o Docker fica lentíssimo |
+| **Windows (mais leve)** | O [instalador do DDEV](https://ddev.com/download/) configura o WSL2 e instala o Docker CE dentro dele, dispensando o Docker Desktop — veja a nota abaixo |
 | **macOS** | [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) |
 | **Ubuntu / Mint / Debian** | `curl -fsSL https://get.docker.com \| sh` |
 | **Arch / Manjaro / EndeavourOS** | `sudo pacman -S docker docker-compose` |
@@ -51,6 +52,17 @@ Conferindo se ficou tudo certo:
 ```bash
 docker compose version
 ```
+
+> **Windows sem Docker Desktop, usando o instalador do DDEV:** baixe o **Windows
+> Installer** (`amd64`, ou `arm64` se for Snapdragon) — **não** o script `.ps1`
+> marcado como *Legacy*, que está obsoleto. Na instalação, escolha o modo
+> **Docker CE dentro do WSL2**. Terminada a instalação, **abra o terminal do Ubuntu
+> (WSL)** — não o PowerShell — e trabalhe por lá: clone o projeto em `~/projetos` e
+> rode `docker compose up`. Fora do WSL o comando `docker` não vai existir.
+>
+> Aqui o DDEV serve **apenas como instalador do Docker**. Não rode `ddev config` nem
+> `ddev start` neste projeto: o DDEV ignora o nosso `docker-compose.yml` e subiria um
+> ambiente paralelo (nginx + php-fpm + MariaDB), mais pesado e sem o Vite configurado.
 
 > **No Arch, não use o script `get.docker.com`** — ele só conhece distros de família
 > Debian/RedHat e falha com "unsupported distribution". Use o `pacman` da tabela acima.

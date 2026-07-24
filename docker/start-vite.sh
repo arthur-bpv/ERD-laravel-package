@@ -4,10 +4,14 @@
 set -e
 cd /app
 
-# O resources/js/app.js importa arquivos de dentro de vendor/ (Livewire e
-# WireFlow). Se o Vite subir antes do composer install terminar, ele quebra.
-while [ ! -d vendor/getartisanflow/wireflow ]; do
-    echo "==> Esperando o composer install terminar (container app)..."
+# Esperamos o container `app` deixar a casa pronta:
+#   - vendor/: o resources/js/app.js importa o Livewire e o WireFlow de la;
+#     subir antes disso quebra o Vite.
+#   - .env: e de onde o Vite le a APP_URL. Sem esperar, ele sobe primeiro,
+#     loga "APP_URL: undefined" e so acerta no restart — o que parece erro
+#     pra quem esta comecando, mas nao e.
+while [ ! -d vendor/getartisanflow/wireflow ] || [ ! -f .env ]; do
+    echo "==> Esperando o container app preparar vendor/ e .env..."
     sleep 3
 done
 

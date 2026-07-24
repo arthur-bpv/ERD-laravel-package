@@ -322,8 +322,12 @@
         .er-handle-r { right: -6px; }
         .er-row:hover .er-handle,
         .er-node:hover .er-handle { opacity: 1; }
-        .er-handle:hover { border-color: #4f46e5; transform: translateY(-50%) scale(1.25); opacity: 1; }
+        .er-handle:hover { border-color: #4f46e5; transform: translateY(-50%) scale(0.5); opacity: 1; }
         .flow-handle-valid { border-color: #16a34a !important; opacity: 1 !important; }
+        .flow-container {
+        --flow-edge-stroke: #58a6ff;
+        --flow-edge-stroke-width-selected: 0.5 !important;
+        }
         .flow-handle-invalid { border-color: #ef4444 !important; opacity: 1 !important; }
 
         /* ---- editor de relação (ERDPlus-like) ---- */
@@ -336,7 +340,7 @@
             background: #4f46e5; color: #fff; padding: 8px 12px; font-weight: 800; letter-spacing: .02em;
         }
         .er-ee-close {
-            border: 0; background: rgba(255,255,255,.18); color: #fff; width: 20px; height: 20px;
+            border: 0; background: rgba(255,255,255,.18); color: #fff; width: 50px; height: 50px;
             border-radius: 6px; cursor: pointer; line-height: 1; font-size: 11px;
         }
         .er-ee-close:hover { background: rgba(239,68,68,.9); }
@@ -370,7 +374,11 @@
         .er-ee-danger:hover { background: #fef2f2; }
 
         /* aresta selecionada mais evidente */
-        .flow-edge-selected path { stroke: #4f46e5 !important; }
+        .flow-edge-selected path {
+             stroke:rgb(70, 150, 229) !important; 
+             stroke-width: 2px !important;
+
+        }
 
         /* ---- legenda ---- */
         .er-legend {

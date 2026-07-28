@@ -11,11 +11,5 @@ Route::get('/health', function () {
     ]);
 });
 
-// Página de verificação visual: Livewire + Alpine + AlpineFlow + Wireflow (CSS e JS)
-Route::livewire('/flow-check', 'flow-health-check');
-
-
-Route::livewire('/board', 'Board');
-
 // Modelador de esquema de banco (ERD estilo UML, relações em pé de galinha)
 Route::livewire('/schema', App\Livewire\SchemaBoard::class);

@@ -8,14 +8,27 @@ use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 /**
- * Editor visual de esquema de banco de dados (estilo ERD / UML).
+ * Editor visual de modelo Entidade-Relacionamento.
  *
- * O estado autoritativo vive aqui no servidor em $entities/$relations. O
- * diagrama no cliente NÃO usa :sync — ele é iniciado a partir dos nodes/edges
- * calculados e, a partir daí, cada mudança é empurrada por comandos WireFlow
- * (flowAddNodes / flowUpdate / flowAddEdges / flowRemoveNodes). Esse é o
- * caminho confiável: nodes criados assim ficam registrados e arrastáveis, e
- * o flow:update aplica um patch nos dados sem destruir o DOM (wire:ignore).
+ * NOTAÇÃO — híbrida, no estilo ERDPlus:
+ *   - a entidade é uma caixa com seus atributos;
+ *   - o relacionamento é UMA aresta, com um losango no meio carregando o nome
+ *     do relacionamento (vem da notação de Chen);
+ *   - a cardinalidade fica nas pontas, em pé de galinha (notação IE).
+ *
+ * PONTOS DE CONEXÃO — a aresta é do tipo `floating`: o AlpineFlow calcula os
+ * extremos pela borda das entidades e eles deslizam sozinhos quando a caixa se
+ * move. Não existe handle fixo por coluna, então também não existe "handle
+ * ocupado" — o que limita uma conexão é a regra semântica do modelo (a
+ * entidade destino precisa ter identificador), publicada em `data.canBeParent`
+ * e lida pelo `x-flow-handle-connectable` no Blade.
+ *
+ * AUTORIDADE DO ESTADO — tudo vive aqui no servidor, em $entities/$relations.
+ * O diagrama não usa :sync; ele nasce dos nodes/edges calculados e cada mudança
+ * é empurrada por comandos WireFlow (flowAddNodes / flowUpdate / flowAddEdges /
+ * flowRemoveEdges). Arestas desenhadas com o mouse são interceptadas no cliente
+ * e recriadas aqui com id próprio (ver resources/js/app.js), para que a limpeza
+ * em cascata e o reload funcionem.
  */
 #[Layout('layouts.app')]
 class SchemaBoard extends Component
@@ -24,22 +37,54 @@ class SchemaBoard extends Component
     // para a biblioteca de diagramas do frontend, evitando renderizações pesadas do Livewire.
     use WithWireFlow;
 
-    /** 
-     * Estrutura que guarda as tabelas (entidades) no servidor.
-     * @var array<int, array{id:string,name:string,x:int,y:int,attributes:array}> 
+    /**
+     * Recuo da ponta da linha em relação à borda da entidade, em pixels.
+     *
+     * Precisa ser ZERO. O `offset` do AlpineFlow empurra o fim do traço para
+     * FORA do nó, e o símbolo é desenhado a partir dali para trás — então
+     * qualquer valor positivo vira um vão visível entre o pé de galinha e a
+     * caixa. O padrão da biblioteca (12,5px, tamanho de uma seta comum) é
+     * justamente o que causava o afastamento.
+     *
+     * Os símbolos já nascem inteiramente atrás da âncora (o viewBox vai de -40
+     * a 0 em x), então com offset 0 a ponta encosta na borda e o desenho corre
+     * por cima da linha, sem sobrar espaço nem invadir a entidade.
+     */
+    private const MARKER_OFFSET = 0;
+
+    /** Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente. */
+    private const CARDINALIDADES = [
+        'cf-one', 'cf-one-one', 'cf-zero-one',
+        'cf-many', 'cf-one-many', 'cf-zero-many',
+    ];
+
+    /** Cor padrão das relações. */
+    private const COR_RELACAO = '#64748b';
+
+    /**
+     * Estrutura que guarda as entidades (tabelas) no servidor.
+     *
+     * @var array<int, array{id:string,name:string,x:int,y:int,attributes:array}>
      */
     public array $entities = [];
 
-    /** 
-     * Estrutura que guarda os relacionamentos (linhas/arestas) no servidor.
-     * @var array<int, array{id:string,from:string,fromAttr:string,to:string,toAttr:string,childCard:string,parentCard:string}> 
+    /**
+     * Estrutura que guarda os relacionamentos (arestas) no servidor.
+     *
+     * `name` é o texto do losango; `fromAttr`/`toAttr` guardam quais colunas
+     * participam da relação, mesmo que a linha seja desenhada de borda a borda.
+     *
+     * @var array<int, array{id:string,name:string,from:string,fromAttr:string,to:string,toAttr:string,childCard:string,parentCard:string}>
      */
     public array $relations = [];
 
-    /** Contador incremental para gerar IDs únicos e estáveis para novas tabelas e colunas. */
+    /** Contador incremental para gerar IDs únicos e estáveis para novas entidades e colunas. */
     public int $seq = 0;
 
-    /** Propriedade capturada de um campo de texto (wire:model) para nomear novas tabelas. */
+    /** Contador separado para IDs de relacionamento (r1, r2, ...). */
+    public int $relSeq = 0;
+
+    /** Propriedade capturada de um campo de texto (wire:model) para nomear novas entidades. */
     public string $newEntityName = '';
 
     /**
@@ -48,7 +93,7 @@ class SchemaBoard extends Component
      */
     public function mount(): void
     {
-        // Tabelas iniciais do sistema: users, posts e comments com suas posições de tela (x, y) e colunas.
+        // Entidades iniciais do modelo, com posições de tela (x, y) e atributos.
         $this->entities = [
             [
                 'id' => 'users', 'name' => 'users', 'x' => 720, 'y' => 200,
@@ -78,132 +123,231 @@ class SchemaBoard extends Component
             ],
         ];
 
-        // Definição das linhas que conectam as chaves estrangeiras (fromAttr) às chaves primárias (toAttr).
+        // Relacionamentos do seed. O `name` é o verbo que aparece dentro do losango.
         $this->relations = [
-            ['id' => 'r1', 'from' => 'posts', 'fromAttr' => 'posts.user_id', 'to' => 'users', 'toAttr' => 'users.id', 'childCard' => 'cf-many', 'parentCard' => 'cf-one-one'],
-            ['id' => 'r2', 'from' => 'comments', 'fromAttr' => 'comments.post_id', 'to' => 'posts', 'toAttr' => 'posts.id', 'childCard' => 'cf-one-many', 'parentCard' => 'cf-one-one'],
-            ['id' => 'r3', 'from' => 'comments', 'fromAttr' => 'comments.user_id', 'to' => 'users', 'toAttr' => 'users.id', 'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one'],
+            ['id' => 'r1', 'name' => 'escreve', 'from' => 'posts', 'fromAttr' => 'posts.user_id', 'to' => 'users', 'toAttr' => 'users.id', 'childCard' => 'cf-many', 'parentCard' => 'cf-one-one'],
+            ['id' => 'r2', 'name' => 'recebe', 'from' => 'comments', 'fromAttr' => 'comments.post_id', 'to' => 'posts', 'toAttr' => 'posts.id', 'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one'],
+            ['id' => 'r3', 'name' => 'comenta', 'from' => 'comments', 'fromAttr' => 'comments.user_id', 'to' => 'users', 'toAttr' => 'users.id', 'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one'],
         ];
 
-        // Sincroniza o sequenciador com o número atual de entidades para evitar duplicidade de IDs futuros.
+        // Sincroniza os sequenciadores para evitar duplicidade de IDs futuros.
         $this->seq = count($this->entities);
+        $this->relSeq = count($this->relations);
     }
 
     // ---------------------------------------------------------------------
     // Construção de nodes/edges a partir do estado do PHP para o formato da biblioteca JS
     // ---------------------------------------------------------------------
 
-    /** 
+    /**
      * Transforma o array de entidades no formato de "Nodes" (Nós do Diagrama) que o frontend entende.
-     * @return array<int, array> 
+     *
+     * @return array<int, array>
      */
     public function buildNodes(): array
     {
-        return array_map(fn ($e) => [
-            'id' => $e['id'],
-            'position' => ['x' => $e['x'], 'y' => $e['y']],
-            'data' => ['name' => $e['name'], 'attributes' => array_values($e['attributes'])],
-        ], $this->entities);
+        return array_map(fn ($e) => $this->nodeFor($e), $this->entities);
     }
 
-    /** 
+    /**
+     * Monta um node completo, já com os metadados semânticos que o Blade usa
+     * para liberar ou bloquear conexões.
+     */
+    private function nodeFor(array $e): array
+    {
+        return [
+            'id' => $e['id'],
+            'position' => ['x' => $e['x'], 'y' => $e['y']],
+            'data' => $this->nodeData($e),
+        ];
+    }
+
+    /**
+     * Payload de `data` de um node.
+     *
+     * Além de nome e atributos, publica o estado de conexão da entidade. É esse
+     * bloco que substitui a antiga "contagem de handles": em vez de reservar um
+     * ponto físico por coluna, dizemos ao canvas o que o modelo permite.
+     *
+     *   canBeParent  — tem identificador (PK/UQ), então pode receber relação
+     *   usedAttrs    — colunas já comprometidas com alguma relação
+     *   relCount     — quantas relações tocam a entidade (só informativo na UI)
+     */
+    private function nodeData(array $e): array
+    {
+        $usadas = [];
+        $relCount = 0;
+
+        foreach ($this->relations as $r) {
+            if ($r['from'] === $e['id']) {
+                $usadas[] = $r['fromAttr'];
+                $relCount++;
+            }
+            if ($r['to'] === $e['id']) {
+                $usadas[] = $r['toAttr'];
+                $relCount++;
+            }
+        }
+
+        $temIdentificador = false;
+        foreach ($e['attributes'] as $a) {
+            if ($a['key'] === 'PK' || $a['key'] === 'UQ') {
+                $temIdentificador = true;
+                break;
+            }
+        }
+
+        return [
+            'name' => $e['name'],
+            'attributes' => array_values($e['attributes']),
+            'canBeParent' => $temIdentificador,
+            'usedAttrs' => array_values(array_unique($usadas)),
+            'relCount' => $relCount,
+        ];
+    }
+
+    /**
      * Transforma as relações internas no formato de "Edges" (Linhas/Arestas) para o frontend.
-     * @return array<int, array> 
+     *
+     * @return array<int, array>
      */
     public function buildEdges(): array
     {
         return array_map(fn ($r) => $this->edgeFor($r), $this->relations);
     }
 
-    /** 
-     * Helper de formatação visual da linha, definindo as âncoras exatas de cada coluna, 
-     * a cor, espessura e os marcadores de cardinalidade (estilo pé-de-galinha).
+    /**
+     * Monta a aresta de um relacionamento.
+     *
+     * `type: floating` faz o AlpineFlow calcular os extremos pela borda das duas
+     * entidades — a linha desliza sozinha quando a caixa é arrastada e não fica
+     * presa a um ponto fixo. `pathType` escolhe o gerador de curva usado dentro
+     * do modo floating.
+     *
+     * `label` vira o losango (é estilizado por CSS em .flow-edge-label);
+     * `labelStart`/`labelEnd` mostram as colunas de cada ponta.
+     *
+     * `interactionWidth` alarga a faixa invisível que captura o clique na linha
+     * (o padrão da biblioteca é 20px). Uma aresta de 1,6px é um alvo minúsculo
+     * para o mouse — era por isso que clicar na relação às vezes não pegava.
      */
     private function edgeFor(array $r): array
     {
         return [
             'id' => $r['id'],
             'source' => $r['from'],
-            'sourceHandle' => 's:'.$r['fromAttr'],   // Âncora de saída (Source) vinculada à coluna de origem
             'target' => $r['to'],
-            'targetHandle' => 't:'.$r['toAttr'],     // Âncora de chegada (Target) vinculada à coluna de destino
-            'type' => 'smoothstep',                  // Tipo de linha ortogonal com cantos levemente arredondados
-            'color' => '#64748b',                    // Cor cinza ardósia suave
-            'strokeWidth' => 1.6,                    // Espessura da linha
-            'markerStart' => $r['childCard'],        // Símbolo do lado da Chave Estrangeira (geralmente Muitos)
-            'markerEnd' => $r['parentCard'],         // Símbolo do lado da Chave Primária (geralmente Um)
+            'type' => 'floating',
+            'pathType' => 'smoothstep',
+            'color' => self::COR_RELACAO,
+            'strokeWidth' => 1.6,
+            'interactionWidth' => 34,
+            'label' => $r['name'],
+            'labelStart' => $this->nomeCurto($r['fromAttr']),
+            'labelEnd' => $this->nomeCurto($r['toAttr']),
+            'markerStart' => $this->marker($r['childCard']),   // lado filho (FK) — normalmente "muitos"
+            'markerEnd' => $this->marker($r['parentCard']),    // lado pai (PK) — normalmente "um"
+            // ids completos das colunas — o editor de relacionamento usa isto
+            // para popular o seletor de coluna de cada ponta (labelStart/End
+            // só trazem o nome curto, sem o prefixo da tabela).
+            'data' => [
+                'fromAttr' => $r['fromAttr'],
+                'toAttr' => $r['toAttr'],
+            ],
         ];
     }
 
+    /**
+     * Descreve um marcador de cardinalidade como array em vez de string.
+     *
+     * Passar só o nome ('cf-many') deixaria o AlpineFlow aplicar o recuo padrão
+     * de 12,5px na ponta da linha, abrindo um vão entre o símbolo e a caixa da
+     * entidade. Com o offset explícito em zero, o pé de galinha encosta.
+     */
+    private function marker(string $tipo): array
+    {
+        return [
+            'type' => $tipo,
+            'offset' => self::MARKER_OFFSET,
+            'color' => self::COR_RELACAO,
+        ];
+    }
+
+    /** 'posts.user_id' → 'user_id' (o que aparece na ponta da linha). */
+    private function nomeCurto(string $attrId): string
+    {
+        $pos = strrpos($attrId, '.');
+
+        return $pos === false ? $attrId : substr($attrId, $pos + 1);
+    }
+
     // ---------------------------------------------------------------------
-    // Ações — Entidades (Tabelas)
+    // Ações — Entidades
     // ---------------------------------------------------------------------
 
     /**
-     * Cria uma nova tabela no banco de dados e notifica o editor visual no frontend.
-     */ 
-    
+     * Cria uma nova entidade e notifica o editor visual no frontend.
+     */
     public function createEntity(): void
     {
-        $name = trim($this->newEntityName) ?: 'nova_tabela';
+        $name = trim($this->newEntityName) ?: 'nova_entidade';
         $id = 'e'.(++$this->seq);
 
-        // Aplica um deslocamento em cascata (escada) baseado no total de tabelas.
-        // Isso evita que novas tabelas nasçam exatamente umas por cima das outras no canto da tela.
-        $offset = 40 + (count($this->entities) % 6) * 26;
+        // Grade de 4 colunas, começando abaixo do seed inicial. A entidade
+        // (.er-node) tem 232px de largura — um passo de 26px em cascata
+        // (o esquema anterior) deixava ~90% de sobreposição entre duas
+        // caixas consecutivas, cobrindo fisicamente os handles da mais nova.
+        // 280x220 garante folga real entre as caixas.
+        $indice = count($this->entities);
+        $coluna = $indice % 4;
+        $linha = intdiv($indice, 4);
 
         $entity = [
             'id' => $id,
             'name' => $name,
-            'x' => $offset,
-            'y' => $offset,
+            'x' => 40 + $coluna * 280,
+            'y' => 380 + $linha * 220,
             'attributes' => [
-                ['id' => $id.'.id', 'name' => 'id', 'type' => 'bigint', 'key' => 'PK'], // Toda tabela padrão já inicia com uma PK 'id'
+                ['id' => $id.'.id', 'name' => 'id', 'type' => 'bigint', 'key' => 'PK'], // toda entidade nasce identificada
             ],
         ];
 
-        // Adiciona ao estado local do servidor
         $this->entities[] = $entity;
-        $this->newEntityName = ''; // Limpa o input de texto do formulário
+        $this->newEntityName = ''; // limpa o input do formulário
 
-        // Envia uma instrução direta via JS (pipeline AlpineFlow) para renderizar dinamicamente o nó na tela de forma interativa.
-        $this->flowAddNodes([[
-            'id' => $entity['id'],
-            'position' => ['x' => $entity['x'], 'y' => $entity['y']],
-            'data' => ['name' => $entity['name'], 'attributes' => array_values($entity['attributes'])],
-        ]]);
+        // Renderiza o nó dinamicamente, já registrado e arrastável.
+        $this->flowAddNodes([$this->nodeFor($entity)]);
     }
 
     /**
-     * Apaga uma tabela inteira e limpa em cascata qualquer relacionamento associado a ela.
+     * Apaga uma entidade e limpa em cascata os relacionamentos que a tocam.
      */
     public function deleteEntity(string $id): void
     {
-        // Filtra o array removendo a entidade correspondente ao ID informado
         $this->entities = array_values(array_filter($this->entities, fn ($e) => $e['id'] !== $id));
 
-        // Procura no array de relações por qualquer linha que encoste nessa tabela (origem ou destino)
-        $removed = [];
+        // Toda relação que encosta nessa entidade (como origem ou destino) morre junto.
+        $removidas = [];
         foreach ($this->relations as $r) {
             if ($r['from'] === $id || $r['to'] === $id) {
-                $removed[] = $r['id'];
+                $removidas[] = $r['id'];
             }
         }
-        
-        // Remove as relações identificadas do estado do servidor
-        $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $removed, true)));
 
-        // Se houveram linhas afetadas, ordena o frontend a apagá-las visualmente da tela
-        if ($removed) {
-            $this->flowRemoveEdges($removed);
+        $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $removidas, true)));
+
+        if ($removidas) {
+            $this->flowRemoveEdges($removidas);
         }
-        
-        // Ordena o frontend a apagar a caixa (nó) da tabela da tela
+
         $this->flowRemoveNodes([$id]);
+
+        // As entidades que sobraram podem ter liberado colunas — republica o estado.
+        $this->syncNodeData();
     }
 
     /**
-     * Altera o nome de uma tabela específica.
+     * Altera o nome de uma entidade.
      */
     public function renameEntity(string $id, string $name): void
     {
@@ -211,71 +355,73 @@ class SchemaBoard extends Component
         if ($name === '') {
             return;
         }
-        
-        // Executa a mutação de alteração usando a função utilitária 'mutateEntity'
+
         $this->mutateEntity($id, function (&$e) use ($name) {
             $e['name'] = $name;
         });
     }
 
     // ---------------------------------------------------------------------
-    // Ações — Atributos (Colunas)
+    // Ações — Atributos
     // ---------------------------------------------------------------------
 
     /**
-     * Adiciona uma nova coluna (atributo) dentro de uma tabela pré-existente.
+     * Adiciona um atributo dentro de uma entidade existente.
      */
     public function addAttribute(string $entityId, string $name = '', string $type = 'varchar', string $key = ''): void
     {
         $name = trim($name) ?: 'coluna';
-        
-        // Acessa a entidade via callback e injeta a nova coluna no array interno de attributes
+
         $this->mutateEntity($entityId, function (&$e) use ($entityId, $name, $type, $key) {
-            $attrId = $entityId.'.'.$name.'_'.(++$this->seq); // Concatena IDs e sequência para chaves de mapeamento únicas
+            $attrId = $entityId.'.'.$name.'_'.(++$this->seq); // sequência garante unicidade mesmo com nomes repetidos
             $e['attributes'][] = [
                 'id' => $attrId,
                 'name' => $name,
                 'type' => $type ?: 'varchar',
-                'key' => in_array($key, ['PK', 'FK', 'UQ'], true) ? $key : '', // Bloqueia valores inválidos fora desse escopo
+                'key' => in_array($key, ['PK', 'FK', 'UQ'], true) ? $key : '', // barra valor fora do escopo
             ];
         });
     }
 
     /**
-     * Exclui uma coluna e limpa linhas de relacionamento órfãs vinculadas a ela.
+     * Exclui um atributo e limpa relacionamentos que dependiam dele.
      */
     public function removeAttribute(string $entityId, string $attrId): void
     {
-        // Remove o atributo de dentro da lista da tabela no servidor
         $this->mutateEntity($entityId, function (&$e) use ($attrId) {
             $e['attributes'] = array_values(array_filter($e['attributes'], fn ($a) => $a['id'] !== $attrId));
         });
 
-        // Encontra e remove quaisquer relacionamentos construídos a partir desta coluna específica
-        $removed = [];
+        $removidas = [];
         foreach ($this->relations as $r) {
             if ($r['fromAttr'] === $attrId || $r['toAttr'] === $attrId) {
-                $removed[] = $r['id'];
+                $removidas[] = $r['id'];
             }
         }
-        if ($removed) {
-            $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $removed, true)));
-            $this->flowRemoveEdges($removed); // Notifica o JS para apagar a linha conectora visualmente
+
+        if ($removidas) {
+            $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $removidas, true)));
+            $this->flowRemoveEdges($removidas);
+            $this->syncNodeData();
         }
     }
 
-    /** 
-     * Alterna ciclicamente o marcador de restrição (Chave) da coluna:
-     * Campo comum (Vazio) -> Primary Key (PK) -> Foreign Key (FK) -> Unique Key (UQ) -> retorna ao Vazio.
+    /**
+     * Alterna ciclicamente a restrição da coluna:
+     * comum (vazio) → PK → FK → UQ → volta ao vazio.
+     *
+     * Como PK/UQ definem se a entidade pode receber relacionamento, o ciclo
+     * republica o estado de todos os nodes ao final.
      */
     public function cycleKey(string $entityId, string $attrId): void
     {
-        $order = ['', 'PK', 'FK', 'UQ']; // Lista circular ordenada
+        $order = ['', 'PK', 'FK', 'UQ']; // lista circular
+
         $this->mutateEntity($entityId, function (&$e) use ($attrId, $order) {
             foreach ($e['attributes'] as &$a) {
                 if ($a['id'] === $attrId) {
                     $i = array_search($a['key'], $order, true);
-                    // Usa a operação matemática de Módulo (%) para que ao passar do último item, ele retorne para o índice 0
+                    // O módulo faz o índice voltar a 0 depois do último item.
                     $a['key'] = $order[($i === false ? 0 : $i + 1) % count($order)];
                     break;
                 }
@@ -284,26 +430,176 @@ class SchemaBoard extends Component
     }
 
     // ---------------------------------------------------------------------
-    // Ações — Relações e Sincronização do Frontend
+    // Ações — Relacionamentos
     // ---------------------------------------------------------------------
 
-    /*
-     * Observação sobre criação de relações:
-     * O AlpineFlow já cria a aresta no cliente quando o usuário arrasta de uma
-     * coluna (handle source, à direita) até outra (handle target, à esquerda),
-     * aplicando o `defaultEdgeOptions` — ou seja, a relação nasce em pé de
-     * galinha sem ida ao servidor. Por isso NÃO tratamos @connect aqui: isso
-     * geraria uma aresta duplicada. O estado semente ($relations) serve para
-     * montar o diagrama inicial e limpar arestas ao remover colunas/entidades.
+    /**
+     * Chega aqui quando o usuário desenha uma conexão no canvas.
+     *
+     * A aresta provisória que o AlpineFlow criou já foi descartada no cliente
+     * (ver resources/js/app.js), então aqui nascemos a relação de verdade, com
+     * id do servidor, e a devolvemos pronta para a tela.
+     *
+     * As colunas são escolhidas automaticamente porque a conexão é feita de
+     * entidade para entidade — o usuário refina depois no painel lateral.
      */
+    public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
+    {
+        $origem = $this->findEntity($source);
+        $destino = $this->findEntity($target);
 
-    /** 
-     * Ouvinte de Evento disparado pelo frontend via JavaScript assim que o usuário 
-     * solta o clique após arrastar uma tabela (nó) para outro ponto do painel.
+        if (! $origem || ! $destino) {
+            return;
+        }
+
+        // Regra do modelo: só é possível referenciar quem tem identificador.
+        $pk = $this->identificadorDe($destino);
+        if ($pk === null) {
+            return;
+        }
+
+        // Reaproveita (ou cria) a coluna que carrega a chave estrangeira.
+        $fk = $this->garantirColunaFk($origem['id'], $destino);
+
+        $id = 'r'.(++$this->relSeq);
+
+        $relacao = [
+            'id' => $id,
+            'name' => 'relaciona',
+            'from' => $origem['id'],
+            'fromAttr' => $fk,
+            'to' => $destino['id'],
+            'toAttr' => $pk,
+            'childCard' => 'cf-many',      // o lado da FK costuma ser "muitos"
+            'parentCard' => 'cf-one-one',  // o lado da PK costuma ser "um e só um"
+        ];
+
+        $this->relations[] = $relacao;
+
+        $this->flowAddEdges([$this->edgeFor($relacao)]);
+        $this->syncNodeData();
+    }
+
+    /**
+     * Troca o símbolo de cardinalidade de uma das pontas.
+     *
+     * @param  string  $end  'child' (lado FK) ou 'parent' (lado PK)
+     */
+    public function setCardinality(string $relationId, string $end, string $marker): void
+    {
+        if (! in_array($marker, self::CARDINALIDADES, true)) {
+            return;
+        }
+
+        $campo = $end === 'parent' ? 'parentCard' : 'childCard';
+
+        $this->mutateRelation($relationId, function (&$r) use ($campo, $marker) {
+            $r[$campo] = $marker;
+        });
+    }
+
+    /**
+     * Renomeia o relacionamento — é o texto que aparece dentro do losango.
+     */
+    public function renameRelation(string $relationId, string $name): void
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return;
+        }
+
+        foreach ($this->relations as &$r) {
+            if ($r['id'] === $relationId) {
+                $r['name'] = $name;
+
+                // `label` é uma das poucas propriedades de aresta que o
+                // flowUpdate consegue alterar in-place, sem recriar a linha.
+                $this->flowUpdate(['edges' => [$relationId => ['label' => $name]]]);
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * Inverte a direção do relacionamento (quem é pai vira filho).
+     */
+    public function swapRelation(string $relationId): void
+    {
+        $this->mutateRelation($relationId, function (&$r) {
+            [$r['from'], $r['to']] = [$r['to'], $r['from']];
+            [$r['fromAttr'], $r['toAttr']] = [$r['toAttr'], $r['fromAttr']];
+            [$r['childCard'], $r['parentCard']] = [$r['parentCard'], $r['childCard']];
+        });
+
+        $this->syncNodeData();
+    }
+
+    /**
+     * Remove um relacionamento.
+     */
+    public function deleteRelation(string $relationId): void
+    {
+        $this->relations = array_values(array_filter($this->relations, fn ($r) => $r['id'] !== $relationId));
+
+        $this->flowRemoveEdges([$relationId]);
+        $this->syncNodeData();
+    }
+
+    /**
+     * Troca qual coluna participa de uma das pontas do relacionamento.
+     *
+     * @param  string  $end  'from' (coluna FK) ou 'to' (coluna referenciada)
+     */
+    public function setRelationAttr(string $relationId, string $end, string $attrId): void
+    {
+        $relacao = null;
+        foreach ($this->relations as $r) {
+            if ($r['id'] === $relationId) {
+                $relacao = $r;
+                break;
+            }
+        }
+
+        if ($relacao === null) {
+            return;
+        }
+
+        $campo = $end === 'to' ? 'toAttr' : 'fromAttr';
+
+        // A coluna precisa pertencer à entidade daquela ponta — sem isso um
+        // cliente poderia apontar a relação para uma coluna de outra tabela.
+        $entidade = $this->findEntity($end === 'to' ? $relacao['to'] : $relacao['from']);
+        if (! $entidade) {
+            return;
+        }
+
+        $pertence = false;
+        foreach ($entidade['attributes'] as $a) {
+            if ($a['id'] === $attrId) {
+                $pertence = true;
+                break;
+            }
+        }
+
+        if (! $pertence) {
+            return;
+        }
+
+        $this->mutateRelation($relationId, function (&$r) use ($campo, $attrId) {
+            $r[$campo] = $attrId;
+        });
+
+        $this->syncNodeData();
+    }
+
+    /**
+     * Ouvinte disparado pelo frontend quando o usuário solta uma entidade
+     * em outro ponto do painel.
      */
     public function onNodeDragEnd(string $nodeId, array $position): void
     {
-        // Encontra a tabela no servidor e atualiza suas coordenadas cartesianas (X, Y) persistindo o novo design visual.
+        // Persiste as coordenadas para que o layout sobreviva a um reload.
         foreach ($this->entities as &$e) {
             if ($e['id'] === $nodeId) {
                 $e['x'] = (int) round($position['x'] ?? $e['x']);
@@ -314,32 +610,161 @@ class SchemaBoard extends Component
     }
 
     // ---------------------------------------------------------------------
-    // Helper: Muta uma entidade e sincroniza o node no cliente via patch.
+    // Helpers internos
     // ---------------------------------------------------------------------
 
+    /** Busca uma entidade pelo id. */
+    private function findEntity(string $id): ?array
+    {
+        foreach ($this->entities as $e) {
+            if ($e['id'] === $id) {
+                return $e;
+            }
+        }
+
+        return null;
+    }
+
+    /** Devolve o id da coluna identificadora da entidade (PK, ou UQ como alternativa). */
+    private function identificadorDe(array $entity): ?string
+    {
+        foreach ($entity['attributes'] as $a) {
+            if ($a['key'] === 'PK') {
+                return $a['id'];
+            }
+        }
+
+        foreach ($entity['attributes'] as $a) {
+            if ($a['key'] === 'UQ') {
+                return $a['id'];
+            }
+        }
+
+        return null;
+    }
+
     /**
-     * Função utilitária centralizada que executa modificações em tabelas.
-     * Ela aplica a lógica recebida por parâmetro ($fn) e dispara automaticamente um comando de Patch parcial
-     * para o frontend atualizar o conteúdo interno do nó na tela de forma limpa e otimizada.
+     * Garante que a entidade filha tenha uma coluna para carregar a chave
+     * estrangeira, e devolve o id dela.
+     *
+     * Primeiro procura uma FK livre já chamada `{destino}_id`; se não achar,
+     * cria a coluna. Assim desenhar a relação não sequestra uma coluna que já
+     * significava outra coisa.
+     */
+    private function garantirColunaFk(string $entityId, array $destino): string
+    {
+        $desejado = $destino['name'].'_id';
+
+        // Colunas já comprometidas com alguma relação existente.
+        $ocupadas = [];
+        foreach ($this->relations as $r) {
+            if ($r['from'] === $entityId) {
+                $ocupadas[] = $r['fromAttr'];
+            }
+        }
+
+        $origem = $this->findEntity($entityId);
+        foreach ($origem['attributes'] as $a) {
+            if ($a['name'] === $desejado && $a['key'] !== 'PK' && ! in_array($a['id'], $ocupadas, true)) {
+                return $a['id'];
+            }
+        }
+
+        // Nenhuma candidata livre — cria a coluna FK.
+        $attrId = $entityId.'.'.$desejado.'_'.(++$this->seq);
+
+        foreach ($this->entities as &$e) {
+            if ($e['id'] === $entityId) {
+                $e['attributes'][] = [
+                    'id' => $attrId,
+                    'name' => $desejado,
+                    'type' => 'bigint',
+                    'key' => 'FK',
+                ];
+                break;
+            }
+        }
+
+        return $attrId;
+    }
+
+    /**
+     * Aplica uma modificação numa entidade e sincroniza o node no cliente.
+     *
+     * O patch (flowUpdate) troca só os dados do nó, sem mexer na posição e sem
+     * destruir o DOM protegido por wire:ignore.
      */
     private function mutateEntity(string $id, callable $fn): void
     {
         foreach ($this->entities as &$e) {
             if ($e['id'] === $id) {
-                $fn($e); // Executa a função anônima de alteração (ex: adicionar colunas, redefinir chaves ou renomear)
-                
-                // Envia um patch incremental (flowUpdate) apenas com os novos dados de nomes e atributos, 
-                // sem mexer na posição geográfica do nó e preservando a estrutura HTML da tela.
-                $this->flowUpdate(['nodes' => [$id => [
-                    'data' => ['name' => $e['name'], 'attributes' => array_values($e['attributes'])],
-                ]]]);
+                $fn($e);
+                $this->flowUpdate(['nodes' => [$id => ['data' => $this->nodeData($e)]]]);
+
                 return;
             }
         }
     }
 
-    /** 
-     * Renderiza o template Blade do componente, injetando as coleções de dados iniciais.
+    /**
+     * Aplica uma modificação num relacionamento e redesenha a aresta.
+     *
+     * Recriar em vez de dar patch é obrigatório aqui: o update() do AlpineFlow
+     * só altera color, strokeWidth, label, animated e class numa aresta — trocar
+     * marcador, tipo ou pontas exige remover e adicionar de novo (mesmo id).
+     *
+     * NÃO usamos flowRemoveEdges()+flowAddEdges() diretamente. Os dois
+     * despacham eventos Livewire separados, mas chegam na MESMA resposta
+     * HTTP e o bridge do WireFlow os processa um atrás do outro, no mesmo
+     * ciclo síncrono do Alpine — sem nenhum "tick" real entre a remoção e a
+     * adição. Isolei isso rodando as duas chamadas direto no console do
+     * navegador (sem Livewire): o array reativo `edges` fica correto (dá pra
+     * conferir lendo `$flow.edges`), mas o elemento SVG que já existia para
+     * aquele id é reaproveitado sem reavaliar o `marker-start`/`marker-end`
+     * — o desenho da cardinalidade fica "grudado" no símbolo antigo mesmo com
+     * o dado certo por trás. Inserir um `requestAnimationFrame` duplo entre
+     * as duas chamadas resolve (testado manualmente), mas PHP não tem como
+     * esperar um frame do navegador no meio de uma resposta.
+     *
+     * Por isso despachamos um único evento customizado (`erd-rebuild-edge`)
+     * e quem faz o remove → aguarda dois frames → add é o JS, em
+     * erd/edge-editor.js. O servidor continua sendo autoridade do dado; só
+     * a orquestração de timing do redesenho passou para o cliente.
+     */
+    private function mutateRelation(string $id, callable $fn, bool $manterSelecionada = true): void
+    {
+        foreach ($this->relations as &$r) {
+            if ($r['id'] === $id) {
+                $fn($r);
+
+                $this->dispatch('erd-rebuild-edge', edge: $this->edgeFor($r), select: $manterSelecionada);
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * Republica `data` de todas as entidades.
+     *
+     * Chamado sempre que o conjunto de relações muda, porque isso altera quais
+     * colunas estão comprometidas e, por tabela, se a entidade ainda pode
+     * receber uma nova ligação.
+     */
+    private function syncNodeData(): void
+    {
+        $patch = [];
+        foreach ($this->entities as $e) {
+            $patch[$e['id']] = ['data' => $this->nodeData($e)];
+        }
+
+        if ($patch) {
+            $this->flowUpdate(['nodes' => $patch]);
+        }
+    }
+
+    /**
+     * Renderiza o template Blade do componente, injetando as coleções iniciais.
      */
     public function render(): View
     {

@@ -4,8 +4,8 @@
     <header class="flex flex-wrap items-center gap-4 border-b border-slate-200 bg-white px-6 py-3 shadow-sm">
         <div class="flex items-center gap-2">
             <span class="text-xl">🗂️</span>
-            <h1 class="text-lg font-bold">Modelador de Esquema</h1>
-            <span class="hidden text-sm text-slate-400 sm:inline">— entidades, atributos e relações (pé de galinha)</span>
+            <h1 class="text-lg font-bold">Modelador Entidade-Relacionamento</h1>
+            <span class="hidden text-sm text-slate-400 sm:inline">— entidades, atributos e relacionamentos</span>
         </div>
 
         {{-- criar entidade (fica no DOM do Livewire, wire:model/wire:click funcionam) --}}
@@ -13,7 +13,7 @@
             <input
                 type="text"
                 wire:model="newEntityName"
-                placeholder="nome_da_tabela"
+                placeholder="nome_da_entidade"
                 class="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
             <button
@@ -37,26 +37,90 @@
             :controls="true"
             :minimap="true"
             background="dots"
-            default-edge-type="smoothstep"
+            default-edge-type="floating"
             :config="[
-                // Toda relação criada arrastando já nasce em pé de galinha (1:N).
-                'defaultEdgeOptions' => [
-                    'type' => 'smoothstep',
-                    'color' => '#64748b',
+                // easyConnect: segurando Alt dá para arrastar de QUALQUER ponto do
+                // corpo da entidade — o AlpineFlow acha o handle mais próximo. É o
+                // que dispensa ter um ponto de conexão fixo por coluna.
+                'easyConnect' => true,
+                'easyConnectKey' => 'alt',
+
+                // loose: qualquer handle conecta em qualquer handle, então a rigidez
+                // origem-à-direita / destino-à-esquerda deixa de existir.
+                'connectionMode' => 'loose',
+
+                // Raio de detecção do handle mais próximo no SOLTAR (drop), não
+                // tem relação com o traçado da linha (esse é calculado à parte,
+                // pela borda da entidade, por causa do tipo `floating`).
+                // 60px só alcança bem perto do pontinho de 13px em si — soltar
+                // no meio de uma caixa de 232px de largura ficava fora do raio
+                // e a conexão simplesmente não se formava. 160px cobre soltar
+                // em qualquer ponto do corpo de uma entidade típica.
+                'connectionSnapRadius' => 160,
+
+                'connectionLineType' => 'smoothstep',
+                'connectionLineStyle' => [
+                    'stroke' => '#6366f1',
                     'strokeWidth' => 1.6,
-                    'markerStart' => 'cf-many',
-                    'markerEnd' => 'cf-one-one',
+                    'strokeDasharray' => '6 3',
                 ],
             ]"
+            @connect="onConnect"
             @node-drag-end="onNodeDragEnd"
             style="width: 100%; height: 100%;"
         >
             <x-slot:node>
-                {{-- ================= ENTIDADE (tabela) ================= --}}
+                {{-- ================= ENTIDADE ================= --}}
                 <div class="er-node" :data-id="node.id">
 
+                    {{--
+                        8 pontos de conexão: 4 `source` nos lados (iniciam o
+                        arrasto) + 4 `target` nos cantos (recebem o solto).
+
+                        Duas tentativas anteriores erraram aqui:
+
+                        1ª: um par source+target empilhado exatamente na mesma
+                        posição em cada lado. O `target` vinha depois no DOM e
+                        ficava por cima, roubando todo clique — e um handle
+                        `target` sozinho só reage quando já existe uma conexão
+                        pendente (clique-para-completar). Sem isso, o clique
+                        atravessava pro node e arrastava a entidade inteira.
+
+                        2ª: um único handle `source` por lado, apostando que
+                        `connectionMode: 'loose'` bastaria para ele também
+                        servir de destino. A busca de proximidade (Vt, usada
+                        durante o arrasto) até respeita loose e acha handles
+                        `source` como alvo — mas o CÓDIGO DE SOLTAR tem um
+                        fallback (`elementFromPoint(...).closest('[data-flow-
+                        handle-type="target"]')`) fixo em "target", ignorando
+                        loose. Sem handle target nenhum, essa via de finalizar
+                        a conexão nunca encontra nada.
+
+                        A saída é manter os dois tipos, só que em posições
+                        DIFERENTES: `source` no meio de cada lado (top/right/
+                        bottom/left), `target` nos 4 cantos (a diretiva aceita
+                        dois modificadores de posição juntos — `.top.left`
+                        vira o canto "top-left"). Nada mais se sobrepõe.
+
+                        `connectable.end` só entra nos `target`: lê
+                        node.data.canBeParent — entidade sem PK/UQ recusa a
+                        conexão antes mesmo de ir ao servidor.
+                    --}}
+                    {{-- escritos um a um porque o modificador de posição (.top, .right...)
+                         faz parte do nome da diretiva — Alpine não aceita modificador
+                         vindo de variável, então um x-for não daria conta. --}}
+                    <div class="er-anchor er-anchor-top"    x-flow-handle:source.top="'top'"></div>
+                    <div class="er-anchor er-anchor-right"  x-flow-handle:source.right="'right'"></div>
+                    <div class="er-anchor er-anchor-bottom" x-flow-handle:source.bottom="'bottom'"></div>
+                    <div class="er-anchor er-anchor-left"   x-flow-handle:source.left="'left'"></div>
+
+                    <div class="er-anchor er-anchor-tl" x-flow-handle:target.top.left="'tl'"     x-flow-handle-connectable.end="node.data.canBeParent"></div>
+                    <div class="er-anchor er-anchor-tr" x-flow-handle:target.top.right="'tr'"    x-flow-handle-connectable.end="node.data.canBeParent"></div>
+                    <div class="er-anchor er-anchor-bl" x-flow-handle:target.bottom.left="'bl'"  x-flow-handle-connectable.end="node.data.canBeParent"></div>
+                    <div class="er-anchor er-anchor-br" x-flow-handle:target.bottom.right="'br'" x-flow-handle-connectable.end="node.data.canBeParent"></div>
+
                     {{-- cabeçalho: nome da entidade --}}
-                    <div class="er-head">
+                    <div class="er-head" :class="{ 'is-orphan': !node.data.canBeParent }">
                         <span class="er-head-icon">▦</span>
                         <span
                             class="er-head-name"
@@ -67,6 +131,9 @@
                             "
                             title="Duplo clique para renomear"
                         ></span>
+                        <span class="er-head-rels" x-show="node.data.relCount > 0"
+                              x-text="node.data.relCount"
+                              title="Relacionamentos ligados a esta entidade"></span>
                         <button
                             class="er-head-del nodrag"
                             title="Excluir entidade"
@@ -74,13 +141,19 @@
                         >✕</button>
                     </div>
 
-                    {{-- linhas: atributos (colunas) --}}
+                    {{-- aviso: sem identificador a entidade não pode receber relação --}}
+                    <div class="er-warn" x-show="!node.data.canBeParent" x-cloak>
+                        sem PK/UQ — não pode ser referenciada
+                    </div>
+
+                    {{-- linhas: atributos --}}
                     <div class="er-rows">
                         <template x-for="attr in node.data.attributes" :key="attr.id">
-                            <div class="er-row" :class="{ 'is-pk': attr.key === 'PK' }">
-
-                                {{-- handle de destino (recebe relação), à esquerda da linha --}}
-                                <div class="er-handle er-handle-l" x-flow-handle:target.left="'t:' + attr.id"></div>
+                            <div class="er-row"
+                                 :class="{
+                                     'is-pk': attr.key === 'PK',
+                                     'is-used': node.data.usedAttrs.includes(attr.id),
+                                 }">
 
                                 {{-- coluna curta de chave (PK/FK/UQ) --}}
                                 <button
@@ -97,6 +170,11 @@
                                 {{-- nome do atributo --}}
                                 <span class="er-attr-name" x-text="attr.name"></span>
 
+                                {{-- marca discreta de atributo que participa de alguma relação --}}
+                                <span class="er-attr-link"
+                                      x-show="node.data.usedAttrs.includes(attr.id)"
+                                      title="Participa de um relacionamento">⛓</span>
+
                                 {{-- tipo do atributo --}}
                                 <span class="er-attr-type" x-text="attr.type"></span>
 
@@ -106,9 +184,6 @@
                                     title="Remover coluna"
                                     @click="$wire.removeAttribute(node.id, attr.id)"
                                 >✕</button>
-
-                                {{-- handle de origem (inicia relação), à direita da linha --}}
-                                <div class="er-handle er-handle-r" x-flow-handle:source.right="'s:' + attr.id"></div>
                             </div>
                         </template>
                     </div>
@@ -143,16 +218,48 @@
                 </div>
             </x-slot:node>
 
-            {{-- ================= EDITOR DE RELAÇÃO (estilo ERDPlus) ================= --}}
-            {{-- Clique numa aresta → o painel aparece e edita a cardinalidade de cada ponta. --}}
-            <x-flow-panel position="top-right" class="er-edge-editor" x-data="erdEdgeEditor"
-                          x-effect="e = ($flow?.edges || []).find(x => x.selected) || null">
+            {{--
+                Painel invisível que só existe para hospedar o erdCanvas.
+
+                Ele precisa estar DENTRO do <x-flow> porque se inscreve no store do
+                AlpineFlow ($flow.on) para descartar a aresta provisória criada pelo
+                arrasto — quem grava a relação de verdade é o servidor.
+            --}}
+            <x-flow-panel position="top-left" class="er-hidden-host" x-data="erdCanvas"></x-flow-panel>
+
+            {{-- ================= EDITOR DE RELACIONAMENTO ================= --}}
+            {{--
+                Clique ESQUERDO sobre a relação abre este painel flutuante,
+                ancorado no cursor.
+
+                `x-flow-context-menu` (usado antes) só reage a botão direito —
+                é assim que a biblioteca implementa esse componente, não dá pra
+                trocar por prop. Em vez dele, ouvimos o evento nativo
+                `edge-click` direto no store do AlpineFlow (mesmo mecanismo
+                que erdCanvas já usa para `connect`) e controlamos a posição e
+                a visibilidade do painel nós mesmos.
+            --}}
+            <div
+                x-data="erdEdgeEditor"
+                x-show="open"
+                x-cloak
+                class="er-edge-editor"
+                :style="`left:${panelX}px; top:${panelY}px;`"
+                @click.outside="close()"
+                @keydown.escape.window="close()"
+            >
                 <template x-if="e">
                     <div>
                         <div class="er-ee-head">
-                            <span>Relação</span>
-                            <button class="er-ee-close" title="Fechar" @click="$flow.deselectAll(); e = null">✕</button>
+                            <span>Relacionamento</span>
+                            <button class="er-ee-close" title="Fechar" @click="close()">✕</button>
                         </div>
+
+                        {{-- nome que aparece dentro do losango --}}
+                        <button class="er-ee-name nodrag" @click="rename()" title="Clique para renomear">
+                            <span class="er-ee-diamond" x-text="e.label || 'sem nome'"></span>
+                        </button>
+
                         <div class="er-ee-path">
                             <span class="er-ee-tag" x-text="e.source"></span>
                             <span class="er-ee-arrow">→</span>
@@ -161,34 +268,60 @@
 
                         {{-- ponta ORIGEM (filho / FK) = markerStart --}}
                         <div class="er-ee-end">
-                            <div class="er-ee-label">Origem <em x-text="'(' + e.source + ')'"></em></div>
+                            <div class="er-ee-label">
+                                Origem <em x-text="'(' + e.source + '.' + (e.labelStart || '?') + ')'"></em>
+                            </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'s'+o.m">
                                     <button
                                         class="er-ee-opt"
-                                        :class="{ 'is-active': e.markerStart === o.m }"
+                                        :class="{ 'is-active': tipo(e.markerStart) === o.m }"
                                         :title="o.t"
                                         @click="setEnd('markerStart', o.m)"
                                         x-html="o.s"
                                     ></button>
                                 </template>
                             </div>
+                            {{-- coluna que carrega a FK dentro da entidade de origem --}}
+                            <select
+                                class="er-ee-col nodrag"
+                                @pointerdown.stop
+                                x-model="e.data.fromAttr"
+                                @change="setAttr('from', $event.target.value)"
+                            >
+                                <template x-for="a in attrsOf(e.source)" :key="a.id">
+                                    <option :value="a.id" x-text="a.name"></option>
+                                </template>
+                            </select>
                         </div>
 
                         {{-- ponta DESTINO (pai / PK) = markerEnd --}}
                         <div class="er-ee-end">
-                            <div class="er-ee-label">Destino <em x-text="'(' + e.target + ')'"></em></div>
+                            <div class="er-ee-label">
+                                Destino <em x-text="'(' + e.target + '.' + (e.labelEnd || '?') + ')'"></em>
+                            </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'t'+o.m">
                                     <button
                                         class="er-ee-opt"
-                                        :class="{ 'is-active': e.markerEnd === o.m }"
+                                        :class="{ 'is-active': tipo(e.markerEnd) === o.m }"
                                         :title="o.t"
                                         @click="setEnd('markerEnd', o.m)"
                                         x-html="o.s"
                                     ></button>
                                 </template>
                             </div>
+                            {{-- coluna referenciada (normalmente a PK) na entidade de destino --}}
+                            <select
+                                class="er-ee-col nodrag"
+                                @pointerdown.stop
+                                x-model="e.data.toAttr"
+                                @change="setAttr('to', $event.target.value)"
+                            >
+                                <template x-for="a in attrsOf(e.target)" :key="a.id">
+                                    <option :value="a.id" x-text="a.name"></option>
+                                </template>
+                            </select>
                         </div>
 
                         <div class="er-ee-actions">
@@ -197,198 +330,39 @@
                         </div>
                     </div>
                 </template>
-            </x-flow-panel>
+            </div>
 
-            {{-- ================= LEGENDA (pé de galinha) ================= --}}
-            <x-flow-panel position="bottom-left" class="er-legend">
-                <div class="er-legend-title">Cardinalidade (IE / pé de galinha)</div>
-                <div class="er-legend-grid">
-                    <div><span class="er-sym">&#8214;</span> um e só um</div>
-                    <div><span class="er-sym">&#9711;&#8739;</span> zero ou um</div>
-                    <div><span class="er-sym">&lt;</span> muitos</div>
-                    <div><span class="er-sym">&#8739;&lt;</span> um ou muitos</div>
-                    <div><span class="er-sym">&#9711;&lt;</span> zero ou muitos</div>
-                </div>
-                <div class="er-legend-hint">
-                    Arraste do ● (direita de uma coluna) até o ● (esquerda de outra) para criar uma relação.
-                    <strong>Clique numa linha de relação para editar a cardinalidade.</strong>
+            {{-- ================= LEGENDA ================= --}}
+            {{--
+                Vai no canto inferior DIREITO e começa recolhida.
+
+                Em bottom-left ela caía exatamente sobre os controles de zoom do
+                AlpineFlow (que ficam ali por padrão), e aberta o tempo todo
+                cobria parte do diagrama.
+            --}}
+            <x-flow-panel position="bottom-right" class="er-legend" x-data="{ aberta: false }">
+                <button class="er-legend-toggle" @click="aberta = !aberta">
+                    <span x-text="aberta ? '✕' : '?'"></span>
+                    <span x-show="!aberta">ajuda</span>
+                </button>
+
+                <div x-show="aberta" x-cloak class="er-legend-body">
+                    <div class="er-legend-title">Cardinalidade (IE / pé de galinha)</div>
+                    <div class="er-legend-grid">
+                        <div><span class="er-sym">&#8214;</span> um e só um</div>
+                        <div><span class="er-sym">&#9711;&#8739;</span> zero ou um</div>
+                        <div><span class="er-sym">&lt;</span> muitos</div>
+                        <div><span class="er-sym">&#8739;&lt;</span> um ou muitos</div>
+                        <div><span class="er-sym">&#9711;&lt;</span> zero ou muitos</div>
+                    </div>
+                    <div class="er-legend-hint">
+                        Segure <kbd>Alt</kbd> e arraste de qualquer ponto de uma entidade até
+                        outra para criar o relacionamento.
+                        <strong>Clique com o botão direito na linha para editar nome e cardinalidade.</strong>
+                    </div>
                 </div>
             </x-flow-panel>
         </x-flow>
     </div>
 
-    {{-- ===================== ESTILO ERD ===================== --}}
-    @push('styles')
-    @endpush
-    <style>
-        [x-cloak] { display: none !important; }
-
-        /* ---- caixa da entidade ---- */
-        .er-node {
-            width: 232px;
-            background: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, .10);
-            font-size: 12.5px;
-            overflow: hidden;
-            user-select: none;
-        }
-        .flow-node-selected .er-node { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.35); }
-
-        /* ---- cabeçalho ---- */
-        .er-head {
-            display: flex; align-items: center; gap: 6px;
-            background: linear-gradient(180deg, #4f46e5, #4338ca);
-            color: #fff; padding: 7px 9px; font-weight: 700; letter-spacing: .02em;
-        }
-        .er-head-icon { opacity: .8; }
-        .er-head-name { flex: 1; cursor: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .er-head-del {
-            border: 0; background: rgba(255,255,255,.15); color: #fff;
-            width: 18px; height: 18px; border-radius: 5px; cursor: pointer; line-height: 1; font-size: 11px;
-        }
-        .er-head-del:hover { background: rgba(239,68,68,.9); }
-
-        /* ---- linhas / atributos ---- */
-        .er-rows { display: flex; flex-direction: column; }
-        .er-row {
-            position: relative;
-            display: grid;
-            grid-template-columns: 26px 1fr auto 16px;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-top: 1px solid #eef2f7;
-        }
-        .er-row:hover { background: #f8fafc; }
-        .er-row.is-pk { background: #fefce8; }
-        .er-row.is-pk:hover { background: #fef9c3; }
-
-        /* coluna curta de chave */
-        .er-key {
-            width: 24px; height: 20px; padding: 0; border: 1px solid transparent;
-            border-radius: 5px; background: transparent; cursor: pointer;
-            font-size: 10px; font-weight: 800; line-height: 1; color: #64748b;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .er-key:hover { border-color: #cbd5e1; background: #fff; }
-        .er-key.k-pk { color: #b45309; }
-        .er-key.k-fk { color: #2563eb; }
-        .er-key.k-uq { color: #7c3aed; }
-        .er-key-empty { color: #cbd5e1; }
-
-        .er-attr-name { font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .er-row.is-pk .er-attr-name { text-decoration: underline; text-decoration-color: #f59e0b; }
-        .er-attr-type {
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            font-size: 10.5px; color: #94a3b8; white-space: nowrap;
-        }
-        .er-attr-del {
-            border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
-            font-size: 10px; opacity: 0; transition: opacity .12s;
-        }
-        .er-row:hover .er-attr-del { opacity: 1; }
-        .er-attr-del:hover { color: #ef4444; }
-
-        /* ---- rodapé (adicionar atributo) ---- */
-        .er-foot { padding: 5px 10px 8px; border-top: 1px solid #eef2f7; background: #fbfdff; }
-        .er-add-toggle {
-            border: 0; background: transparent; color: #4f46e5; cursor: pointer;
-            font-size: 11px; font-weight: 700; padding: 2px 0;
-        }
-        .er-add-toggle:hover { text-decoration: underline; }
-        .er-add-form { display: grid; grid-template-columns: 1fr; gap: 4px; margin-top: 5px; }
-        .er-add-input, .er-add-select {
-            width: 100%; border: 1px solid #cbd5e1; border-radius: 5px;
-            padding: 3px 6px; font-size: 11px; background: #fff;
-        }
-        .er-add-form { grid-template-columns: 1fr 1fr; }
-        .er-add-input { grid-column: 1 / -1; }
-        .er-add-confirm {
-            grid-column: 1 / -1; border: 0; border-radius: 5px; padding: 4px;
-            background: #16a34a; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer;
-        }
-        .er-add-confirm:hover { background: #15803d; }
-
-        /* ---- handles de conexão ---- */
-        .er-handle {
-            position: absolute; top: 50%; transform: translateY(-50%);
-            width: 11px; height: 11px; border-radius: 50%;
-            background: #fff; border: 2px solid #94a3b8;
-            opacity: 0; transition: opacity .12s, transform .12s; cursor: crosshair; z-index: 2;
-        }
-        .er-handle-l { left: -6px; }
-        .er-handle-r { right: -6px; }
-        .er-row:hover .er-handle,
-        .er-node:hover .er-handle { opacity: 1; }
-        .er-handle:hover { border-color: #4f46e5; transform: translateY(-50%) scale(0.5); opacity: 1; }
-        .flow-handle-valid { border-color: #16a34a !important; opacity: 1 !important; }
-        .flow-container {
-        --flow-edge-stroke: #58a6ff;
-        --flow-edge-stroke-width-selected: 0.5 !important;
-        }
-        .flow-handle-invalid { border-color: #ef4444 !important; opacity: 1 !important; }
-
-        /* ---- editor de relação (ERDPlus-like) ---- */
-        .er-edge-editor {
-            width: 250px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(15,23,42,.18); font-size: 12px; color: #334155; overflow: hidden;
-        }
-        .er-ee-head {
-            display: flex; align-items: center; justify-content: space-between;
-            background: #4f46e5; color: #fff; padding: 8px 12px; font-weight: 800; letter-spacing: .02em;
-        }
-        .er-ee-close {
-            border: 0; background: rgba(255,255,255,.18); color: #fff; width: 50px; height: 50px;
-            border-radius: 6px; cursor: pointer; line-height: 1; font-size: 11px;
-        }
-        .er-ee-close:hover { background: rgba(239,68,68,.9); }
-        .er-ee-path {
-            display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid #eef2f7;
-        }
-        .er-ee-tag {
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 700;
-            background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 5px;
-            max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .er-ee-arrow { color: #94a3b8; }
-        .er-ee-end { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
-        .er-ee-label { font-size: 10.5px; font-weight: 700; color: #64748b; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
-        .er-ee-label em { font-style: normal; color: #94a3b8; font-weight: 500; text-transform: none; letter-spacing: 0; }
-        .er-ee-opts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
-        .er-ee-opt {
-            height: 30px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc;
-            cursor: pointer; font-weight: 800; font-size: 13px; color: #475569; line-height: 1;
-            display: flex; align-items: center; justify-content: center; transition: all .12s;
-        }
-        .er-ee-opt:hover { border-color: #a5b4fc; background: #eef2ff; color: #4338ca; }
-        .er-ee-opt.is-active { border-color: #4f46e5; background: #4f46e5; color: #fff; box-shadow: 0 2px 6px rgba(79,70,229,.35); }
-        .er-ee-actions { display: flex; gap: 6px; padding: 10px 12px; }
-        .er-ee-btn {
-            flex: 1; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff; cursor: pointer;
-            padding: 6px; font-size: 11px; font-weight: 700; color: #334155;
-        }
-        .er-ee-btn:hover { background: #f1f5f9; }
-        .er-ee-danger { color: #dc2626; border-color: #fecaca; }
-        .er-ee-danger:hover { background: #fef2f2; }
-
-        /* aresta selecionada mais evidente */
-        .flow-edge-selected path {
-             stroke:rgb(70, 150, 229) !important; 
-             stroke-width: 2px !important;
-
-        }
-
-        /* ---- legenda ---- */
-        .er-legend {
-            background: rgba(255,255,255,.95); border: 1px solid #e2e8f0; border-radius: 10px;
-            padding: 10px 12px; box-shadow: 0 4px 14px rgba(15,23,42,.10); font-size: 11.5px; color: #334155;
-            max-width: 260px;
-        }
-        .er-legend-title { font-weight: 800; margin-bottom: 6px; color: #0f172a; }
-        .er-legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
-        .er-sym { display: inline-block; width: 20px; font-weight: 800; color: #475569; }
-        .er-legend-hint { margin-top: 8px; padding-top: 6px; border-top: 1px solid #eef2f7; color: #64748b; font-size: 10.5px; }
-    </style>
 </div>

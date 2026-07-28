@@ -1,0 +1,336 @@
+/*
+ * Estilo do editor ERD (SchemaBoard) — entidades, âncoras de conexão, losango
+ * de relacionamento, editor de cardinalidade e legenda.
+ *
+ * Vive aqui em vez de dentro de schema-board.blade.php porque é CSS de
+ * domínio (não específico de uma única view) e o Vite já processa
+ * resources/css/app.css como entry — manter tudo num único <style> inline
+ * dificultava achar regra e crescia a view.
+ */
+
+/*
+ * ---- reset do invólucro do AlpineFlow ----
+ *
+ * Todo node é embrulhado num .flow-node que já traz fundo, borda,
+ * padding, sombra e min-width próprios. Como a nossa entidade desenha a
+ * própria caixa, aquilo aparecia como uma moldura branca em volta dela.
+ * Zeramos o invólucro e deixamos só o .er-node à mostra.
+ */
+.flow-node {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    min-width: 0;
+    text-align: left;
+}
+.flow-node:hover,
+.flow-node.flow-node-selected {
+    border: 0;
+    box-shadow: none;
+}
+
+/* ---- caixa da entidade ---- */
+.er-node {
+    position: relative;
+    width: 232px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .10);
+    font-size: 12.5px;
+    overflow: visible; /* os handles de borda não podem ser cortados */
+    user-select: none;
+}
+.flow-node-selected .er-node { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.35); }
+
+/* ---- cabeçalho ---- */
+.er-head {
+    display: flex; align-items: center; gap: 6px;
+    background: linear-gradient(180deg, #4f46e5, #4338ca);
+    color: #fff; padding: 7px 9px; font-weight: 700; letter-spacing: .02em;
+    border-radius: 9px 9px 0 0;
+}
+.er-head.is-orphan { background: linear-gradient(180deg, #64748b, #475569); }
+.er-head-icon { opacity: .8; }
+.er-head-name { flex: 1; cursor: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.er-head-rels {
+    background: rgba(255,255,255,.22); border-radius: 999px;
+    min-width: 17px; height: 17px; padding: 0 5px;
+    font-size: 10px; line-height: 17px; text-align: center; font-weight: 800;
+}
+.er-head-del {
+    border: 0; background: rgba(255,255,255,.15); color: #fff;
+    width: 18px; height: 18px; border-radius: 5px; cursor: pointer; line-height: 1; font-size: 11px;
+}
+.er-head-del:hover { background: rgba(239,68,68,.9); }
+
+/* ---- aviso de entidade sem identificador ---- */
+.er-warn {
+    background: #fff7ed; color: #9a3412; border-bottom: 1px solid #fed7aa;
+    padding: 3px 10px; font-size: 10px; font-weight: 700; letter-spacing: .01em;
+}
+
+/*
+ * ---- âncoras de conexão ----
+ * Invisíveis de propósito: a aresta é `floating`, então o ponto onde a
+ * linha encosta é calculado pela borda da caixa, não por estes pontos.
+ * Eles só existem para o arrasto ter de onde sair e onde chegar.
+ */
+.er-anchor {
+    position: absolute;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #94a3b8;
+    opacity: 0;
+    cursor: crosshair;
+    transition: opacity .12s, transform .12s;
+    z-index: 2;
+}
+.er-anchor-top    { top: -6px;  left: 50%; transform: translateX(-50%); }
+.er-anchor-bottom { bottom: -6px; left: 50%; transform: translateX(-50%); }
+.er-anchor-left   { left: -6px; top: 50%; transform: translateY(-50%); }
+.er-anchor-right  { right: -6px; top: 50%; transform: translateY(-50%); }
+
+/* âncoras de destino (target), uma em cada canto — não sobrepõem as de lado */
+.er-anchor-tl { top: -6px; left: -6px; }
+.er-anchor-tr { top: -6px; right: -6px; }
+.er-anchor-bl { bottom: -6px; left: -6px; }
+.er-anchor-br { bottom: -6px; right: -6px; }
+
+/* durante um arrasto o AlpineFlow marca as âncoras válidas/inválidas */
+.er-node:hover .er-anchor { opacity: .55; }
+.flow-connecting .er-anchor { opacity: .8; }
+.er-anchor:hover { opacity: 1; border-color: #4f46e5; transform: scale(1.25); }
+.er-anchor-top:hover    { transform: translateX(-50%) scale(1.25); }
+.er-anchor-bottom:hover { transform: translateX(-50%) scale(1.25); }
+.er-anchor-left:hover   { transform: translateY(-50%) scale(1.25); }
+.er-anchor-right:hover  { transform: translateY(-50%) scale(1.25); }
+.er-anchor-tl:hover, .er-anchor-tr:hover, .er-anchor-bl:hover, .er-anchor-br:hover { transform: scale(1.25); }
+
+.flow-handle-valid { opacity: 1 !important; border-color: #16a34a !important; background: #dcfce7 !important; }
+.flow-handle-invalid { opacity: 1 !important; border-color: #ef4444 !important; background: #fee2e2 !important; }
+.flow-handle-limit-reached { opacity: 1 !important; border-color: #f97316 !important; background: #ffedd5 !important; }
+
+/* a caixa inteira vira alvo enquanto uma conexão está sendo desenhada */
+.flow-connecting .er-node { outline: 2px dashed transparent; outline-offset: 3px; }
+.flow-connecting .er-node:hover { outline-color: #6366f1; }
+
+/* ---- linhas / atributos ---- */
+.er-rows { display: flex; flex-direction: column; }
+.er-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 26px 1fr auto auto 16px;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-top: 1px solid #eef2f7;
+}
+.er-row:hover { background: #f8fafc; }
+.er-row.is-pk { background: #fefce8; }
+.er-row.is-pk:hover { background: #fef9c3; }
+.er-row.is-used { box-shadow: inset 3px 0 0 #6366f1; }
+
+/* coluna curta de chave */
+.er-key {
+    width: 24px; height: 20px; padding: 0; border: 1px solid transparent;
+    border-radius: 5px; background: transparent; cursor: pointer;
+    font-size: 10px; font-weight: 800; line-height: 1; color: #64748b;
+    display: flex; align-items: center; justify-content: center;
+}
+.er-key:hover { border-color: #cbd5e1; background: #fff; }
+.er-key.k-pk { color: #b45309; }
+.er-key.k-fk { color: #2563eb; }
+.er-key.k-uq { color: #7c3aed; }
+.er-key-empty { color: #cbd5e1; }
+
+.er-attr-name { font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.er-row.is-pk .er-attr-name { text-decoration: underline; text-decoration-color: #f59e0b; }
+.er-attr-link { font-size: 9px; color: #6366f1; }
+.er-attr-type {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px; color: #94a3b8; white-space: nowrap;
+}
+.er-attr-del {
+    border: 0; background: transparent; color: #cbd5e1; cursor: pointer;
+    font-size: 10px; opacity: 0; transition: opacity .12s;
+}
+.er-row:hover .er-attr-del { opacity: 1; }
+.er-attr-del:hover { color: #ef4444; }
+
+/* ---- rodapé (adicionar atributo) ---- */
+.er-foot { padding: 5px 10px 8px; border-top: 1px solid #eef2f7; background: #fbfdff; border-radius: 0 0 9px 9px; }
+.er-add-toggle {
+    border: 0; background: transparent; color: #4f46e5; cursor: pointer;
+    font-size: 11px; font-weight: 700; padding: 2px 0;
+}
+.er-add-toggle:hover { text-decoration: underline; }
+.er-add-form { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 5px; }
+.er-add-input, .er-add-select {
+    width: 100%; border: 1px solid #cbd5e1; border-radius: 5px;
+    padding: 3px 6px; font-size: 11px; background: #fff;
+}
+.er-add-input { grid-column: 1 / -1; }
+.er-add-confirm {
+    grid-column: 1 / -1; border: 0; border-radius: 5px; padding: 4px;
+    background: #16a34a; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.er-add-confirm:hover { background: #15803d; }
+
+/*
+ * ---- LOSANGO DO RELACIONAMENTO ----
+ *
+ * O AlpineFlow escreve o label com textContent (texto puro, sem HTML),
+ * então o losango tem que vir do CSS. clip-path desenha o losango e o
+ * padding horizontal generoso garante que o texto caiba na parte larga.
+ */
+.flow-edge-label:not(.flow-edge-label-start):not(.flow-edge-label-end) {
+    background: #4f46e5;
+    color: #ffffff;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: .01em;
+    padding: 10px 30px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    border: 0;
+    border-radius: 0;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/*
+ * Escondidos: o chip de coluna (labelStart/labelEnd) nascia bem em cima do
+ * símbolo de cardinalidade e atrapalhava ver o pé de galinha. O dado
+ * continua vivo em `edge.labelStart`/`labelEnd` — é o que o painel de
+ * edição usa para mostrar "Origem (posts.user_id)" — só a renderização na
+ * própria linha do canvas é que fica oculta.
+ */
+.flow-edge-label-start,
+.flow-edge-label-end {
+    display: none;
+}
+
+/* ---- editor de relacionamento ---- */
+.er-hidden-host { display: none; }
+
+/*
+ * Painel flutuante próprio (não é mais x-flow-context-menu): a posição vem
+ * de left/top inline, calculados a partir do clique em erd/edge-editor.js.
+ */
+.er-edge-editor {
+    position: fixed;
+    z-index: 50;
+    width: 250px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(15,23,42,.22); font-size: 12px; color: #334155;
+    overflow: hidden; outline: none;
+}
+.er-ee-head {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #4f46e5; color: #fff; padding: 8px 12px; font-weight: 800; letter-spacing: .02em;
+}
+.er-ee-close {
+    border: 0; background: rgba(255,255,255,.18); color: #fff; width: 20px; height: 20px;
+    border-radius: 6px; cursor: pointer; line-height: 1; font-size: 11px;
+    display: flex; align-items: center; justify-content: center; flex: none;
+}
+.er-ee-close:hover { background: rgba(239,68,68,.9); }
+
+/* prévia do losango dentro do painel */
+.er-ee-name {
+    display: flex; justify-content: center; width: 100%;
+    border: 0; background: transparent; cursor: pointer; padding: 12px 8px 10px;
+    border-bottom: 1px solid #eef2f7;
+}
+.er-ee-diamond {
+    background: #eef2ff; color: #3730a3; border: 2px solid #6366f1;
+    font-size: 10.5px; font-weight: 800; padding: 8px 22px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    white-space: nowrap;
+}
+.er-ee-name:hover .er-ee-diamond { background: #e0e7ff; }
+
+.er-ee-path {
+    display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid #eef2f7;
+}
+.er-ee-tag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 700;
+    background: #eef2ff; color: #4338ca; padding: 2px 7px; border-radius: 5px;
+    max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.er-ee-arrow { color: #94a3b8; }
+.er-ee-end { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+.er-ee-label { font-size: 10.5px; font-weight: 700; color: #64748b; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
+.er-ee-label em { font-style: normal; color: #94a3b8; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.er-ee-opts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.er-ee-opt {
+    height: 30px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc;
+    cursor: pointer; font-weight: 800; font-size: 13px; color: #475569; line-height: 1;
+    display: flex; align-items: center; justify-content: center; transition: all .12s;
+}
+.er-ee-opt:hover { border-color: #a5b4fc; background: #eef2ff; color: #4338ca; }
+.er-ee-opt.is-active { border-color: #4f46e5; background: #4f46e5; color: #fff; box-shadow: 0 2px 6px rgba(79,70,229,.35); }
+.er-ee-col {
+    width: 100%; margin-top: 6px; border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 4px 6px; font-size: 11px; background: #fff; color: #334155;
+}
+.er-ee-actions { display: flex; gap: 6px; padding: 10px 12px; }
+.er-ee-btn {
+    flex: 1; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff; cursor: pointer;
+    padding: 6px; font-size: 11px; font-weight: 700; color: #334155;
+}
+.er-ee-btn:hover { background: #f1f5f9; }
+.er-ee-danger { color: #dc2626; border-color: #fecaca; }
+.er-ee-danger:hover { background: #fef2f2; }
+
+/*
+ * ---- aresta selecionada ----
+ *
+ * Cada aresta tem DOIS <path>: o primeiro é a faixa larga e invisível que
+ * recebe o clique (nosso interactionWidth de 34px, `stroke: transparent`
+ * via inline style); o segundo é o traço visível de 1.6px. `:not(:first-child)`
+ * mira só no segundo — é o mesmo critério que a própria biblioteca usa
+ * internamente para achar o path visível.
+ *
+ * A versão anterior usava `path { stroke: ... !important }` SEM excluir o
+ * primeiro path. `!important` normal vence estilo inline sem `!important`,
+ * então a faixa de clique — que devia ficar sempre invisível — virava
+ * visível e roxa ao selecionar: a "linha engordando" era essa faixa de 34px
+ * aparecendo por cima do traço fino de verdade.
+ *
+ * Também redeclaramos --flow-edge-stroke-width-selected (2.5 por padrão,
+ * nossas arestas usam 1.6) para a seleção só trocar de cor, não de
+ * espessura. O marcador não infla junto (markerUnits="userSpaceOnUse").
+ */
+.flow-container {
+    --flow-edge-stroke-width-selected: 1.6;
+}
+.flow-edge-selected path:not(:first-child) { stroke: #4f46e5; }
+.flow-edge-selected .flow-edge-label { background: #312e81; }
+
+/* ---- legenda (recolhível, canto inferior direito) ---- */
+.er-legend { background: transparent; border: 0; box-shadow: none; }
+.er-legend-toggle {
+    display: flex; align-items: center; gap: 5px; margin-left: auto;
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px;
+    padding: 5px 11px; cursor: pointer;
+    font-size: 11px; font-weight: 800; color: #475569;
+    box-shadow: 0 2px 8px rgba(15,23,42,.10);
+}
+.er-legend-toggle:hover { border-color: #a5b4fc; color: #4338ca; }
+.er-legend-body {
+    margin-top: 6px;
+    background: rgba(255,255,255,.97); border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 10px 12px; box-shadow: 0 4px 14px rgba(15,23,42,.12);
+    font-size: 11.5px; color: #334155; max-width: 260px;
+}
+.er-legend-title { font-weight: 800; margin-bottom: 6px; color: #0f172a; }
+.er-legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+.er-sym { display: inline-block; width: 20px; font-weight: 800; color: #475569; }
+.er-legend-hint { margin-top: 8px; padding-top: 6px; border-top: 1px solid #eef2f7; color: #64748b; font-size: 10.5px; }
+.er-legend-hint kbd {
+    background: #f1f5f9; border: 1px solid #cbd5e1; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 4px; font-family: inherit; font-size: 10px; font-weight: 700;
+}

@@ -6,6 +6,7 @@ use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use App\Models\Diagram;
 
 /**
  * Editor visual de modelo Entidade-Relacionamento.
@@ -91,6 +92,11 @@ class SchemaBoard extends Component
      * Método executado uma única vez quando o componente é iniciado.
      * Alimenta o editor com um modelo básico (Seed) de Blog.
      */
+
+    public ?int $diagramId = null;
+    public string $diagramName = 'Diagrama sem nome';
+
+
     public function mount(): void
     {
         // Entidades iniciais do modelo, com posições de tela (x, y) e atributos.
@@ -761,6 +767,75 @@ class SchemaBoard extends Component
         if ($patch) {
             $this->flowUpdate(['nodes' => $patch]);
         }
+    }
+    // ---------------------------------------------------------------------
+    // Persistência — Diagrama salvo como JSON
+    // ---------------------------------------------------------------------
+
+    /**
+     * Salva (cria ou atualiza) o diagrama atual no banco, como um único
+     * registro JSON.
+     *
+     * Não existe um Model por entidade/relação — o par $entities/$relations
+     * inteiro é serializado de uma vez em `diagrams.data` (o cast `array` no
+     * Model Diagram cuida da conversão JSON <-> array). Isso é proposital:
+     * o estado já é a fonte da verdade em memória (ver nota "AUTORIDADE DO
+     * ESTADO" no topo da classe), então persistir é só um dump desse estado,
+     * sem remodelar em tabelas relacionais separadas.
+     *
+     * Se `$diagramId` já estiver preenchido (diagrama carregado ou salvo
+     * antes nesta sessão), atualiza o registro existente; caso contrário,
+     * cria um novo e passa a lembrar o id dele — assim cliques seguintes em
+     * "Salvar" viram UPDATE, e não ficam criando registros duplicados.
+     */
+    public function save(): void
+{
+    $payload = [
+        'entities' => $this->entities,
+        'relations' => $this->relations,
+    ];
+
+    $model = $this->diagramId
+        ? Diagram::findOrFail($this->diagramId)
+        : new Diagram();
+
+    $model->name = $this->diagramName;
+    $model->data = $payload;
+    $model->save();
+
+    $this->diagramId = $model->id;
+
+            // Evento ouvido no Blade (Alpine, via @saved.window) para exibir o
+        // selo "✅ Salvo!" por alguns segundos. O .window é necessário porque
+        // o Livewire despacha o evento no nível global do navegador, não só
+        // dentro do escopo do componente.
+
+    $this->dispatch('saved'); // pra mostrar um toast/feedback no front, se quiser
+}
+
+ public bool $showJson = false;
+
+    /** Alterna a exibição do modal com o JSON do diagrama. */
+    public function toggleJson(): void
+    {
+        $this->showJson = ! $this->showJson;
+    }
+
+    /**
+     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) do
+     * estado atual, para exibir dentro do modal.
+     *
+     * É uma computed property do Livewire (prefixo `get` / sufixo
+     * `Property`): fica acessível na view como `$this->jsonPreview` e é
+     * recalculada a cada render, sempre refletindo o estado mais recente de
+     * $entities/$relations.
+     */
+    public function getJsonPreviewProperty(): string
+    {
+        return json_encode([
+            'entities' => $this->entities,
+            'relations' => $this->relations,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
     /**

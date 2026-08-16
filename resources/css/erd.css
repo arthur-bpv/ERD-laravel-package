@@ -142,14 +142,10 @@
     display: flex; align-items: center; justify-content: center;
 }
 .er-key:hover { border-color: #cbd5e1; background: #fff; }
-.er-key.k-pk { color: #b45309; }
-.er-key.k-fk { color: #2563eb; }
-.er-key.k-uq { color: #7c3aed; }
-.er-key-empty { color: #cbd5e1; }
+
 
 .er-attr-name { font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .er-row.is-pk .er-attr-name { text-decoration: underline; text-decoration-color: #f59e0b; }
-.er-attr-link { font-size: 9px; color: #6366f1; }
 .er-attr-type {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 10.5px; color: #94a3b8; white-space: nowrap;

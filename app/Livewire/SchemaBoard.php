@@ -55,8 +55,8 @@ class SchemaBoard extends Component
 
     /** Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente. */
     private const CARDINALIDADES = [
-        'cf-one', 'cf-one-one', 'cf-zero-one',
-        'cf-many', 'cf-one-many', 'cf-zero-many',
+         'cf-one-one', 'cf-zero-one',
+         'cf-one-many', 'cf-zero-many',
     ];
 
     /** Cor padrão das relações. */
@@ -367,6 +367,24 @@ class SchemaBoard extends Component
         });
     }
 
+    public function renameAttribute(string $entityId, string $attrId, string $name): void
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return;
+        }
+
+        $this->mutateEntity($entityId, function (&$e) use ($attrId, $name) {
+            foreach ($e['attributes'] as &$a) {
+                if ($a['id'] === $attrId) {
+                    $a['name'] = $name;
+                    break;
+                }
+            }
+            unset($a);
+        });
+    }
+
     // ---------------------------------------------------------------------
     // Ações — Atributos
     // ---------------------------------------------------------------------
@@ -383,7 +401,6 @@ class SchemaBoard extends Component
             $e['attributes'][] = [
                 'id' => $attrId,
                 'name' => $name,
-                'type' => $type ?: 'varchar',
                 'key' => in_array($key, ['PK', 'FK', 'UQ'], true) ? $key : '', // barra valor fora do escopo
             ];
         });
@@ -424,13 +441,24 @@ class SchemaBoard extends Component
         $order = ['', 'PK', 'FK', 'UQ']; // lista circular
 
         $this->mutateEntity($entityId, function (&$e) use ($attrId, $order) {
+
+            $vaiVirarPk = false;
             foreach ($e['attributes'] as &$a) {
                 if ($a['id'] === $attrId) {
-                    $i = array_search($a['key'], $order, true);
-                    // O módulo faz o índice voltar a 0 depois do último item.
-                    $a['key'] = $order[($i === false ? 0 : $i + 1) % count($order)];
-                    break;
+                $vaiVirarPk = $a['key'] !== 'PK';
+                $a['key'] = $vaiVirarPk ? 'PK' : '';
+                break;
                 }
+            }
+                unset($a);
+
+                if ($vaiVirarPk){
+                    foreach ($e['attributes'] as &$outro){
+                    if ($outro['id'] !== $attrId && $outro['key'] === 'PK') {
+                        $outro['key'] = '';
+                    }
+                }
+                unset($outro);
             }
         });
     }
@@ -455,6 +483,12 @@ class SchemaBoard extends Component
         $destino = $this->findEntity($target);
 
         if (! $origem || ! $destino) {
+            return;
+        }
+
+        // Duas entidades só podem ter UM relacionamento entre si, independente
+        // da direção — impede duplicar a mesma ligação ao arrastar de novo.
+        if ($this->relacaoExisteEntre($origem['id'], $destino['id'])) {
             return;
         }
 
@@ -557,47 +591,6 @@ class SchemaBoard extends Component
      *
      * @param  string  $end  'from' (coluna FK) ou 'to' (coluna referenciada)
      */
-    public function setRelationAttr(string $relationId, string $end, string $attrId): void
-    {
-        $relacao = null;
-        foreach ($this->relations as $r) {
-            if ($r['id'] === $relationId) {
-                $relacao = $r;
-                break;
-            }
-        }
-
-        if ($relacao === null) {
-            return;
-        }
-
-        $campo = $end === 'to' ? 'toAttr' : 'fromAttr';
-
-        // A coluna precisa pertencer à entidade daquela ponta — sem isso um
-        // cliente poderia apontar a relação para uma coluna de outra tabela.
-        $entidade = $this->findEntity($end === 'to' ? $relacao['to'] : $relacao['from']);
-        if (! $entidade) {
-            return;
-        }
-
-        $pertence = false;
-        foreach ($entidade['attributes'] as $a) {
-            if ($a['id'] === $attrId) {
-                $pertence = true;
-                break;
-            }
-        }
-
-        if (! $pertence) {
-            return;
-        }
-
-        $this->mutateRelation($relationId, function (&$r) use ($campo, $attrId) {
-            $r[$campo] = $attrId;
-        });
-
-        $this->syncNodeData();
-    }
 
     /**
      * Ouvinte disparado pelo frontend quando o usuário solta uma entidade
@@ -684,7 +677,6 @@ class SchemaBoard extends Component
                 $e['attributes'][] = [
                     'id' => $attrId,
                     'name' => $desejado,
-                    'type' => 'bigint',
                     'key' => 'FK',
                 ];
                 break;
@@ -748,6 +740,26 @@ class SchemaBoard extends Component
                 return;
             }
         }
+    }
+    /**
+     * Verifica se já existe relação entre duas entidades, em qualquer direção.
+     *
+     * Um modelo ER não deveria ter duas relações distintas ligando o mesmo par
+     * de tabelas — isso normalmente é sinal de erro do usuário (clicou duas
+     * vezes / arrastou de novo sem perceber), não uma modelagem válida.
+     */
+    private function relacaoExisteEntre(string $idA, string $idB): bool
+    {
+        foreach ($this->relations as $r) {
+            $ligaAB = $r['from'] === $idA && $r['to'] === $idB;
+            $ligaBA = $r['from'] === $idB && $r['to'] === $idA;
+
+            if ($ligaAB || $ligaBA) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

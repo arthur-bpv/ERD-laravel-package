@@ -202,20 +202,21 @@
                                     title="Clique para alternar PK / FK / UQ"
                                 >
                                     <span x-show="attr.key === 'PK'">🔑</span>
-                                    <span x-show="attr.key && attr.key !== 'PK'" x-text="attr.key"></span>
-                                    <span x-show="!attr.key" class="er-key-empty">•</span>
+                                    <span x-show="attr.key !== 'PK'" class="er-key-empty">•</span>
                                 </button>
 
                                 {{-- nome do atributo --}}
-                                <span class="er-attr-name" x-text="attr.name"></span>
+                                <span
+                                    class="er-attr-name"
+                                    x-text="attr.name"
+                                    @dblclick="
+                                        const nome = window.prompt('Renomear atributo', attr.name);
+                                        if (nome) $wire.renameAttribute(node.id, attr.id, nome);
+                                    "
+                                    title="Duplo clique para renomear"
+                                ></span>
 
-                                {{-- marca discreta de atributo que participa de alguma relação --}}
-                                <span class="er-attr-link"
-                                      x-show="node.data.usedAttrs.includes(attr.id)"
-                                      title="Participa de um relacionamento">⛓</span>
 
-                                {{-- tipo do atributo --}}
-                                <span class="er-attr-type" x-text="attr.type"></span>
 
                                 {{-- excluir atributo --}}
                                 <button
@@ -228,30 +229,18 @@
                     </div>
 
                     {{-- rodapé: criar atributo DENTRO da caixa da entidade --}}
-                    <div class="er-foot nodrag" x-data="{ open: false, n: '', t: 'varchar', k: '' }">
+                    <div class="er-foot nodrag" x-data="{ open: false, n: '', k: '' }">
                         <button class="er-add-toggle" @click="open = !open" x-text="open ? '− cancelar' : '+ atributo'"></button>
 
                         <div x-show="open" x-cloak class="er-add-form" @keydown.enter.prevent="
-                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), t, k); n=''; k=''; open=false; }
+                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }
                         ">
                             <input class="er-add-input" x-model="n" placeholder="nome" @pointerdown.stop>
-                            <select class="er-add-select" x-model="t" @pointerdown.stop>
-                                <option>bigint</option>
-                                <option>int</option>
-                                <option>varchar</option>
-                                <option>text</option>
-                                <option>boolean</option>
-                                <option>timestamp</option>
-                                <option>decimal</option>
-                                <option>uuid</option>
-                            </select>
                             <select class="er-add-select er-add-key" x-model="k" @pointerdown.stop>
                                 <option value="">—</option>
                                 <option value="PK">PK</option>
-                                <option value="FK">FK</option>
-                                <option value="UQ">UQ</option>
                             </select>
-                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), t, k); n=''; k=''; open=false; }">ok</button>
+                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }">ok</button>
                         </div>
                     </div>
                 </div>
@@ -321,17 +310,6 @@
                                     ></button>
                                 </template>
                             </div>
-                            {{-- coluna que carrega a FK dentro da entidade de origem --}}
-                            <select
-                                class="er-ee-col nodrag"
-                                @pointerdown.stop
-                                x-model="e.data.fromAttr"
-                                @change="setAttr('from', $event.target.value)"
-                            >
-                                <template x-for="a in attrsOf(e.source)" :key="a.id">
-                                    <option :value="a.id" x-text="a.name"></option>
-                                </template>
-                            </select>
                         </div>
 
                         {{-- ponta DESTINO (pai / PK) = markerEnd --}}
@@ -350,17 +328,6 @@
                                     ></button>
                                 </template>
                             </div>
-                            {{-- coluna referenciada (normalmente a PK) na entidade de destino --}}
-                            <select
-                                class="er-ee-col nodrag"
-                                @pointerdown.stop
-                                x-model="e.data.toAttr"
-                                @change="setAttr('to', $event.target.value)"
-                            >
-                                <template x-for="a in attrsOf(e.target)" :key="a.id">
-                                    <option :value="a.id" x-text="a.name"></option>
-                                </template>
-                            </select>
                         </div>
 
                         <div class="er-ee-actions">
@@ -390,7 +357,6 @@
                     <div class="er-legend-grid">
                         <div><span class="er-sym">&#8214;</span> um e só um</div>
                         <div><span class="er-sym">&#9711;&#8739;</span> zero ou um</div>
-                        <div><span class="er-sym">&lt;</span> muitos</div>
                         <div><span class="er-sym">&#8739;&lt;</span> um ou muitos</div>
                         <div><span class="er-sym">&#9711;&lt;</span> zero ou muitos</div>
                     </div>

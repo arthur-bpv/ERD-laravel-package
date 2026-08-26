@@ -450,16 +450,7 @@ class SchemaBoard extends Component
                 break;
                 }
             }
-                unset($a);
-
-                if ($vaiVirarPk){
-                    foreach ($e['attributes'] as &$outro){
-                    if ($outro['id'] !== $attrId && $outro['key'] === 'PK') {
-                        $outro['key'] = '';
-                    }
-                }
-                unset($outro);
-            }
+            unset($a);
         });
     }
 
@@ -477,7 +468,7 @@ class SchemaBoard extends Component
      * As colunas são escolhidas automaticamente porque a conexão é feita de
      * entidade para entidade — o usuário refina depois no painel lateral.
      */
-    public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
+      public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
     {
         $origem = $this->findEntity($source);
         $destino = $this->findEntity($target);
@@ -498,8 +489,10 @@ class SchemaBoard extends Component
             return;
         }
 
-        // Reaproveita (ou cria) a coluna que carrega a chave estrangeira.
-        $fk = $this->garantirColunaFk($origem['id'], $destino);
+        // Reaproveita a coluna que já carregaria a chave estrangeira, se existir.
+        // Não cria mais uma coluna nova — se não houver candidata, a relação
+        // nasce com fromAttr vazio, pronta pra ser configurada manualmente.
+        $fk = $this->buscarColunaFkExistente($origem['id'], $destino) ?? '';
 
         $id = 'r'.(++$this->relSeq);
 
@@ -642,15 +635,8 @@ class SchemaBoard extends Component
         return null;
     }
 
-    /**
-     * Garante que a entidade filha tenha uma coluna para carregar a chave
-     * estrangeira, e devolve o id dela.
-     *
-     * Primeiro procura uma FK livre já chamada `{destino}_id`; se não achar,
-     * cria a coluna. Assim desenhar a relação não sequestra uma coluna que já
-     * significava outra coisa.
-     */
-    private function garantirColunaFk(string $entityId, array $destino): string
+
+    private function buscarColunaFkExistente(string $entityId, array $destino): ?string
     {
         $desejado = $destino['name'].'_id';
 
@@ -664,26 +650,12 @@ class SchemaBoard extends Component
 
         $origem = $this->findEntity($entityId);
         foreach ($origem['attributes'] as $a) {
-            if ($a['name'] === $desejado && $a['key'] !== 'PK' && ! in_array($a['id'], $ocupadas, true)) {
+            if ($a['name'] === $desejado && ! in_array($a['id'], $ocupadas, true)) {
                 return $a['id'];
             }
         }
 
-        // Nenhuma candidata livre — cria a coluna FK.
-        $attrId = $entityId.'.'.$desejado.'_'.(++$this->seq);
-
-        foreach ($this->entities as &$e) {
-            if ($e['id'] === $entityId) {
-                $e['attributes'][] = [
-                    'id' => $attrId,
-                    'name' => $desejado,
-                    'key' => 'FK',
-                ];
-                break;
-            }
-        }
-
-        return $attrId;
+        return null;
     }
 
     /**

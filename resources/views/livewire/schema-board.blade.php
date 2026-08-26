@@ -288,11 +288,6 @@
                             <span class="er-ee-diamond" x-text="e.label || 'sem nome'"></span>
                         </button>
 
-                        <div class="er-ee-path">
-                            <span class="er-ee-tag" x-text="e.source"></span>
-                            <span class="er-ee-arrow">→</span>
-                            <span class="er-ee-tag" x-text="e.target"></span>
-                        </div>
 
                         {{-- ponta ORIGEM (filho / FK) = markerStart --}}
                         <div class="er-ee-end">

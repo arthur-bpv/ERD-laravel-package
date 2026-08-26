@@ -1,0 +1,440 @@
+diff --git a/app/Livewire/SchemaBoard.php b/app/Livewire/SchemaBoard.php
+index 8b84407..1b36e60 100644
+--- a/app/Livewire/SchemaBoard.php
++++ b/app/Livewire/SchemaBoard.php
+@@ -10,11 +10,22 @@
+ /**
+  * Editor visual de modelo Entidade-Relacionamento.
+  *
+- * NOTAÇÃO — híbrida, no estilo ERDPlus:
+- *   - a entidade é uma caixa com seus atributos;
+- *   - o relacionamento é UMA aresta, com um losango no meio carregando o nome
+- *     do relacionamento (vem da notação de Chen);
+- *   - a cardinalidade fica nas pontas, em pé de galinha (notação IE).
++ * NOTAÇÃO — híbrida, no estilo ERDPlus, com DOIS MODOS DE VISUALIZAÇÃO
++ * (propriedade `$viewMode`, alternada por `toggleViewMode()`):
++ *
++ *   'er'         — a entidade é uma caixa com seus atributos; o relacionamento
++ *                  é UMA aresta, com um losango no meio carregando o nome do
++ *                  relacionamento (vem da notação de Chen); a cardinalidade
++ *                  fica nas pontas, em pé de galinha (notação IE).
++ *
++ *   'relational' — schema relacional "de livro-texto": sem losango e sem pé
++ *                  de galinha, só uma linha direto da coluna FK até a coluna
++ *                  referenciada (PK), com uma seta simples apontando pra
++ *                  quem é referenciado. É o que aparece ao clicar em "Ver
++ *                  schema relacional" no cabeçalho.
++ *
++ * As duas visões leem o MESMO estado ($entities/$relations) — mudar o modo
++ * não altera o modelo, só como ele é desenhado.
+  *
+  * PONTOS DE CONEXÃO — a aresta é do tipo `floating`: o AlpineFlow calcula os
+  * extremos pela borda das entidades e eles deslizam sozinhos quando a caixa se
+@@ -58,9 +69,12 @@ class SchemaBoard extends Component
+         'cf-many', 'cf-one-many', 'cf-zero-many',
+     ];
+ 
+-    /** Cor padrão das relações. */
++    /** Cor padrão das relações no modo Chen (losango + pé de galinha). */
+     private const COR_RELACAO = '#64748b';
+ 
++    /** Cor das linhas no modo schema relacional — mais neutra, sem o roxo do losango. */
++    private const COR_RELACIONAL = '#334155';
++
+     /**
+      * Estrutura que guarda as entidades (tabelas) no servidor.
+      *
+@@ -78,6 +92,16 @@ class SchemaBoard extends Component
+      */
+     public array $relations = [];
+ 
++    /**
++     * Modo de visualização atual do canvas.
++     *
++     * 'er' (padrão) — notação de Chen, com losango e pé de galinha.
++     * 'relational'  — schema relacional simples, linha direta FK → PK.
++     *
++     * Alternado por `toggleViewMode()`, chamado pelo botão do cabeçalho.
++     */
++    public string $viewMode = 'er';
++
+     /** Contador incremental para gerar IDs únicos e estáveis para novas entidades e colunas. */
+     public int $seq = 0;
+ 
+@@ -203,6 +227,10 @@ private function nodeData(array $e): array
+             'canBeParent' => $temIdentificador,
+             'usedAttrs' => array_values(array_unique($usadas)),
+             'relCount' => $relCount,
++            // Lido pelo Blade (:class no .er-node) para aplicar a casca
++            // visual do schema relacional (cabeçalho neutro, sem tipo de
++            // coluna, PK em negrito) sem duplicar o template do node.
++            'viewMode' => $this->viewMode,
+         ];
+     }
+ 
+@@ -217,7 +245,20 @@ public function buildEdges(): array
+     }
+ 
+     /**
+-     * Monta a aresta de um relacionamento.
++     * Monta a aresta de um relacionamento no formato que o modo de
++     * visualização ATUAL pede. O modelo por trás (`$r`) é o mesmo nos dois
++     * modos — só a representação visual muda.
++     */
++    private function edgeFor(array $r): array
++    {
++        return $this->viewMode === 'relational'
++            ? $this->edgeForRelational($r)
++            : $this->edgeForChen($r);
++    }
++
++    /**
++     * Aresta no modo Chen: losango com o nome do relacionamento + pé de
++     * galinha nas duas pontas.
+      *
+      * `type: floating` faz o AlpineFlow calcular os extremos pela borda das duas
+      * entidades — a linha desliza sozinha quando a caixa é arrastada e não fica
+@@ -231,7 +272,7 @@ public function buildEdges(): array
+      * (o padrão da biblioteca é 20px). Uma aresta de 1,6px é um alvo minúsculo
+      * para o mouse — era por isso que clicar na relação às vezes não pegava.
+      */
+-    private function edgeFor(array $r): array
++    private function edgeForChen(array $r): array
+     {
+         return [
+             'id' => $r['id'],
+@@ -257,6 +298,32 @@ private function edgeFor(array $r): array
+         ];
+     }
+ 
++    /**
++     * Aresta no modo schema relacional: sem losango (não manda `label`, então
++     * o AlpineFlow nem chega a criar o elemento — ver `Z()` no bundle) e sem
++     * pé de galinha — só uma seta simples (`markerEnd`, nativa da lib) no
++     * lado referenciado (PK). Não tem `markerStart`: a direção FK → PK já é
++     * suficiente pra ler o schema, cardinalidade é conceito de Chen.
++     */
++    private function edgeForRelational(array $r): array
++    {
++        return [
++            'id' => $r['id'],
++            'source' => $r['from'],
++            'target' => $r['to'],
++            'type' => 'floating',
++            'pathType' => 'smoothstep',
++            'color' => self::COR_RELACIONAL,
++            'strokeWidth' => 1.3,
++            'interactionWidth' => 34,
++            'markerEnd' => ['type' => 'arrow', 'offset' => self::MARKER_OFFSET, 'color' => self::COR_RELACIONAL],
++            'data' => [
++                'fromAttr' => $r['fromAttr'],
++                'toAttr' => $r['toAttr'],
++            ],
++        ];
++    }
++
+     /**
+      * Descreve um marcador de cardinalidade como array em vez de string.
+      *
+@@ -281,6 +348,34 @@ private function nomeCurto(string $attrId): string
+         return $pos === false ? $attrId : substr($attrId, $pos + 1);
+     }
+ 
++    // ---------------------------------------------------------------------
++    // Ações — Visualização
++    // ---------------------------------------------------------------------
++
++    /**
++     * Alterna entre a notação de Chen (losango + pé de galinha) e o schema
++     * relacional simples (linha direta da FK até a PK, sem losango).
++     *
++     * Refaz TODAS as arestas de uma vez: como `label` e `markerStart`/
++     * `markerEnd` mudam de formato entre os dois modos, um `flowUpdate`
++     * (patch in-place) não basta — precisa recriar o `<path>` pra reavaliar
++     * os marcadores, exatamente a razão documentada em `mutateRelation()`.
++     * Por isso despachamos um evento próprio, em lote, e quem faz o
++     * remove → aguarda dois frames → add de todas as arestas de uma vez é o
++     * JS (`erd-rebuild-edges` em resources/js/erd/edge-editor.js).
++     */
++    public function toggleViewMode(): void
++    {
++        $this->viewMode = $this->viewMode === 'relational' ? 'er' : 'relational';
++
++        $this->dispatch('erd-rebuild-edges', edges: $this->buildEdges());
++
++        // Os nodes carregam o modo atual em data.viewMode (é o que o Blade
++        // usa pra trocar a casca visual da entidade), então também precisam
++        // de um patch — esse sim in-place, via flowUpdate.
++        $this->syncNodeData();
++    }
++
+     // ---------------------------------------------------------------------
+     // Ações — Entidades
+     // ---------------------------------------------------------------------
+diff --git a/resources/css/erd.css b/resources/css/erd.css
+index 159cfbe..6f408b5 100644
+--- a/resources/css/erd.css
++++ b/resources/css/erd.css
+@@ -180,6 +180,48 @@ .er-add-confirm {
+ }
+ .er-add-confirm:hover { background: #15803d; }
+ 
++/*
++ * ---- MODO SCHEMA RELACIONAL ----
++ *
++ * Aplicado via `.er-node-relational` (node.data.viewMode === 'relational',
++ * publicado por SchemaBoard::nodeData). É só uma casca visual por cima do
++ * MESMO template do node — sem duplicar HTML: cabeçalho neutro (sem o roxo
++ * do modo Chen), sem coluna de tipo e sem o contador de relações (relCount
++ * é conceito de Chen), e a PK ganha negrito além do sublinhado que ela já
++ * tinha — o resultado lembra os diagramas "de livro-texto" de schema
++ * relacional (ver erdplus.png de referência).
++ */
++.er-node-relational .er-head {
++    background: #f1f5f9;
++    color: #0f172a;
++}
++.er-node-relational .er-head.is-orphan { background: #fef2f2; color: #991b1b; }
++.er-node-relational .er-head-icon,
++.er-node-relational .er-head-rels {
++    display: none;
++}
++/* o botão de excluir era branco-sobre-branco no cabeçalho claro deste modo */
++.er-node-relational .er-head-del {
++    background: rgba(15, 23, 42, .08);
++    color: #475569;
++}
++.er-node-relational .er-head-del:hover { background: rgba(220, 38, 38, .15); color: #dc2626; }
++.er-node-relational .er-attr-type {
++    display: none;
++}
++/*
++ * Sem a coluna de tipo, o auto-placement do grid empurraria o botão de
++ * excluir pra perto do nome (ele viraria o próximo item "vivo" na
++ * sequência). Fixamos ele na 5ª faixa (16px) do template original — a
++ * mesma que ele já ocupava — pra continuar rente à borda direita da linha.
++ */
++.er-node-relational .er-attr-del {
++    grid-column: 5;
++}
++.er-node-relational .er-row.is-pk .er-attr-name {
++    font-weight: 800;
++}
++
+ /*
+  * ---- LOSANGO DO RELACIONAMENTO ----
+  *
+diff --git a/resources/js/erd/edge-editor.js b/resources/js/erd/edge-editor.js
+index 2d12471..7bcf678 100644
+--- a/resources/js/erd/edge-editor.js
++++ b/resources/js/erd/edge-editor.js
+@@ -84,6 +84,30 @@ document.addEventListener('alpine:init', () => {
+                     if (select) flow.selectedEdges?.add(edge.id);
+                 });
+             });
++
++            /*
++             * Troca de modo de visualização (ER ↔ schema relacional), pedida
++             * pelo botão do cabeçalho via SchemaBoard::toggleViewMode().
++             *
++             * Mesma história do `erd-rebuild-edge` singular, só que em lote:
++             * o servidor manda TODAS as arestas já no formato do novo modo
++             * (losango+pé de galinha OU seta simples) num único payload, e o
++             * cliente é quem sabe esperar um frame real do navegador entre o
++             * remove e o add — sem isso o SVG reaproveitado ignora o
++             * marker-start/marker-end novo (ver a nota grande em
++             * mutateRelation() no SchemaBoard).
++             */
++            this.$wire.on('erd-rebuild-edges', ({ edges }) => {
++                const flow = this.$flow;
++                if (!flow || !edges) return;
++
++                const ids = edges.map((edge) => edge.id);
++                if (ids.length) flow.removeEdges(ids);
++
++                apósUmFrameDeVerdade(() => {
++                    if (edges.length) flow.addEdges(edges);
++                });
++            });
+         },
+     }));
+ 
+diff --git a/resources/views/livewire/schema-board.blade.php b/resources/views/livewire/schema-board.blade.php
+index 38c7466..f7f9f03 100644
+--- a/resources/views/livewire/schema-board.blade.php
++++ b/resources/views/livewire/schema-board.blade.php
+@@ -8,21 +8,44 @@
+             <span class="hidden text-sm text-slate-400 sm:inline">— entidades, atributos e relacionamentos</span>
+         </div>
+ 
+-        {{-- criar entidade (fica no DOM do Livewire, wire:model/wire:click funcionam) --}}
+-        <form wire:submit.prevent="createEntity" class="ml-auto flex items-center gap-2">
+-            <input
+-                type="text"
+-                wire:model="newEntityName"
+-                placeholder="nome_da_entidade"
+-                class="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+-            >
++        <div class="ml-auto flex flex-wrap items-center gap-3">
++            {{--
++                Alterna o canvas inteiro entre a notação de Chen (losango +
++                pé de galinha) e o schema relacional simples (linha direta
++                FK → PK, sem losango). Vai para SchemaBoard::toggleViewMode(),
++                que recria as arestas no novo formato — ver a nota do método.
++            --}}
+             <button
+-                type="submit"
+-                class="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
++                type="button"
++                wire:click="toggleViewMode"
++                wire:loading.attr="disabled"
++                wire:target="toggleViewMode"
++                class="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-indigo-400 hover:text-indigo-700 disabled:opacity-60"
++                title="Alterna entre o diagrama ER (losango + pé de galinha) e o schema relacional (linha direta FK → PK)"
+             >
+-                <span class="text-base leading-none">+</span> Nova entidade
++                @if ($viewMode === 'relational')
++                    <span class="text-base leading-none">🔀</span> Ver diagrama ER
++                @else
++                    <span class="text-base leading-none">🗄️</span> Ver schema relacional
++                @endif
+             </button>
+-        </form>
++
++            {{-- criar entidade (fica no DOM do Livewire, wire:model/wire:click funcionam) --}}
++            <form wire:submit.prevent="createEntity" class="flex items-center gap-2">
++                <input
++                    type="text"
++                    wire:model="newEntityName"
++                    placeholder="nome_da_entidade"
++                    class="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
++                >
++                <button
++                    type="submit"
++                    class="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
++                >
++                    <span class="text-base leading-none">+</span> Nova entidade
++                </button>
++            </form>
++        </div>
+     </header>
+ 
+     {{-- ===================== CANVAS ===================== --}}
+@@ -71,7 +94,18 @@ class="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm fo
+         >
+             <x-slot:node>
+                 {{-- ================= ENTIDADE ================= --}}
+-                <div class="er-node" :data-id="node.id">
++                {{--
++                    `er-node-relational` troca a casca visual pro estilo de
++                    schema relacional "de livro-texto" (cabeçalho neutro, sem
++                    coluna de tipo, PK só em negrito) — ver erd.css. `node.data
++                    .viewMode` vem do servidor (SchemaBoard::nodeData) e é o
++                    mesmo dado que controla o desenho das arestas.
++                --}}
++                <div
++                    class="er-node"
++                    :class="{ 'er-node-relational': node.data.viewMode === 'relational' }"
++                    :data-id="node.id"
++                >
+ 
+                     {{--
+                         8 pontos de conexão: 4 `source` nos lados (iniciam o
+@@ -359,6 +393,8 @@ class="er-ee-col nodrag"
+                         Segure <kbd>Alt</kbd> e arraste de qualquer ponto de uma entidade até
+                         outra para criar o relacionamento.
+                         <strong>Clique com o botão direito na linha para editar nome e cardinalidade.</strong>
++                        Use <strong>"Ver schema relacional"</strong>, no cabeçalho, para ver o
++                        mesmo modelo sem losango, com a FK apontando direto para a PK.
+                     </div>
+                 </div>
+             </x-flow-panel>
+diff --git a/tests/Feature/SchemaBoardTest.php b/tests/Feature/SchemaBoardTest.php
+index a0d3db4..a81afa0 100644
+--- a/tests/Feature/SchemaBoardTest.php
++++ b/tests/Feature/SchemaBoardTest.php
+@@ -301,4 +301,84 @@ public function test_dragging_a_node_persists_its_position(): void
+         $this->assertSame(124, $posts['x']);
+         $this->assertSame(456, $posts['y']);
+     }
++
++    // ---------------------------------------------------------------------
++    // Modo de visualização — Chen ↔ schema relacional
++    // ---------------------------------------------------------------------
++
++    /** O canvas nasce na notação de Chen: losango + pé de galinha nas duas pontas. */
++    public function test_view_mode_defaults_to_er_with_diamond_and_crows_feet(): void
++    {
++        $component = Livewire::test(SchemaBoard::class);
++
++        $this->assertSame('er', $component->get('viewMode'));
++
++        $edges = $component->instance()->buildEdges();
++        $this->assertSame('escreve', $edges[0]['label']);
++        $this->assertIsArray($edges[0]['markerStart']);
++        $this->assertIsArray($edges[0]['markerEnd']);
++    }
++
++    /**
++     * Alternar o modo troca o formato de TODAS as arestas de uma vez e avisa
++     * o cliente em lote — é o `erd-rebuild-edges` que o JS usa pra fazer
++     * remove → aguardar frames → add sem perder o marcador novo.
++     */
++    public function test_toggling_view_mode_switches_to_relational_edges(): void
++    {
++        $component = Livewire::test(SchemaBoard::class)
++            ->call('toggleViewMode')
++            ->assertDispatched('erd-rebuild-edges', function (string $name, array $params) {
++                // Nenhuma aresta pode carregar losango ou seta na origem
++                // nesse modo — só a seta simples apontando pra PK.
++                foreach ($params['edges'] as $edge) {
++                    if (array_key_exists('label', $edge)) {
++                        return false;
++                    }
++                    if (array_key_exists('markerStart', $edge)) {
++                        return false;
++                    }
++                    if (($edge['markerEnd']['type'] ?? null) !== 'arrow') {
++                        return false;
++                    }
++                }
++
++                return count($params['edges']) === 3;
++            });
++
++        $this->assertSame('relational', $component->get('viewMode'));
++
++        // O modelo continua o mesmo — só a representação visual mudou.
++        $this->assertCount(3, $component->get('relations'));
++        $this->assertSame('escreve', $this->relacao($component->get('relations'), 'r1')['name']);
++    }
++
++    /** Alternar de novo volta para a notação de Chen, losango e tudo. */
++    public function test_toggling_view_mode_twice_restores_chen_edges(): void
++    {
++        $component = Livewire::test(SchemaBoard::class)
++            ->call('toggleViewMode')
++            ->call('toggleViewMode');
++
++        $this->assertSame('er', $component->get('viewMode'));
++
++        $edges = $component->instance()->buildEdges();
++        $this->assertSame('escreve', $edges[0]['label']);
++        $this->assertIsArray($edges[0]['markerStart']);
++    }
++
++    /**
++     * Os nodes carregam o modo atual em `data.viewMode` — é o que o Blade lê
++     * pra trocar a casca visual da entidade (cabeçalho neutro, sem coluna de
++     * tipo) sem duplicar o template do node.
++     */
++    public function test_nodes_publish_the_current_view_mode(): void
++    {
++        $component = Livewire::test(SchemaBoard::class)->call('toggleViewMode');
++
++        $nodes = $component->instance()->buildNodes();
++        foreach ($nodes as $node) {
++            $this->assertSame('relational', $node['data']['viewMode']);
++        }
++    }
+ }

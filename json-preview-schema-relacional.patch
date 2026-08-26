@@ -1,0 +1,88 @@
+diff --git a/app/Livewire/SchemaBoard.php b/app/Livewire/SchemaBoard.php
+index edd2bf4..4c238c0 100644
+--- a/app/Livewire/SchemaBoard.php
++++ b/app/Livewire/SchemaBoard.php
+@@ -963,20 +963,26 @@ class SchemaBoard extends Component
+     }
+ 
+     /**
+-     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) do
+-     * estado atual, para exibir dentro do modal.
++     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) para
++     * exibir dentro do modal — do modo que estiver ativo no momento:
++     *
++     *   'er'         — $entities/$relations, o modelo editável.
++     *   'relational' — $relationalTables/$relationalLinks, ou seja, o
++     *                  CONTEÚDO DO ARQUIVO aberto (erd/schema-relacional.json),
++     *                  não uma reconversão na hora — é o mesmo dado que o
++     *                  canvas relacional está mostrando.
+      *
+      * É uma computed property do Livewire (prefixo `get` / sufixo
+      * `Property`): fica acessível na view como `$this->jsonPreview` e é
+-     * recalculada a cada render, sempre refletindo o estado mais recente de
+-     * $entities/$relations.
++     * recalculada a cada render, sempre refletindo o modo/estado atual.
+      */
+     public function getJsonPreviewProperty(): string
+     {
+-        return json_encode([
+-            'entities' => $this->entities,
+-            'relations' => $this->relations,
+-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
++        $dados = $this->viewMode === 'relational'
++            ? ['tables' => $this->relationalTables, 'links' => $this->relationalLinks]
++            : ['entities' => $this->entities, 'relations' => $this->relations];
++
++        return json_encode($dados, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+     }
+ 
+     /**
+diff --git a/resources/views/livewire/schema-board.blade.php b/resources/views/livewire/schema-board.blade.php
+index 0f461eb..2007a2b 100644
+--- a/resources/views/livewire/schema-board.blade.php
++++ b/resources/views/livewire/schema-board.blade.php
+@@ -74,7 +74,13 @@
+ >
+     <div class="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
+         <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+-            <h2 class="text-sm font-bold">JSON do diagrama</h2>
++            <h2 class="text-sm font-bold">
++                @if ($viewMode === 'relational')
++                    JSON do schema relacional <span class="font-normal text-slate-400">— erd/schema-relacional.json</span>
++                @else
++                    JSON do diagrama ER
++                @endif
++            </h2>
+             <div class="flex items-center gap-2">
+                 <button
+                     x-data
+diff --git a/tests/Feature/SchemaBoardTest.php b/tests/Feature/SchemaBoardTest.php
+index 435adc4..bb44014 100644
+--- a/tests/Feature/SchemaBoardTest.php
++++ b/tests/Feature/SchemaBoardTest.php
+@@ -413,4 +413,25 @@ class SchemaBoardTest extends TestCase
+         $this->assertSame('tabela_de_fora', $component->get('entities')[0]['name']);
+         $this->assertSame(99, $component->get('seq'));
+     }
++
++    /** "Ver JSON" mostra o schema relacional (não o diagrama ER) enquanto esse modo está ativo. */
++    public function test_json_preview_shows_the_relational_schema_while_in_relational_mode(): void
++    {
++        Storage::fake('local');
++
++        $component = Livewire::test(SchemaBoard::class)->call('toggleViewMode'); // er -> relational
++
++        $json = json_decode($component->instance()->getJsonPreviewProperty(), true);
++
++        $this->assertArrayHasKey('tables', $json);
++        $this->assertArrayHasKey('links', $json);
++        $this->assertArrayNotHasKey('entities', $json);
++        $this->assertArrayNotHasKey('relations', $json);
++
++        $component->call('toggleViewMode'); // relational -> er
++
++        $json = json_decode($component->instance()->getJsonPreviewProperty(), true);
++        $this->assertArrayHasKey('entities', $json);
++        $this->assertArrayHasKey('relations', $json);
++    }
+ }

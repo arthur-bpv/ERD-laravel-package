@@ -37,6 +37,32 @@
     >
         { } Ver JSON
     </button>
+
+<button
+    type="button"
+    wire:click="toggleViewMode"
+    wire:loading.attr="disabled"
+    wire:loading.class="opacity-70 cursor-wait"
+    class="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-indigo-400 hover:text-indigo-700"
+    title="Alterna entre o diagrama ER (editável) e o schema relacional gerado a partir dele"
+>
+    <span wire:loading.remove>
+        @if ($viewMode === 'relational')
+            <span class="text-base leading-none">🔀</span> Ver diagrama ER
+        @else
+            <span class="text-base leading-none">🗄️</span> Ver schema relacional
+        @endif
+    </span>
+
+    {{-- Feedback exibido apenas enquanto a requisição Livewire acontece --}}
+    <span wire:loading class="flex items-center gap-1.5">
+        <svg class="h-4 w-4 animate-spin text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        Carregando...
+    </span>
+</button>
+
+
+
     </header>
     {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
 <div
@@ -48,7 +74,13 @@
 >
     <div class="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
         <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 class="text-sm font-bold">JSON do diagrama</h2>
+            <h2 class="text-sm font-bold">
+                @if ($viewMode === 'relational')
+                    JSON do schema relacional <span class="font-normal text-slate-400">— erd/schema-relacional.json</span>
+                @else
+                    JSON do diagrama ER
+                @endif
+            </h2>
             <div class="flex items-center gap-2">
                 <button
                     x-data
@@ -65,7 +97,30 @@
 </div>
 
     {{-- ===================== CANVAS ===================== --}}
+    {{--
+        Os dois modos são canvases DIFERENTES, cada um no seu wrapper com
+        `wire:key` próprio — é o que garante que o Livewire, ao trocar
+        `$viewMode`, desmonte de vez o `<x-flow wire:ignore>` antigo (e o
+        componente Alpine/AlpineFlow que vivia nele) e monte um novo do zero,
+        já com os nodes/edges do arquivo que acabou de ser aberto. Sem
+        `wire:key` distinto o morph do Livewire poderia tentar reaproveitar
+        o elemento — arriscado com wire:ignore, que existe exatamente pra
+        dizer "não mexa aqui dentro".
+    --}}
     <div class="relative flex-1 overflow-hidden">
+    @if ($viewMode === 'relational')
+        <div wire:key="canvas-relational" class="h-full w-full">
+            {{-- selo mostrando de qual arquivo o schema relacional foi aberto --}}
+            <div class="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-medium text-white shadow">
+                📄 {{ $relationalMeta['arquivo'] }}
+                @if ($relationalMeta['geradoEm'])
+                    <span class="text-slate-300">— gerado em {{ \Illuminate\Support\Carbon::parse($relationalMeta['geradoEm'])->format('d/m/Y H:i:s') }}</span>
+                @endif
+            </div>
+            @include('livewire.partials.relational')
+        </div>
+    @else
+        <div wire:key="canvas-er" class="h-full w-full">
 
         {{-- wire:ignore: o morph do Livewire não pode destruir o DOM do AlpineFlow.
              Sem :sync — o estado é do servidor e as mudanças chegam por comandos WireFlow. --}}
@@ -359,11 +414,15 @@
                         Segure <kbd>Alt</kbd> e arraste de qualquer ponto de uma entidade até
                         outra para criar o relacionamento.
                         <strong>Clique com o botão direito na linha para editar nome e cardinalidade.</strong>
+                        Use <strong>"Ver schema relacional"</strong>, no cabeçalho, para salvar este
+                        diagrama em arquivo e gerar a conversão — inclusive as tabelas associativas de N:M.
                     </div>
                 </div>
             </x-flow-panel>
         </x-flow>
+        </div>
+    @endif
     </div>
-    
+
 
 </div>

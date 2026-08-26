@@ -2,11 +2,13 @@
 
 namespace App\Livewire;
 
+use App\Models\Diagram;
+use App\Support\ErdFileStore;
+use App\Support\RelationalSchemaConverter;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
-use App\Models\Diagram;
 
 /**
  * Editor visual de modelo Entidade-Relacionamento.
@@ -16,6 +18,29 @@ use App\Models\Diagram;
  *   - o relacionamento é UMA aresta, com um losango no meio carregando o nome
  *     do relacionamento (vem da notação de Chen);
  *   - a cardinalidade fica nas pontas, em pé de galinha (notação IE).
+ *
+ * DOIS MODOS DE TELA — `$viewMode`, alternado por `toggleViewMode()` — e
+ * CADA TROCA DE MODO MEXE EM ARQUIVO DE VERDADE (ver App\Support\ErdFileStore):
+ *
+ *   'er' → 'relational' — SALVA o diagrama ER atual em erd/diagrama.json,
+ *   depois CRIA erd/schema-relacional.json do zero (conversão de verdade,
+ *   ver App\Support\RelationalSchemaConverter) e ABRE (lê de volta) esse
+ *   arquivo recém-criado — é o que `$relationalTables`/`$relationalLinks`
+ *   guardam.
+ *
+ *   'relational' → 'er' — ABRE (lê) erd/diagrama.json e restaura
+ *   $entities/$relations/$seq/$relSeq a partir dele.
+ *
+ * Isso é DIFERENTE do botão "💾 Salvar": aquele grava num registro nomeado
+ * no banco (Model Diagram), pra guardar/retomar diagramas entre sessões. Os
+ * arquivos do ErdFileStore são o mecanismo interno da troca de modo — nem
+ * precisam de nome, só existe um par deles por vez.
+ *
+ * Os dois modos são renderizados por <x-flow> DIFERENTES (ver
+ * schema-board.blade.php e livewire.partials.relational) — cada
+ * `<x-flow wire:ignore>` vive num wrapper com `wire:key` próprio, então
+ * trocar `$viewMode` faz o Livewire desmontar o canvas antigo e montar o
+ * novo do zero, sem precisar de nenhuma coreografia manual de remove/add no JS.
  *
  * PONTOS DE CONEXÃO — a aresta é do tipo `floating`: o AlpineFlow calcula os
  * extremos pela borda das entidades e eles deslizam sozinhos quando a caixa se
@@ -62,6 +87,9 @@ class SchemaBoard extends Component
     /** Cor padrão das relações. */
     private const COR_RELACAO = '#64748b';
 
+    /** Cor das linhas no modo schema relacional — mais neutra, sem o roxo do losango. */
+    private const COR_RELACIONAL = '#334155';
+
     /**
      * Estrutura que guarda as entidades (tabelas) no servidor.
      *
@@ -87,6 +115,26 @@ class SchemaBoard extends Component
 
     /** Propriedade capturada de um campo de texto (wire:model) para nomear novas entidades. */
     public string $newEntityName = '';
+
+    /**
+     * Modo de tela atual.
+     *
+     * 'er' (padrão) — diagrama Chen, editável, autoridade do estado.
+     * 'relational'  — schema relacional aberto de erd/schema-relacional.json,
+     *                 só leitura (ver a nota grande no topo da classe).
+     */
+    public string $viewMode = 'er';
+
+    /**
+     * Conteúdo do arquivo erd/schema-relacional.json atualmente aberto —
+     * só existe depois da primeira troca para o modo 'relational'.
+     *
+     * @var array<int, array>
+     */
+    public array $relationalTables = [];
+
+    /** @var array<int, array> */
+    public array $relationalLinks = [];
 
     /**
      * Método executado uma única vez quando o componente é iniciado.
@@ -285,6 +333,115 @@ class SchemaBoard extends Component
         $pos = strrpos($attrId, '.');
 
         return $pos === false ? $attrId : substr($attrId, $pos + 1);
+    }
+
+    // ---------------------------------------------------------------------
+    // Modo SCHEMA RELACIONAL — nodes/edges a partir do arquivo aberto
+    // ---------------------------------------------------------------------
+
+    /**
+     * Nodes do schema relacional — lidos de `$relationalTables`, ou seja, do
+     * que está de fato gravado em erd/schema-relacional.json no momento
+     * (ver `toggleViewMode()`). Não recalcula nada aqui — só transforma o
+     * arquivo já aberto no formato que o frontend entende.
+     *
+     * @return array<int, array>
+     */
+    public function buildRelationalNodes(): array
+    {
+        return array_map(fn ($t) => $this->relationalNodeFor($t), $this->relationalTables);
+    }
+
+    private function relationalNodeFor(array $t): array
+    {
+        return [
+            'id' => $t['id'],
+            'position' => ['x' => $t['x'], 'y' => $t['y']],
+            'data' => [
+                'name' => $t['name'],
+                'attributes' => array_values($t['attributes']),
+                // true só nas tabelas que RelationalSchemaConverter criou
+                // pra resolver uma relação N:M — o Blade usa isso pra
+                // desenhar a etiqueta "tabela associativa".
+                'isAssociative' => $t['isAssociative'] ?? false,
+            ],
+        ];
+    }
+
+    /**
+     * Edges do schema relacional — uma linha reta de FK até PK por ligação
+     * do arquivo aberto, sem losango e sem pé de galinha (cardinalidade é
+     * conceito de Chen; aqui a única informação é "quem referencia quem").
+     *
+     * @return array<int, array>
+     */
+    public function buildRelationalEdges(): array
+    {
+        return array_map(fn ($l) => $this->relationalEdgeFor($l), $this->relationalLinks);
+    }
+
+    private function relationalEdgeFor(array $link): array
+    {
+        return [
+            'id' => $link['id'],
+            'source' => $link['source'],
+            'target' => $link['target'],
+            'type' => 'floating',
+            'pathType' => 'smoothstep',
+            'color' => self::COR_RELACIONAL,
+            'strokeWidth' => 1.3,
+            'interactionWidth' => 34,
+            // seta simples nativa do AlpineFlow, só na ponta referenciada
+            // (PK) — sem markerStart: direção FK → PK já basta pra ler.
+            'markerEnd' => ['type' => 'arrow', 'offset' => self::MARKER_OFFSET, 'color' => self::COR_RELACIONAL],
+            'data' => [
+                'fromAttr' => $link['sourceAttr'] ?? null,
+                'toAttr' => $link['targetAttr'] ?? null,
+            ],
+        ];
+    }
+
+    // ---------------------------------------------------------------------
+    // Ações — Visualização
+    // ---------------------------------------------------------------------
+
+    /**
+     * Alterna entre o diagrama ER (editável) e o schema relacional derivado
+     * (só leitura) — e faz isso mexendo em arquivo de verdade, não só
+     * trocando uma flag. Ver a nota grande no topo da classe.
+     */
+    public function toggleViewMode(): void
+    {
+        if ($this->viewMode === 'er') {
+            // 1) salva o diagrama ER atual em arquivo...
+            ErdFileStore::salvarDiagrama($this->entities, $this->relations, $this->seq, $this->relSeq);
+
+            // 2) ...gera o schema relacional a partir dele e CRIA o arquivo novo...
+            $projecao = RelationalSchemaConverter::convert($this->entities, $this->relations);
+            ErdFileStore::criarSchemaRelacional($projecao['tables'], $projecao['links']);
+
+            // 3) ...e ABRE (lê de volta) esse arquivo recém-criado — é o que a tela usa.
+            $arquivo = ErdFileStore::abrirSchemaRelacional();
+            $this->relationalTables = $arquivo['tables'] ?? [];
+            $this->relationalLinks = $arquivo['links'] ?? [];
+
+            $this->viewMode = 'relational';
+
+            return;
+        }
+
+        // Volta pro ER: abre (lê) o arquivo onde o diagrama tinha sido
+        // salvo — se por algum motivo ele nunca existiu (primeiro carregamento
+        // sem nunca ter trocado de modo), fica no estado atual, sem apagar nada.
+        $arquivo = ErdFileStore::abrirDiagrama();
+        if ($arquivo !== null) {
+            $this->entities = $arquivo['entities'] ?? $this->entities;
+            $this->relations = $arquivo['relations'] ?? $this->relations;
+            $this->seq = $arquivo['seq'] ?? $this->seq;
+            $this->relSeq = $arquivo['relSeq'] ?? $this->relSeq;
+        }
+
+        $this->viewMode = 'er';
     }
 
     // ---------------------------------------------------------------------
@@ -806,30 +963,45 @@ class SchemaBoard extends Component
     }
 
     /**
-     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) do
-     * estado atual, para exibir dentro do modal.
+     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) para
+     * exibir dentro do modal — do modo que estiver ativo no momento:
+     *
+     *   'er'         — $entities/$relations, o modelo editável.
+     *   'relational' — $relationalTables/$relationalLinks, ou seja, o
+     *                  CONTEÚDO DO ARQUIVO aberto (erd/schema-relacional.json),
+     *                  não uma reconversão na hora — é o mesmo dado que o
+     *                  canvas relacional está mostrando.
      *
      * É uma computed property do Livewire (prefixo `get` / sufixo
      * `Property`): fica acessível na view como `$this->jsonPreview` e é
-     * recalculada a cada render, sempre refletindo o estado mais recente de
-     * $entities/$relations.
+     * recalculada a cada render, sempre refletindo o modo/estado atual.
      */
     public function getJsonPreviewProperty(): string
     {
-        return json_encode([
-            'entities' => $this->entities,
-            'relations' => $this->relations,
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        $dados = $this->viewMode === 'relational'
+            ? ['tables' => $this->relationalTables, 'links' => $this->relationalLinks]
+            : ['entities' => $this->entities, 'relations' => $this->relations];
+
+        return json_encode($dados, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
     /**
-     * Renderiza o template Blade do componente, injetando as coleções iniciais.
+     * Renderiza o template Blade do componente, injetando as coleções dos
+     * DOIS modos — o Blade decide qual `<x-flow>` mostrar conforme
+     * `$viewMode` (ver a nota no topo da classe). `relationalMeta` só serve
+     * pra exibir, na tela, de qual arquivo o schema relacional veio.
      */
     public function render(): View
     {
         return view('livewire.schema-board', [
             'nodes' => $this->buildNodes(),
             'edges' => $this->buildEdges(),
+            'relationalNodes' => $this->buildRelationalNodes(),
+            'relationalEdges' => $this->buildRelationalEdges(),
+            'relationalMeta' => [
+                'arquivo' => ErdFileStore::caminhoSchemaRelacional(),
+                'geradoEm' => ErdFileStore::abrirSchemaRelacional()['gerado_em'] ?? null,
+            ],
         ]);
     }
 }

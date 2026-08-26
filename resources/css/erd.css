@@ -327,3 +327,72 @@
     background: #f1f5f9; border: 1px solid #cbd5e1; border-bottom-width: 2px;
     border-radius: 4px; padding: 0 4px; font-family: inherit; font-size: 10px; font-weight: 700;
 }
+
+/*
+ * ---- SCHEMA RELACIONAL (resources/views/livewire/partials/relational.blade.php) ----
+ *
+ * Canvas separado, aberto a partir de erd/schema-relacional.json (ver
+ * App\Support\ErdFileStore / SchemaBoard::toggleViewMode). Visual
+ * deliberadamente mais "de livro-texto" que o `.er-node` do modo Chen:
+ * cabeçalho neutro, PK em negrito+sublinhado, coluna de tipo em
+ * monoespaçada discreta. `.rel-node-assoc` marca as tabelas que
+ * RelationalSchemaConverter criou pra resolver uma relação N:M — contorno
+ * tracejado pra deixar claro que aquela tabela não existe no ER, foi gerada.
+ */
+.rel-node {
+    position: relative;
+    width: 220px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .10);
+    font-size: 12.5px;
+    overflow: visible;
+    user-select: none;
+}
+.flow-node-selected .rel-node { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.35); }
+
+.rel-node-assoc {
+    border-style: dashed;
+    border-color: #94a3b8;
+}
+
+.rel-head {
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 8px 10px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    text-align: center;
+    border-radius: 7px 7px 0 0;
+}
+.rel-node-assoc .rel-head { background: #eef2ff; color: #3730a3; }
+.rel-head-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.rel-tag {
+    background: #eef2ff; color: #4338ca; border-bottom: 1px solid #e0e7ff;
+    padding: 3px 10px; font-size: 9.5px; font-weight: 700; letter-spacing: .01em; text-align: center;
+}
+
+.rel-rows { display: flex; flex-direction: column; }
+.rel-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto auto;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-top: 1px solid #eef2f7;
+}
+.rel-row.is-pk { background: #fefce8; }
+
+.rel-key { font-size: 11px; line-height: 1; text-align: center; }
+.rel-attr-name { font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rel-row.is-pk .rel-attr-name { font-weight: 800; text-decoration: underline; text-decoration-color: #f59e0b; }
+.rel-attr-fk {
+    background: #dbeafe; color: #1d4ed8; border-radius: 4px; padding: 1px 5px;
+    font-size: 9px; font-weight: 800; letter-spacing: .02em;
+}
+.rel-attr-type {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px; color: #94a3b8; white-space: nowrap;
+}

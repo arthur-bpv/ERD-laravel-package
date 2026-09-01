@@ -41,10 +41,8 @@ const CF_VIEWBOX = `${-MW} ${-MH / 2} ${MW} ${MH}`;
  * pé de galinha, sem nenhum erro no console.
  */
 const CARDINALIDADES = [
-    'cf-one',
     'cf-one-one',
     'cf-zero-one',
-    'cf-many',
     'cf-one-many',
     'cf-zero-many',
 ];
@@ -96,12 +94,8 @@ const registrarCardinalidade = (nome, marcador) => {
 
 // Um  (obrigatório, exatamente um)              →  ||
 registrarCardinalidade('cf-one-one', crowMarker(bar(-8) + bar(-16)));
-// Um  (referência simples)                      →  |
-registrarCardinalidade('cf-one', crowMarker(bar(-10)));
 // Zero ou um                                    →  o|
 registrarCardinalidade('cf-zero-one', crowMarker(bar(-10) + ring(-22)));
-// Muitos (pé de galinha)                        →  <
-registrarCardinalidade('cf-many', crowMarker(foot(-18)));
 // Um ou muitos                                  →  |<
 registrarCardinalidade('cf-one-many', crowMarker(foot(-18) + bar(-26)));
 // Zero ou muitos                                →  o<

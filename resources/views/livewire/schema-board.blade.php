@@ -23,10 +23,104 @@
                 <span class="text-base leading-none">+</span> Nova entidade
             </button>
         </form>
+
+            <button
+                wire:click="save"
+                @saved.window="window.alert('✅ Diagrama salvo com sucesso!')"
+                class="rounded-md bg-slate-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            >
+                💾 Salvar
+            </button>
+            <button
+        wire:click="toggleJson"
+        class="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300"
+    >
+        { } Ver JSON
+    </button>
+
+<button
+    type="button"
+    wire:click="toggleViewMode"
+    wire:loading.attr="disabled"
+    wire:loading.class="opacity-70 cursor-wait"
+    class="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-indigo-400 hover:text-indigo-700"
+    title="Alterna entre o diagrama ER (editável) e o schema relacional gerado a partir dele"
+>
+    <span wire:loading.remove>
+        @if ($viewMode === 'relational')
+            <span class="text-base leading-none">🔀</span> Ver diagrama ER
+        @else
+            <span class="text-base leading-none">🗄️</span> Ver schema relacional
+        @endif
+    </span>
+
+    {{-- Feedback exibido apenas enquanto a requisição Livewire acontece --}}
+    <span wire:loading class="flex items-center gap-1.5">
+        <svg class="h-4 w-4 animate-spin text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        Carregando...
+    </span>
+</button>
+
+
+
     </header>
+    {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
+<div
+    x-show="$wire.showJson"
+    x-cloak
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
+    @click.self="$wire.toggleJson()"
+    @keydown.escape.window="$wire.showJson = false"
+>
+    <div class="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <h2 class="text-sm font-bold">
+                @if ($viewMode === 'relational')
+                    JSON do schema relacional <span class="font-normal text-slate-400">— erd/schema-relacional.json</span>
+                @else
+                    JSON do diagrama ER
+                @endif
+            </h2>
+            <div class="flex items-center gap-2">
+                <button
+                    x-data
+                    @click="navigator.clipboard.writeText($refs.jsonBox.innerText)"
+                    class="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+                >
+                    Copiar
+                </button>
+                <button wire:click="toggleJson" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+        </div>
+        <pre x-ref="jsonBox" class="overflow-auto p-4 text-xs leading-relaxed text-slate-700">{{ $this->jsonPreview }}</pre>
+    </div>
+</div>
 
     {{-- ===================== CANVAS ===================== --}}
+    {{--
+        Os dois modos são canvases DIFERENTES, cada um no seu wrapper com
+        `wire:key` próprio — é o que garante que o Livewire, ao trocar
+        `$viewMode`, desmonte de vez o `<x-flow wire:ignore>` antigo (e o
+        componente Alpine/AlpineFlow que vivia nele) e monte um novo do zero,
+        já com os nodes/edges do arquivo que acabou de ser aberto. Sem
+        `wire:key` distinto o morph do Livewire poderia tentar reaproveitar
+        o elemento — arriscado com wire:ignore, que existe exatamente pra
+        dizer "não mexa aqui dentro".
+    --}}
     <div class="relative flex-1 overflow-hidden">
+    @if ($viewMode === 'relational')
+        <div wire:key="canvas-relational" class="h-full w-full">
+            {{-- selo mostrando de qual arquivo o schema relacional foi aberto --}}
+            <div class="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-medium text-white shadow">
+                📄 {{ $relationalMeta['arquivo'] }}
+                @if ($relationalMeta['geradoEm'])
+                    <span class="text-slate-300">— gerado em {{ \Illuminate\Support\Carbon::parse($relationalMeta['geradoEm'])->format('d/m/Y H:i:s') }}</span>
+                @endif
+            </div>
+            @include('livewire.partials.relational')
+        </div>
+    @else
+        <div wire:key="canvas-er" class="h-full w-full">
 
         {{-- wire:ignore: o morph do Livewire não pode destruir o DOM do AlpineFlow.
              Sem :sync — o estado é do servidor e as mudanças chegam por comandos WireFlow. --}}
@@ -163,20 +257,21 @@
                                     title="Clique para alternar PK / FK / UQ"
                                 >
                                     <span x-show="attr.key === 'PK'">🔑</span>
-                                    <span x-show="attr.key && attr.key !== 'PK'" x-text="attr.key"></span>
-                                    <span x-show="!attr.key" class="er-key-empty">•</span>
+                                    <span x-show="attr.key !== 'PK'" class="er-key-empty">•</span>
                                 </button>
 
                                 {{-- nome do atributo --}}
-                                <span class="er-attr-name" x-text="attr.name"></span>
+                                <span
+                                    class="er-attr-name"
+                                    x-text="attr.name"
+                                    @dblclick="
+                                        const nome = window.prompt('Renomear atributo', attr.name);
+                                        if (nome) $wire.renameAttribute(node.id, attr.id, nome);
+                                    "
+                                    title="Duplo clique para renomear"
+                                ></span>
 
-                                {{-- marca discreta de atributo que participa de alguma relação --}}
-                                <span class="er-attr-link"
-                                      x-show="node.data.usedAttrs.includes(attr.id)"
-                                      title="Participa de um relacionamento">⛓</span>
 
-                                {{-- tipo do atributo --}}
-                                <span class="er-attr-type" x-text="attr.type"></span>
 
                                 {{-- excluir atributo --}}
                                 <button
@@ -189,30 +284,18 @@
                     </div>
 
                     {{-- rodapé: criar atributo DENTRO da caixa da entidade --}}
-                    <div class="er-foot nodrag" x-data="{ open: false, n: '', t: 'varchar', k: '' }">
+                    <div class="er-foot nodrag" x-data="{ open: false, n: '', k: '' }">
                         <button class="er-add-toggle" @click="open = !open" x-text="open ? '− cancelar' : '+ atributo'"></button>
 
                         <div x-show="open" x-cloak class="er-add-form" @keydown.enter.prevent="
-                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), t, k); n=''; k=''; open=false; }
+                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }
                         ">
                             <input class="er-add-input" x-model="n" placeholder="nome" @pointerdown.stop>
-                            <select class="er-add-select" x-model="t" @pointerdown.stop>
-                                <option>bigint</option>
-                                <option>int</option>
-                                <option>varchar</option>
-                                <option>text</option>
-                                <option>boolean</option>
-                                <option>timestamp</option>
-                                <option>decimal</option>
-                                <option>uuid</option>
-                            </select>
                             <select class="er-add-select er-add-key" x-model="k" @pointerdown.stop>
                                 <option value="">—</option>
                                 <option value="PK">PK</option>
-                                <option value="FK">FK</option>
-                                <option value="UQ">UQ</option>
                             </select>
-                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), t, k); n=''; k=''; open=false; }">ok</button>
+                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }">ok</button>
                         </div>
                     </div>
                 </div>
@@ -260,11 +343,6 @@
                             <span class="er-ee-diamond" x-text="e.label || 'sem nome'"></span>
                         </button>
 
-                        <div class="er-ee-path">
-                            <span class="er-ee-tag" x-text="e.source"></span>
-                            <span class="er-ee-arrow">→</span>
-                            <span class="er-ee-tag" x-text="e.target"></span>
-                        </div>
 
                         {{-- ponta ORIGEM (filho / FK) = markerStart --}}
                         <div class="er-ee-end">
@@ -282,17 +360,6 @@
                                     ></button>
                                 </template>
                             </div>
-                            {{-- coluna que carrega a FK dentro da entidade de origem --}}
-                            <select
-                                class="er-ee-col nodrag"
-                                @pointerdown.stop
-                                x-model="e.data.fromAttr"
-                                @change="setAttr('from', $event.target.value)"
-                            >
-                                <template x-for="a in attrsOf(e.source)" :key="a.id">
-                                    <option :value="a.id" x-text="a.name"></option>
-                                </template>
-                            </select>
                         </div>
 
                         {{-- ponta DESTINO (pai / PK) = markerEnd --}}
@@ -311,17 +378,6 @@
                                     ></button>
                                 </template>
                             </div>
-                            {{-- coluna referenciada (normalmente a PK) na entidade de destino --}}
-                            <select
-                                class="er-ee-col nodrag"
-                                @pointerdown.stop
-                                x-model="e.data.toAttr"
-                                @change="setAttr('to', $event.target.value)"
-                            >
-                                <template x-for="a in attrsOf(e.target)" :key="a.id">
-                                    <option :value="a.id" x-text="a.name"></option>
-                                </template>
-                            </select>
                         </div>
 
                         <div class="er-ee-actions">
@@ -351,7 +407,6 @@
                     <div class="er-legend-grid">
                         <div><span class="er-sym">&#8214;</span> um e só um</div>
                         <div><span class="er-sym">&#9711;&#8739;</span> zero ou um</div>
-                        <div><span class="er-sym">&lt;</span> muitos</div>
                         <div><span class="er-sym">&#8739;&lt;</span> um ou muitos</div>
                         <div><span class="er-sym">&#9711;&lt;</span> zero ou muitos</div>
                     </div>
@@ -359,10 +414,15 @@
                         Segure <kbd>Alt</kbd> e arraste de qualquer ponto de uma entidade até
                         outra para criar o relacionamento.
                         <strong>Clique com o botão direito na linha para editar nome e cardinalidade.</strong>
+                        Use <strong>"Ver schema relacional"</strong>, no cabeçalho, para salvar este
+                        diagrama em arquivo e gerar a conversão — inclusive as tabelas associativas de N:M.
                     </div>
                 </div>
             </x-flow-panel>
         </x-flow>
+        </div>
+    @endif
     </div>
+
 
 </div>

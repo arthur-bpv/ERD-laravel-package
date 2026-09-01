@@ -112,8 +112,6 @@ document.addEventListener('alpine:init', () => {
         options: [
             { m: 'cf-one-one', s: '&#8214;', t: 'um e só um' },
             { m: 'cf-zero-one', s: '&#9711;|', t: 'zero ou um' },
-            { m: 'cf-one', s: '|', t: 'um' },
-            { m: 'cf-many', s: '&lt;', t: 'muitos' },
             { m: 'cf-one-many', s: '|&lt;', t: 'um ou muitos' },
             { m: 'cf-zero-many', s: '&#9711;&lt;', t: 'zero ou muitos' },
         ],
@@ -176,26 +174,6 @@ document.addEventListener('alpine:init', () => {
             return typeof marker === 'string' ? marker : marker?.type;
         },
 
-        // Colunas da entidade indicada — alimenta o <select> de cada ponta do
-        // relacionamento. Lê direto do node vivo no $flow, não de uma cópia,
-        // então continua correto mesmo depois de add/remove de atributo.
-        attrsOf(entityId) {
-            return this.$flow?.nodes.find((n) => n.id === entityId)?.data?.attributes ?? [];
-        },
-
-        /**
-         * Troca qual coluna participa da ponta 'from' (FK) ou 'to' (referenciada).
-         *
-         * Quem garante que a coluna pertence à entidade certa é o servidor,
-         * em setRelationAttr — se ele recusar, o próximo re-render do
-         * Livewire devolve a aresta ao estado anterior.
-         */
-        setAttr(end, attrId) {
-            const edge = this.e;
-            if (!edge) return;
-
-            this.$wire.setRelationAttr(edge.id, end, attrId);
-        },
 
         // campo = 'markerStart' (lado filho/FK) | 'markerEnd' (lado pai/PK).
         // Não fecha o painel: o usuário costuma testar mais de uma opção

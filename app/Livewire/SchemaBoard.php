@@ -2,6 +2,9 @@
 
 namespace App\Livewire;
 
+use App\Models\Diagram;
+use App\Support\ErdFileStore;
+use App\Support\RelationalSchemaConverter;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
@@ -15,6 +18,29 @@ use Livewire\Component;
  *   - o relacionamento é UMA aresta, com um losango no meio carregando o nome
  *     do relacionamento (vem da notação de Chen);
  *   - a cardinalidade fica nas pontas, em pé de galinha (notação IE).
+ *
+ * DOIS MODOS DE TELA — `$viewMode`, alternado por `toggleViewMode()` — e
+ * CADA TROCA DE MODO MEXE EM ARQUIVO DE VERDADE (ver App\Support\ErdFileStore):
+ *
+ *   'er' → 'relational' — SALVA o diagrama ER atual em erd/diagrama.json,
+ *   depois CRIA erd/schema-relacional.json do zero (conversão de verdade,
+ *   ver App\Support\RelationalSchemaConverter) e ABRE (lê de volta) esse
+ *   arquivo recém-criado — é o que `$relationalTables`/`$relationalLinks`
+ *   guardam.
+ *
+ *   'relational' → 'er' — ABRE (lê) erd/diagrama.json e restaura
+ *   $entities/$relations/$seq/$relSeq a partir dele.
+ *
+ * Isso é DIFERENTE do botão "💾 Salvar": aquele grava num registro nomeado
+ * no banco (Model Diagram), pra guardar/retomar diagramas entre sessões. Os
+ * arquivos do ErdFileStore são o mecanismo interno da troca de modo — nem
+ * precisam de nome, só existe um par deles por vez.
+ *
+ * Os dois modos são renderizados por <x-flow> DIFERENTES (ver
+ * schema-board.blade.php e livewire.partials.relational) — cada
+ * `<x-flow wire:ignore>` vive num wrapper com `wire:key` próprio, então
+ * trocar `$viewMode` faz o Livewire desmontar o canvas antigo e montar o
+ * novo do zero, sem precisar de nenhuma coreografia manual de remove/add no JS.
  *
  * PONTOS DE CONEXÃO — a aresta é do tipo `floating`: o AlpineFlow calcula os
  * extremos pela borda das entidades e eles deslizam sozinhos quando a caixa se
@@ -54,12 +80,15 @@ class SchemaBoard extends Component
 
     /** Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente. */
     private const CARDINALIDADES = [
-        'cf-one', 'cf-one-one', 'cf-zero-one',
-        'cf-many', 'cf-one-many', 'cf-zero-many',
+         'cf-one-one', 'cf-zero-one',
+         'cf-one-many', 'cf-zero-many',
     ];
 
     /** Cor padrão das relações. */
     private const COR_RELACAO = '#64748b';
+
+    /** Cor das linhas no modo schema relacional — mais neutra, sem o roxo do losango. */
+    private const COR_RELACIONAL = '#334155';
 
     /**
      * Estrutura que guarda as entidades (tabelas) no servidor.
@@ -88,9 +117,34 @@ class SchemaBoard extends Component
     public string $newEntityName = '';
 
     /**
+     * Modo de tela atual.
+     *
+     * 'er' (padrão) — diagrama Chen, editável, autoridade do estado.
+     * 'relational'  — schema relacional aberto de erd/schema-relacional.json,
+     *                 só leitura (ver a nota grande no topo da classe).
+     */
+    public string $viewMode = 'er';
+
+    /**
+     * Conteúdo do arquivo erd/schema-relacional.json atualmente aberto —
+     * só existe depois da primeira troca para o modo 'relational'.
+     *
+     * @var array<int, array>
+     */
+    public array $relationalTables = [];
+
+    /** @var array<int, array> */
+    public array $relationalLinks = [];
+
+    /**
      * Método executado uma única vez quando o componente é iniciado.
      * Alimenta o editor com um modelo básico (Seed) de Blog.
      */
+
+    public ?int $diagramId = null;
+    public string $diagramName = 'Diagrama sem nome';
+
+
     public function mount(): void
     {
         // Entidades iniciais do modelo, com posições de tela (x, y) e atributos.
@@ -282,6 +336,115 @@ class SchemaBoard extends Component
     }
 
     // ---------------------------------------------------------------------
+    // Modo SCHEMA RELACIONAL — nodes/edges a partir do arquivo aberto
+    // ---------------------------------------------------------------------
+
+    /**
+     * Nodes do schema relacional — lidos de `$relationalTables`, ou seja, do
+     * que está de fato gravado em erd/schema-relacional.json no momento
+     * (ver `toggleViewMode()`). Não recalcula nada aqui — só transforma o
+     * arquivo já aberto no formato que o frontend entende.
+     *
+     * @return array<int, array>
+     */
+    public function buildRelationalNodes(): array
+    {
+        return array_map(fn ($t) => $this->relationalNodeFor($t), $this->relationalTables);
+    }
+
+    private function relationalNodeFor(array $t): array
+    {
+        return [
+            'id' => $t['id'],
+            'position' => ['x' => $t['x'], 'y' => $t['y']],
+            'data' => [
+                'name' => $t['name'],
+                'attributes' => array_values($t['attributes']),
+                // true só nas tabelas que RelationalSchemaConverter criou
+                // pra resolver uma relação N:M — o Blade usa isso pra
+                // desenhar a etiqueta "tabela associativa".
+                'isAssociative' => $t['isAssociative'] ?? false,
+            ],
+        ];
+    }
+
+    /**
+     * Edges do schema relacional — uma linha reta de FK até PK por ligação
+     * do arquivo aberto, sem losango e sem pé de galinha (cardinalidade é
+     * conceito de Chen; aqui a única informação é "quem referencia quem").
+     *
+     * @return array<int, array>
+     */
+    public function buildRelationalEdges(): array
+    {
+        return array_map(fn ($l) => $this->relationalEdgeFor($l), $this->relationalLinks);
+    }
+
+    private function relationalEdgeFor(array $link): array
+    {
+        return [
+            'id' => $link['id'],
+            'source' => $link['source'],
+            'target' => $link['target'],
+            'type' => 'floating',
+            'pathType' => 'smoothstep',
+            'color' => self::COR_RELACIONAL,
+            'strokeWidth' => 1.3,
+            'interactionWidth' => 34,
+            // seta simples nativa do AlpineFlow, só na ponta referenciada
+            // (PK) — sem markerStart: direção FK → PK já basta pra ler.
+            'markerEnd' => ['type' => 'arrow', 'offset' => self::MARKER_OFFSET, 'color' => self::COR_RELACIONAL],
+            'data' => [
+                'fromAttr' => $link['sourceAttr'] ?? null,
+                'toAttr' => $link['targetAttr'] ?? null,
+            ],
+        ];
+    }
+
+    // ---------------------------------------------------------------------
+    // Ações — Visualização
+    // ---------------------------------------------------------------------
+
+    /**
+     * Alterna entre o diagrama ER (editável) e o schema relacional derivado
+     * (só leitura) — e faz isso mexendo em arquivo de verdade, não só
+     * trocando uma flag. Ver a nota grande no topo da classe.
+     */
+    public function toggleViewMode(): void
+    {
+        if ($this->viewMode === 'er') {
+            // 1) salva o diagrama ER atual em arquivo...
+            ErdFileStore::salvarDiagrama($this->entities, $this->relations, $this->seq, $this->relSeq);
+
+            // 2) ...gera o schema relacional a partir dele e CRIA o arquivo novo...
+            $projecao = RelationalSchemaConverter::convert($this->entities, $this->relations);
+            ErdFileStore::criarSchemaRelacional($projecao['tables'], $projecao['links']);
+
+            // 3) ...e ABRE (lê de volta) esse arquivo recém-criado — é o que a tela usa.
+            $arquivo = ErdFileStore::abrirSchemaRelacional();
+            $this->relationalTables = $arquivo['tables'] ?? [];
+            $this->relationalLinks = $arquivo['links'] ?? [];
+
+            $this->viewMode = 'relational';
+
+            return;
+        }
+
+        // Volta pro ER: abre (lê) o arquivo onde o diagrama tinha sido
+        // salvo — se por algum motivo ele nunca existiu (primeiro carregamento
+        // sem nunca ter trocado de modo), fica no estado atual, sem apagar nada.
+        $arquivo = ErdFileStore::abrirDiagrama();
+        if ($arquivo !== null) {
+            $this->entities = $arquivo['entities'] ?? $this->entities;
+            $this->relations = $arquivo['relations'] ?? $this->relations;
+            $this->seq = $arquivo['seq'] ?? $this->seq;
+            $this->relSeq = $arquivo['relSeq'] ?? $this->relSeq;
+        }
+
+        $this->viewMode = 'er';
+    }
+
+    // ---------------------------------------------------------------------
     // Ações — Entidades
     // ---------------------------------------------------------------------
 
@@ -361,6 +524,24 @@ class SchemaBoard extends Component
         });
     }
 
+    public function renameAttribute(string $entityId, string $attrId, string $name): void
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return;
+        }
+
+        $this->mutateEntity($entityId, function (&$e) use ($attrId, $name) {
+            foreach ($e['attributes'] as &$a) {
+                if ($a['id'] === $attrId) {
+                    $a['name'] = $name;
+                    break;
+                }
+            }
+            unset($a);
+        });
+    }
+
     // ---------------------------------------------------------------------
     // Ações — Atributos
     // ---------------------------------------------------------------------
@@ -377,7 +558,6 @@ class SchemaBoard extends Component
             $e['attributes'][] = [
                 'id' => $attrId,
                 'name' => $name,
-                'type' => $type ?: 'varchar',
                 'key' => in_array($key, ['PK', 'FK', 'UQ'], true) ? $key : '', // barra valor fora do escopo
             ];
         });
@@ -418,14 +598,16 @@ class SchemaBoard extends Component
         $order = ['', 'PK', 'FK', 'UQ']; // lista circular
 
         $this->mutateEntity($entityId, function (&$e) use ($attrId, $order) {
+
+            $vaiVirarPk = false;
             foreach ($e['attributes'] as &$a) {
                 if ($a['id'] === $attrId) {
-                    $i = array_search($a['key'], $order, true);
-                    // O módulo faz o índice voltar a 0 depois do último item.
-                    $a['key'] = $order[($i === false ? 0 : $i + 1) % count($order)];
-                    break;
+                $vaiVirarPk = $a['key'] !== 'PK';
+                $a['key'] = $vaiVirarPk ? 'PK' : '';
+                break;
                 }
             }
+            unset($a);
         });
     }
 
@@ -443,12 +625,18 @@ class SchemaBoard extends Component
      * As colunas são escolhidas automaticamente porque a conexão é feita de
      * entidade para entidade — o usuário refina depois no painel lateral.
      */
-    public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
+      public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
     {
         $origem = $this->findEntity($source);
         $destino = $this->findEntity($target);
 
         if (! $origem || ! $destino) {
+            return;
+        }
+
+        // Duas entidades só podem ter UM relacionamento entre si, independente
+        // da direção — impede duplicar a mesma ligação ao arrastar de novo.
+        if ($this->relacaoExisteEntre($origem['id'], $destino['id'])) {
             return;
         }
 
@@ -458,8 +646,10 @@ class SchemaBoard extends Component
             return;
         }
 
-        // Reaproveita (ou cria) a coluna que carrega a chave estrangeira.
-        $fk = $this->garantirColunaFk($origem['id'], $destino);
+        // Reaproveita a coluna que já carregaria a chave estrangeira, se existir.
+        // Não cria mais uma coluna nova — se não houver candidata, a relação
+        // nasce com fromAttr vazio, pronta pra ser configurada manualmente.
+        $fk = $this->buscarColunaFkExistente($origem['id'], $destino) ?? '';
 
         $id = 'r'.(++$this->relSeq);
 
@@ -551,47 +741,6 @@ class SchemaBoard extends Component
      *
      * @param  string  $end  'from' (coluna FK) ou 'to' (coluna referenciada)
      */
-    public function setRelationAttr(string $relationId, string $end, string $attrId): void
-    {
-        $relacao = null;
-        foreach ($this->relations as $r) {
-            if ($r['id'] === $relationId) {
-                $relacao = $r;
-                break;
-            }
-        }
-
-        if ($relacao === null) {
-            return;
-        }
-
-        $campo = $end === 'to' ? 'toAttr' : 'fromAttr';
-
-        // A coluna precisa pertencer à entidade daquela ponta — sem isso um
-        // cliente poderia apontar a relação para uma coluna de outra tabela.
-        $entidade = $this->findEntity($end === 'to' ? $relacao['to'] : $relacao['from']);
-        if (! $entidade) {
-            return;
-        }
-
-        $pertence = false;
-        foreach ($entidade['attributes'] as $a) {
-            if ($a['id'] === $attrId) {
-                $pertence = true;
-                break;
-            }
-        }
-
-        if (! $pertence) {
-            return;
-        }
-
-        $this->mutateRelation($relationId, function (&$r) use ($campo, $attrId) {
-            $r[$campo] = $attrId;
-        });
-
-        $this->syncNodeData();
-    }
 
     /**
      * Ouvinte disparado pelo frontend quando o usuário solta uma entidade
@@ -643,15 +792,8 @@ class SchemaBoard extends Component
         return null;
     }
 
-    /**
-     * Garante que a entidade filha tenha uma coluna para carregar a chave
-     * estrangeira, e devolve o id dela.
-     *
-     * Primeiro procura uma FK livre já chamada `{destino}_id`; se não achar,
-     * cria a coluna. Assim desenhar a relação não sequestra uma coluna que já
-     * significava outra coisa.
-     */
-    private function garantirColunaFk(string $entityId, array $destino): string
+
+    private function buscarColunaFkExistente(string $entityId, array $destino): ?string
     {
         $desejado = $destino['name'].'_id';
 
@@ -665,27 +807,12 @@ class SchemaBoard extends Component
 
         $origem = $this->findEntity($entityId);
         foreach ($origem['attributes'] as $a) {
-            if ($a['name'] === $desejado && $a['key'] !== 'PK' && ! in_array($a['id'], $ocupadas, true)) {
+            if ($a['name'] === $desejado && ! in_array($a['id'], $ocupadas, true)) {
                 return $a['id'];
             }
         }
 
-        // Nenhuma candidata livre — cria a coluna FK.
-        $attrId = $entityId.'.'.$desejado.'_'.(++$this->seq);
-
-        foreach ($this->entities as &$e) {
-            if ($e['id'] === $entityId) {
-                $e['attributes'][] = [
-                    'id' => $attrId,
-                    'name' => $desejado,
-                    'type' => 'bigint',
-                    'key' => 'FK',
-                ];
-                break;
-            }
-        }
-
-        return $attrId;
+        return null;
     }
 
     /**
@@ -743,6 +870,26 @@ class SchemaBoard extends Component
             }
         }
     }
+    /**
+     * Verifica se já existe relação entre duas entidades, em qualquer direção.
+     *
+     * Um modelo ER não deveria ter duas relações distintas ligando o mesmo par
+     * de tabelas — isso normalmente é sinal de erro do usuário (clicou duas
+     * vezes / arrastou de novo sem perceber), não uma modelagem válida.
+     */
+    private function relacaoExisteEntre(string $idA, string $idB): bool
+    {
+        foreach ($this->relations as $r) {
+            $ligaAB = $r['from'] === $idA && $r['to'] === $idB;
+            $ligaBA = $r['from'] === $idB && $r['to'] === $idA;
+
+            if ($ligaAB || $ligaBA) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /**
      * Republica `data` de todas as entidades.
@@ -762,15 +909,99 @@ class SchemaBoard extends Component
             $this->flowUpdate(['nodes' => $patch]);
         }
     }
+    // ---------------------------------------------------------------------
+    // Persistência — Diagrama salvo como JSON
+    // ---------------------------------------------------------------------
 
     /**
-     * Renderiza o template Blade do componente, injetando as coleções iniciais.
+     * Salva (cria ou atualiza) o diagrama atual no banco, como um único
+     * registro JSON.
+     *
+     * Não existe um Model por entidade/relação — o par $entities/$relations
+     * inteiro é serializado de uma vez em `diagrams.data` (o cast `array` no
+     * Model Diagram cuida da conversão JSON <-> array). Isso é proposital:
+     * o estado já é a fonte da verdade em memória (ver nota "AUTORIDADE DO
+     * ESTADO" no topo da classe), então persistir é só um dump desse estado,
+     * sem remodelar em tabelas relacionais separadas.
+     *
+     * Se `$diagramId` já estiver preenchido (diagrama carregado ou salvo
+     * antes nesta sessão), atualiza o registro existente; caso contrário,
+     * cria um novo e passa a lembrar o id dele — assim cliques seguintes em
+     * "Salvar" viram UPDATE, e não ficam criando registros duplicados.
+     */
+    public function save(): void
+{
+    $payload = [
+        'entities' => $this->entities,
+        'relations' => $this->relations,
+    ];
+
+    $model = $this->diagramId
+        ? Diagram::findOrFail($this->diagramId)
+        : new Diagram();
+
+    $model->name = $this->diagramName;
+    $model->data = $payload;
+    $model->save();
+
+    $this->diagramId = $model->id;
+
+            // Evento ouvido no Blade (Alpine, via @saved.window) para exibir o
+        // selo "✅ Salvo!" por alguns segundos. O .window é necessário porque
+        // o Livewire despacha o evento no nível global do navegador, não só
+        // dentro do escopo do componente.
+
+    $this->dispatch('saved'); // pra mostrar um toast/feedback no front, se quiser
+}
+
+ public bool $showJson = false;
+
+    /** Alterna a exibição do modal com o JSON do diagrama. */
+    public function toggleJson(): void
+    {
+        $this->showJson = ! $this->showJson;
+    }
+
+    /**
+     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) para
+     * exibir dentro do modal — do modo que estiver ativo no momento:
+     *
+     *   'er'         — $entities/$relations, o modelo editável.
+     *   'relational' — $relationalTables/$relationalLinks, ou seja, o
+     *                  CONTEÚDO DO ARQUIVO aberto (erd/schema-relacional.json),
+     *                  não uma reconversão na hora — é o mesmo dado que o
+     *                  canvas relacional está mostrando.
+     *
+     * É uma computed property do Livewire (prefixo `get` / sufixo
+     * `Property`): fica acessível na view como `$this->jsonPreview` e é
+     * recalculada a cada render, sempre refletindo o modo/estado atual.
+     */
+    public function getJsonPreviewProperty(): string
+    {
+        $dados = $this->viewMode === 'relational'
+            ? ['tables' => $this->relationalTables, 'links' => $this->relationalLinks]
+            : ['entities' => $this->entities, 'relations' => $this->relations];
+
+        return json_encode($dados, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Renderiza o template Blade do componente, injetando as coleções dos
+     * DOIS modos — o Blade decide qual `<x-flow>` mostrar conforme
+     * `$viewMode` (ver a nota no topo da classe). `relationalMeta` só serve
+     * pra exibir, na tela, de qual arquivo o schema relacional veio.
      */
     public function render(): View
     {
         return view('livewire.schema-board', [
             'nodes' => $this->buildNodes(),
             'edges' => $this->buildEdges(),
+            'relationalNodes' => $this->buildRelationalNodes(),
+            'relationalEdges' => $this->buildRelationalEdges(),
+            'relationalMeta' => [
+                'arquivo' => ErdFileStore::caminhoSchemaRelacional(),
+                'geradoEm' => ErdFileStore::abrirSchemaRelacional()['gerado_em'] ?? null,
+            ],
         ]);
     }
 }

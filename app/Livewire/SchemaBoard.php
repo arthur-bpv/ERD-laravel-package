@@ -3,11 +3,11 @@
 namespace App\Livewire;
 
 use App\Models\Diagram;
-use App\Support\ErdFileStore;
-use App\Support\RelationalSchemaConverter;
+use App\Services\ErToRelationalTransformer;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 /**
@@ -18,29 +18,6 @@ use Livewire\Component;
  *   - o relacionamento é UMA aresta, com um losango no meio carregando o nome
  *     do relacionamento (vem da notação de Chen);
  *   - a cardinalidade fica nas pontas, em pé de galinha (notação IE).
- *
- * DOIS MODOS DE TELA — `$viewMode`, alternado por `toggleViewMode()` — e
- * CADA TROCA DE MODO MEXE EM ARQUIVO DE VERDADE (ver App\Support\ErdFileStore):
- *
- *   'er' → 'relational' — SALVA o diagrama ER atual em erd/diagrama.json,
- *   depois CRIA erd/schema-relacional.json do zero (conversão de verdade,
- *   ver App\Support\RelationalSchemaConverter) e ABRE (lê de volta) esse
- *   arquivo recém-criado — é o que `$relationalTables`/`$relationalLinks`
- *   guardam.
- *
- *   'relational' → 'er' — ABRE (lê) erd/diagrama.json e restaura
- *   $entities/$relations/$seq/$relSeq a partir dele.
- *
- * Isso é DIFERENTE do botão "💾 Salvar": aquele grava num registro nomeado
- * no banco (Model Diagram), pra guardar/retomar diagramas entre sessões. Os
- * arquivos do ErdFileStore são o mecanismo interno da troca de modo — nem
- * precisam de nome, só existe um par deles por vez.
- *
- * Os dois modos são renderizados por <x-flow> DIFERENTES (ver
- * schema-board.blade.php e livewire.partials.relational) — cada
- * `<x-flow wire:ignore>` vive num wrapper com `wire:key` próprio, então
- * trocar `$viewMode` faz o Livewire desmontar o canvas antigo e montar o
- * novo do zero, sem precisar de nenhuma coreografia manual de remove/add no JS.
  *
  * PONTOS DE CONEXÃO — a aresta é do tipo `floating`: o AlpineFlow calcula os
  * extremos pela borda das entidades e eles deslizam sozinhos quando a caixa se
@@ -80,15 +57,12 @@ class SchemaBoard extends Component
 
     /** Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente. */
     private const CARDINALIDADES = [
-         'cf-one-one', 'cf-zero-one',
-         'cf-one-many', 'cf-zero-many',
+        'cf-one-one', 'cf-zero-one',
+        'cf-one-many', 'cf-zero-many',
     ];
 
     /** Cor padrão das relações. */
     private const COR_RELACAO = '#64748b';
-
-    /** Cor das linhas no modo schema relacional — mais neutra, sem o roxo do losango. */
-    private const COR_RELACIONAL = '#334155';
 
     /**
      * Estrutura que guarda as entidades (tabelas) no servidor.
@@ -116,37 +90,32 @@ class SchemaBoard extends Component
     /** Propriedade capturada de um campo de texto (wire:model) para nomear novas entidades. */
     public string $newEntityName = '';
 
-    /**
-     * Modo de tela atual.
-     *
-     * 'er' (padrão) — diagrama Chen, editável, autoridade do estado.
-     * 'relational'  — schema relacional aberto de erd/schema-relacional.json,
-     *                 só leitura (ver a nota grande no topo da classe).
-     */
-    public string $viewMode = 'er';
-
-    /**
-     * Conteúdo do arquivo erd/schema-relacional.json atualmente aberto —
-     * só existe depois da primeira troca para o modo 'relational'.
-     *
-     * @var array<int, array>
-     */
-    public array $relationalTables = [];
-
-    /** @var array<int, array> */
-    public array $relationalLinks = [];
-
-    /**
-     * Método executado uma única vez quando o componente é iniciado.
-     * Alimenta o editor com um modelo básico (Seed) de Blog.
-     */
-
+    /** Método executado uma única vez quando o componente é iniciado. */
+    #[Locked]
     public ?int $diagramId = null;
+
     public string $diagramName = 'Diagrama sem nome';
 
-
-    public function mount(): void
+    public function mount($diagram = null): void
     {
+        if ($diagram) {
+            $diagram = $diagram instanceof Diagram ? $diagram : Diagram::findOrFail($diagram);
+
+            abort_unless($diagram->type === Diagram::TYPE_ENTITY_RELATIONSHIP, 404);
+
+            $this->diagramId = $diagram->id;
+            $this->diagramName = $diagram->name;
+
+            // Um projeto recém-criado possui `data: []`. Isso representa um
+            // quadro realmente vazio, não um pedido para carregar o exemplo.
+            $this->entities = array_values($diagram->data['entities'] ?? []);
+            $this->relations = array_values($diagram->data['relations'] ?? []);
+            $this->seq = $this->largestNumericId($this->entities, 'e');
+            $this->relSeq = $this->largestNumericId($this->relations, 'r');
+
+            return;
+        }
+
         // Entidades iniciais do modelo, com posições de tela (x, y) e atributos.
         $this->entities = [
             [
@@ -179,7 +148,7 @@ class SchemaBoard extends Component
 
         // Relacionamentos do seed. O `name` é o verbo que aparece dentro do losango.
         $this->relations = [
-            ['id' => 'r1', 'name' => 'escreve', 'from' => 'posts', 'fromAttr' => 'posts.user_id', 'to' => 'users', 'toAttr' => 'users.id', 'childCard' => 'cf-many', 'parentCard' => 'cf-one-one'],
+            ['id' => 'r1', 'name' => 'escreve', 'from' => 'posts', 'fromAttr' => 'posts.user_id', 'to' => 'users', 'toAttr' => 'users.id', 'childCard' => 'cf-one-many', 'parentCard' => 'cf-one-one'],
             ['id' => 'r2', 'name' => 'recebe', 'from' => 'comments', 'fromAttr' => 'comments.post_id', 'to' => 'posts', 'toAttr' => 'posts.id', 'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one'],
             ['id' => 'r3', 'name' => 'comenta', 'from' => 'comments', 'fromAttr' => 'comments.user_id', 'to' => 'users', 'toAttr' => 'users.id', 'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one'],
         ];
@@ -187,6 +156,24 @@ class SchemaBoard extends Component
         // Sincroniza os sequenciadores para evitar duplicidade de IDs futuros.
         $this->seq = count($this->entities);
         $this->relSeq = count($this->relations);
+    }
+
+    /**
+     * Boards antigos podem ter lacunas (e4, e5, e6) após exclusões. Usar a
+     * quantidade de itens faria a próxima entidade repetir e4 e o Flow
+     * rejeitaria silenciosamente o nó duplicado.
+     */
+    private function largestNumericId(array $items, string $prefix): int
+    {
+        $largest = 0;
+
+        foreach ($items as $item) {
+            if (preg_match('/^'.preg_quote($prefix, '/').'(\d+)$/', (string) ($item['id'] ?? ''), $matches)) {
+                $largest = max($largest, (int) $matches[1]);
+            }
+        }
+
+        return $largest;
     }
 
     // ---------------------------------------------------------------------
@@ -200,7 +187,18 @@ class SchemaBoard extends Component
      */
     public function buildNodes(): array
     {
-        return array_map(fn ($e) => $this->nodeFor($e), $this->entities);
+        $nodes = array_map(fn ($e) => $this->nodeFor($e), $this->entities);
+
+        foreach ($this->relations as $relation) {
+            if (! $this->isCompleteRelationship($relation) || $this->isSelfRelationship($relation)) {
+                $nodes[] = $this->relationshipNodeFor($relation);
+                if ($this->isSelfRelationship($relation)) {
+                    array_push($nodes, ...$this->selfRelationshipPortNodesFor($relation));
+                }
+            }
+        }
+
+        return $nodes;
     }
 
     /**
@@ -267,46 +265,134 @@ class SchemaBoard extends Component
      */
     public function buildEdges(): array
     {
-        return array_map(fn ($r) => $this->edgeFor($r), $this->relations);
+        return array_values(array_merge(...array_map(fn ($r) => $this->edgesForRelation($r), $this->relations)));
     }
 
-    /**
-     * Monta a aresta de um relacionamento.
-     *
-     * `type: floating` faz o AlpineFlow calcular os extremos pela borda das duas
-     * entidades — a linha desliza sozinha quando a caixa é arrastada e não fica
-     * presa a um ponto fixo. `pathType` escolhe o gerador de curva usado dentro
-     * do modo floating.
-     *
-     * `label` vira o losango (é estilizado por CSS em .flow-edge-label);
-     * `labelStart`/`labelEnd` mostram as colunas de cada ponta.
-     *
-     * `interactionWidth` alarga a faixa invisível que captura o clique na linha
-     * (o padrão da biblioteca é 20px). Uma aresta de 1,6px é um alvo minúsculo
-     * para o mouse — era por isso que clicar na relação às vezes não pegava.
-     */
-    private function edgeFor(array $r): array
+    private function relationshipNodeFor(array $relation): array
     {
+        $isFixedSelfRelationship = $this->isSelfRelationship($relation);
+        $source = $relation['from'] ? $this->findEntity($relation['from']) : null;
+        $target = $relation['to'] ? $this->findEntity($relation['to']) : null;
+
+        if ($source && $target && $source['id'] !== $target['id']) {
+            $defaultX = (int) round(($source['x'] + $target['x']) / 2) + 50;
+            $defaultY = (int) round(($source['y'] + $target['y']) / 2);
+        } elseif ($source || $target) {
+            $entity = $source ?? $target;
+            if ($isFixedSelfRelationship) {
+                // Autorrelacionamento no formato clássico: o losango fica
+                // centralizado acima da entidade e as duas pernas voltam aos
+                // cantos superiores, formando um loop curto e simétrico.
+                $defaultX = $entity['x'] + 56;
+                $defaultY = max(30, $entity['y'] - 104);
+            } else {
+                $defaultX = $entity['x'] + 330;
+                $defaultY = max(30, $entity['y'] - 90);
+            }
+        } else {
+            $defaultX = 320 + (($this->relSeq % 4) * 170);
+            $defaultY = 180 + (intdiv($this->relSeq, 4) * 130);
+        }
+
         return [
-            'id' => $r['id'],
-            'source' => $r['from'],
-            'target' => $r['to'],
+            'id' => $this->relationshipNodeId($relation['id']),
+            'position' => [
+                'x' => $relation['diamondX'] ?? $defaultX,
+                'y' => $relation['diamondY'] ?? $defaultY,
+            ],
+            'data' => [
+                'kind' => 'relationship',
+                'relationId' => $relation['id'],
+                'name' => $relation['name'],
+                'complete' => (bool) ($relation['from'] && $relation['to']),
+                'isSelf' => $isFixedSelfRelationship,
+                'from' => $relation['from'],
+                'to' => $relation['to'],
+                'sourceName' => $source['name'] ?? 'não conectada',
+                'targetName' => $target['name'] ?? 'não conectada',
+                'childCard' => $relation['childCard'],
+                'parentCard' => $relation['parentCard'],
+            ],
+        ];
+    }
+
+    private function edgesForRelation(array $relation): array
+    {
+        if ($this->isCompleteRelationship($relation) && ! $this->isSelfRelationship($relation)) {
+            return [$this->completedRelationshipEdgeFor($relation)];
+        }
+
+        $source = $relation['from'] ? $this->findEntity($relation['from']) : null;
+        $target = $relation['to'] ? $this->findEntity($relation['to']) : null;
+        $diamondId = $this->relationshipNodeId($relation['id']);
+        $isSelfRelationship = $this->isSelfRelationship($relation);
+        $selfPorts = $isSelfRelationship ? $this->selfRelationshipPortNodeIds($relation['id']) : null;
+        $data = [
+            'relationId' => $relation['id'],
+            'relationName' => $relation['name'],
+            'fromAttr' => $relation['fromAttr'],
+            'toAttr' => $relation['toAttr'],
+            'sourceName' => $source['name'] ?? 'não conectada',
+            'targetName' => $target['name'] ?? 'não conectada',
+        ];
+        $base = [
+            'type' => 'straight',
+            'pathType' => 'straight',
+            'color' => self::COR_RELACAO,
+            'strokeWidth' => 1.6,
+            'interactionWidth' => 34,
+            'data' => $data,
+        ];
+
+        $edges = [];
+        if ($source) {
+            $edges[] = $base + [
+                'id' => $relation['id'].':out',
+                'source' => $isSelfRelationship ? $selfPorts['entityOut'] : $relation['from'],
+                'target' => $isSelfRelationship ? $selfPorts['diamondOut'] : $diamondId,
+                'labelStart' => $this->nomeCurto($relation['fromAttr']),
+                'markerStart' => $this->marker($relation['childCard']),
+            ];
+        }
+        if ($target) {
+            $edges[] = $base + [
+                'id' => $relation['id'].':in',
+                'source' => $isSelfRelationship ? $selfPorts['diamondIn'] : $diamondId,
+                'target' => $isSelfRelationship ? $selfPorts['entityIn'] : $relation['to'],
+                'labelEnd' => $this->nomeCurto($relation['toAttr']),
+                'markerEnd' => $this->marker($relation['parentCard']),
+            ];
+        }
+
+        return $edges;
+    }
+
+    private function completedRelationshipEdgeFor(array $relation): array
+    {
+        $source = $this->findEntity($relation['from']);
+        $target = $this->findEntity($relation['to']);
+
+        return [
+            'id' => $relation['id'],
+            'source' => $relation['from'],
+            'target' => $relation['to'],
             'type' => 'floating',
             'pathType' => 'smoothstep',
             'color' => self::COR_RELACAO,
             'strokeWidth' => 1.6,
             'interactionWidth' => 34,
-            'label' => $r['name'],
-            'labelStart' => $this->nomeCurto($r['fromAttr']),
-            'labelEnd' => $this->nomeCurto($r['toAttr']),
-            'markerStart' => $this->marker($r['childCard']),   // lado filho (FK) — normalmente "muitos"
-            'markerEnd' => $this->marker($r['parentCard']),    // lado pai (PK) — normalmente "um"
-            // ids completos das colunas — o editor de relacionamento usa isto
-            // para popular o seletor de coluna de cada ponta (labelStart/End
-            // só trazem o nome curto, sem o prefixo da tabela).
+            'label' => $relation['name'],
+            'labelStart' => $this->nomeCurto($relation['fromAttr']),
+            'labelEnd' => $this->nomeCurto($relation['toAttr']),
+            'markerStart' => $this->marker($relation['childCard']),
+            'markerEnd' => $this->marker($relation['parentCard']),
             'data' => [
-                'fromAttr' => $r['fromAttr'],
-                'toAttr' => $r['toAttr'],
+                'relationId' => $relation['id'],
+                'relationName' => $relation['name'],
+                'fromAttr' => $relation['fromAttr'],
+                'toAttr' => $relation['toAttr'],
+                'sourceName' => $source['name'] ?? $relation['from'],
+                'targetName' => $target['name'] ?? $relation['to'],
             ],
         ];
     }
@@ -336,115 +422,6 @@ class SchemaBoard extends Component
     }
 
     // ---------------------------------------------------------------------
-    // Modo SCHEMA RELACIONAL — nodes/edges a partir do arquivo aberto
-    // ---------------------------------------------------------------------
-
-    /**
-     * Nodes do schema relacional — lidos de `$relationalTables`, ou seja, do
-     * que está de fato gravado em erd/schema-relacional.json no momento
-     * (ver `toggleViewMode()`). Não recalcula nada aqui — só transforma o
-     * arquivo já aberto no formato que o frontend entende.
-     *
-     * @return array<int, array>
-     */
-    public function buildRelationalNodes(): array
-    {
-        return array_map(fn ($t) => $this->relationalNodeFor($t), $this->relationalTables);
-    }
-
-    private function relationalNodeFor(array $t): array
-    {
-        return [
-            'id' => $t['id'],
-            'position' => ['x' => $t['x'], 'y' => $t['y']],
-            'data' => [
-                'name' => $t['name'],
-                'attributes' => array_values($t['attributes']),
-                // true só nas tabelas que RelationalSchemaConverter criou
-                // pra resolver uma relação N:M — o Blade usa isso pra
-                // desenhar a etiqueta "tabela associativa".
-                'isAssociative' => $t['isAssociative'] ?? false,
-            ],
-        ];
-    }
-
-    /**
-     * Edges do schema relacional — uma linha reta de FK até PK por ligação
-     * do arquivo aberto, sem losango e sem pé de galinha (cardinalidade é
-     * conceito de Chen; aqui a única informação é "quem referencia quem").
-     *
-     * @return array<int, array>
-     */
-    public function buildRelationalEdges(): array
-    {
-        return array_map(fn ($l) => $this->relationalEdgeFor($l), $this->relationalLinks);
-    }
-
-    private function relationalEdgeFor(array $link): array
-    {
-        return [
-            'id' => $link['id'],
-            'source' => $link['source'],
-            'target' => $link['target'],
-            'type' => 'floating',
-            'pathType' => 'smoothstep',
-            'color' => self::COR_RELACIONAL,
-            'strokeWidth' => 1.3,
-            'interactionWidth' => 34,
-            // seta simples nativa do AlpineFlow, só na ponta referenciada
-            // (PK) — sem markerStart: direção FK → PK já basta pra ler.
-            'markerEnd' => ['type' => 'arrow', 'offset' => self::MARKER_OFFSET, 'color' => self::COR_RELACIONAL],
-            'data' => [
-                'fromAttr' => $link['sourceAttr'] ?? null,
-                'toAttr' => $link['targetAttr'] ?? null,
-            ],
-        ];
-    }
-
-    // ---------------------------------------------------------------------
-    // Ações — Visualização
-    // ---------------------------------------------------------------------
-
-    /**
-     * Alterna entre o diagrama ER (editável) e o schema relacional derivado
-     * (só leitura) — e faz isso mexendo em arquivo de verdade, não só
-     * trocando uma flag. Ver a nota grande no topo da classe.
-     */
-    public function toggleViewMode(): void
-    {
-        if ($this->viewMode === 'er') {
-            // 1) salva o diagrama ER atual em arquivo...
-            ErdFileStore::salvarDiagrama($this->entities, $this->relations, $this->seq, $this->relSeq);
-
-            // 2) ...gera o schema relacional a partir dele e CRIA o arquivo novo...
-            $projecao = RelationalSchemaConverter::convert($this->entities, $this->relations);
-            ErdFileStore::criarSchemaRelacional($projecao['tables'], $projecao['links']);
-
-            // 3) ...e ABRE (lê de volta) esse arquivo recém-criado — é o que a tela usa.
-            $arquivo = ErdFileStore::abrirSchemaRelacional();
-            $this->relationalTables = $arquivo['tables'] ?? [];
-            $this->relationalLinks = $arquivo['links'] ?? [];
-
-            $this->viewMode = 'relational';
-
-            return;
-        }
-
-        // Volta pro ER: abre (lê) o arquivo onde o diagrama tinha sido
-        // salvo — se por algum motivo ele nunca existiu (primeiro carregamento
-        // sem nunca ter trocado de modo), fica no estado atual, sem apagar nada.
-        $arquivo = ErdFileStore::abrirDiagrama();
-        if ($arquivo !== null) {
-            $this->entities = $arquivo['entities'] ?? $this->entities;
-            $this->relations = $arquivo['relations'] ?? $this->relations;
-            $this->seq = $arquivo['seq'] ?? $this->seq;
-            $this->relSeq = $arquivo['relSeq'] ?? $this->relSeq;
-        }
-
-        $this->viewMode = 'er';
-    }
-
-    // ---------------------------------------------------------------------
     // Ações — Entidades
     // ---------------------------------------------------------------------
 
@@ -469,7 +446,7 @@ class SchemaBoard extends Component
             'id' => $id,
             'name' => $name,
             'x' => 40 + $coluna * 280,
-            'y' => 380 + $linha * 220,
+            'y' => ($this->diagramId ? 60 : 380) + $linha * 220,
             'attributes' => [
                 ['id' => $id.'.id', 'name' => 'id', 'type' => 'bigint', 'key' => 'PK'], // toda entidade nasce identificada
             ],
@@ -487,23 +464,31 @@ class SchemaBoard extends Component
      */
     public function deleteEntity(string $id): void
     {
-        $this->entities = array_values(array_filter($this->entities, fn ($e) => $e['id'] !== $id));
-
         // Toda relação que encosta nessa entidade (como origem ou destino) morre junto.
         $removidas = [];
+        $nodesRemovidos = [];
         foreach ($this->relations as $r) {
             if ($r['from'] === $id || $r['to'] === $id) {
-                $removidas[] = $r['id'];
+                array_push($removidas, ...array_column($this->edgesForRelation($r), 'id'));
+                $nodesRemovidos[] = $this->relationshipNodeId($r['id']);
+                if ($this->isSelfRelationship($r)) {
+                    array_push($nodesRemovidos, ...array_values($this->selfRelationshipPortNodeIds($r['id'])));
+                }
             }
         }
 
-        $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $removidas, true)));
+        $this->entities = array_values(array_filter($this->entities, fn ($e) => $e['id'] !== $id));
+
+        $this->relations = array_values(array_filter($this->relations, fn ($r) => $r['from'] !== $id && $r['to'] !== $id));
 
         if ($removidas) {
             $this->flowRemoveEdges($removidas);
         }
 
         $this->flowRemoveNodes([$id]);
+        if ($nodesRemovidos) {
+            $this->flowRemoveNodes($nodesRemovidos);
+        }
 
         // As entidades que sobraram podem ter liberado colunas — republica o estado.
         $this->syncNodeData();
@@ -558,6 +543,7 @@ class SchemaBoard extends Component
             $e['attributes'][] = [
                 'id' => $attrId,
                 'name' => $name,
+                'type' => $type,
                 'key' => in_array($key, ['PK', 'FK', 'UQ'], true) ? $key : '', // barra valor fora do escopo
             ];
         });
@@ -573,15 +559,25 @@ class SchemaBoard extends Component
         });
 
         $removidas = [];
+        $nodesRemovidos = [];
+        $relationIds = [];
         foreach ($this->relations as $r) {
             if ($r['fromAttr'] === $attrId || $r['toAttr'] === $attrId) {
-                $removidas[] = $r['id'];
+                $relationIds[] = $r['id'];
+                array_push($removidas, ...array_column($this->edgesForRelation($r), 'id'));
+                $nodesRemovidos[] = $this->relationshipNodeId($r['id']);
+                if ($this->isSelfRelationship($r)) {
+                    array_push($nodesRemovidos, ...array_values($this->selfRelationshipPortNodeIds($r['id'])));
+                }
             }
         }
 
         if ($removidas) {
-            $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $removidas, true)));
+            $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $relationIds, true)));
             $this->flowRemoveEdges($removidas);
+            if ($nodesRemovidos) {
+                $this->flowRemoveNodes($nodesRemovidos);
+            }
             $this->syncNodeData();
         }
     }
@@ -597,14 +593,14 @@ class SchemaBoard extends Component
     {
         $order = ['', 'PK', 'FK', 'UQ']; // lista circular
 
-        $this->mutateEntity($entityId, function (&$e) use ($attrId, $order) {
+        $this->mutateEntity($entityId, function (&$e) use ($attrId) {
 
             $vaiVirarPk = false;
             foreach ($e['attributes'] as &$a) {
                 if ($a['id'] === $attrId) {
-                $vaiVirarPk = $a['key'] !== 'PK';
-                $a['key'] = $vaiVirarPk ? 'PK' : '';
-                break;
+                    $vaiVirarPk = $a['key'] !== 'PK';
+                    $a['key'] = $vaiVirarPk ? 'PK' : '';
+                    break;
                 }
             }
             unset($a);
@@ -616,6 +612,18 @@ class SchemaBoard extends Component
     // ---------------------------------------------------------------------
 
     /**
+     * Cria um autorrelacionamento por uma ação explícita.
+     *
+     * O AlpineFlow rejeita source === target durante o gesto de conexão,
+     * então o próprio nó oferece esta ação e o servidor mantém as mesmas
+     * validações usadas em qualquer relacionamento.
+     */
+    public function createSelfRelation(string $entityId): void
+    {
+        $this->onConnect($entityId, $entityId, 's:top', 't:tr');
+    }
+
+    /**
      * Chega aqui quando o usuário desenha uma conexão no canvas.
      *
      * A aresta provisória que o AlpineFlow criou já foi descartada no cliente
@@ -625,8 +633,23 @@ class SchemaBoard extends Component
      * As colunas são escolhidas automaticamente porque a conexão é feita de
      * entidade para entidade — o usuário refina depois no painel lateral.
      */
-      public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
+    public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
     {
+        $sourceRelationId = $this->relationIdFromNode($source);
+        $targetRelationId = $this->relationIdFromNode($target);
+
+        if ($targetRelationId && ! $sourceRelationId) {
+            $this->attachRelationshipEndpoint($targetRelationId, $source, 'from');
+
+            return;
+        }
+
+        if ($sourceRelationId && ! $targetRelationId) {
+            $this->attachRelationshipEndpoint($sourceRelationId, $target, 'to');
+
+            return;
+        }
+
         $origem = $this->findEntity($source);
         $destino = $this->findEntity($target);
 
@@ -660,14 +683,75 @@ class SchemaBoard extends Component
             'fromAttr' => $fk,
             'to' => $destino['id'],
             'toAttr' => $pk,
-            'childCard' => 'cf-many',      // o lado da FK costuma ser "muitos"
-            'parentCard' => 'cf-one-one',  // o lado da PK costuma ser "um e só um"
+            'childCard' => 'cf-one-many', // o lado da FK costuma ser "muitos"
+            'parentCard' => 'cf-one-one', // o lado da PK costuma ser "um e só um"
         ];
+
+        if ($source === $target) {
+            $relacao['fromRole'] = 'papel_origem';
+            $relacao['toRole'] = 'papel_destino';
+        }
 
         $this->relations[] = $relacao;
 
-        $this->flowAddEdges([$this->edgeFor($relacao)]);
+        if ($this->isSelfRelationship($relacao)) {
+            $this->flowAddNodes([
+                $this->relationshipNodeFor($relacao),
+                ...$this->selfRelationshipPortNodesFor($relacao),
+            ]);
+        }
+        $this->flowAddEdges($this->edgesForRelation($relacao));
         $this->syncNodeData();
+    }
+
+    private function attachRelationshipEndpoint(string $relationId, string $entityId, string $end): void
+    {
+        $entity = $this->findEntity($entityId);
+        if (! $entity) {
+            return;
+        }
+
+        foreach ($this->relations as &$relation) {
+            if ($relation['id'] !== $relationId || $relation[$end] !== null) {
+                continue;
+            }
+
+            $oldEdgeIds = array_column($this->edgesForRelation($relation), 'id');
+
+            if ($end === 'to') {
+                $identifier = $this->identificadorDe($entity);
+                if ($identifier === null) {
+                    return;
+                }
+                $relation['to'] = $entityId;
+                $relation['toAttr'] = $identifier;
+                if ($relation['from']) {
+                    $relation['fromAttr'] = $this->buscarColunaFkExistente($relation['from'], $entity) ?? '';
+                }
+            } else {
+                $relation['from'] = $entityId;
+                if ($relation['to'] && ($target = $this->findEntity($relation['to']))) {
+                    $relation['fromAttr'] = $this->buscarColunaFkExistente($entityId, $target) ?? '';
+                }
+            }
+
+            $this->dispatch(
+                'erd-rebuild-edge',
+                edges: $this->edgesForRelation($relation),
+                removeIds: $oldEdgeIds,
+                select: false,
+            );
+            if ($this->isCompleteRelationship($relation) && ! $this->isSelfRelationship($relation)) {
+                $this->flowRemoveNodes([$this->relationshipNodeId($relationId)]);
+            } else {
+                $this->flowUpdate(['nodes' => [
+                    $this->relationshipNodeId($relationId) => ['data' => $this->relationshipNodeFor($relation)['data']],
+                ]]);
+            }
+            $this->syncNodeData();
+
+            return;
+        }
     }
 
     /**
@@ -704,7 +788,14 @@ class SchemaBoard extends Component
 
                 // `label` é uma das poucas propriedades de aresta que o
                 // flowUpdate consegue alterar in-place, sem recriar a linha.
-                $this->flowUpdate(['edges' => [$relationId => ['label' => $name]]]);
+                if (! $this->isCompleteRelationship($r) || $this->isSelfRelationship($r)) {
+                    $this->flowUpdate(['nodes' => [
+                        $this->relationshipNodeId($relationId) => ['data' => $this->relationshipNodeFor($r)['data']],
+                    ]]);
+                    $this->dispatch('erd-rebuild-edge', edges: $this->edgesForRelation($r), select: false);
+                } else {
+                    $this->flowUpdate(['edges' => [$relationId => ['label' => $name]]]);
+                }
 
                 return;
             }
@@ -720,6 +811,7 @@ class SchemaBoard extends Component
             [$r['from'], $r['to']] = [$r['to'], $r['from']];
             [$r['fromAttr'], $r['toAttr']] = [$r['toAttr'], $r['fromAttr']];
             [$r['childCard'], $r['parentCard']] = [$r['parentCard'], $r['childCard']];
+            [$r['fromRole'], $r['toRole']] = [$r['toRole'] ?? 'papel_destino', $r['fromRole'] ?? 'papel_origem'];
         });
 
         $this->syncNodeData();
@@ -730,9 +822,17 @@ class SchemaBoard extends Component
      */
     public function deleteRelation(string $relationId): void
     {
+        $relation = collect($this->relations)->firstWhere('id', $relationId);
         $this->relations = array_values(array_filter($this->relations, fn ($r) => $r['id'] !== $relationId));
 
-        $this->flowRemoveEdges([$relationId]);
+        if ($relation) {
+            $this->flowRemoveEdges(array_column($this->edgesForRelation($relation), 'id'));
+            $nodeIds = [$this->relationshipNodeId($relationId)];
+            if ($this->isSelfRelationship($relation)) {
+                array_push($nodeIds, ...array_values($this->selfRelationshipPortNodeIds($relationId)));
+            }
+            $this->flowRemoveNodes($nodeIds);
+        }
         $this->syncNodeData();
     }
 
@@ -741,6 +841,31 @@ class SchemaBoard extends Component
      *
      * @param  string  $end  'from' (coluna FK) ou 'to' (coluna referenciada)
      */
+    public function setRelationAttr(string $relationId, string $end, string $attrId): void
+    {
+        foreach ($this->relations as $relation) {
+            if ($relation['id'] !== $relationId) {
+                continue;
+            }
+
+            $entityId = $end === 'to' ? $relation['to'] : $relation['from'];
+            $entity = $this->findEntity($entityId);
+            $belongsToEntity = collect($entity['attributes'] ?? [])->contains('id', $attrId);
+
+            if (! $belongsToEntity) {
+                return;
+            }
+
+            $field = $end === 'to' ? 'toAttr' : 'fromAttr';
+            $this->mutateRelation($relationId, function (array &$item) use ($field, $attrId) {
+                $item[$field] = $attrId;
+            });
+
+            $this->syncNodeData();
+
+            return;
+        }
+    }
 
     /**
      * Ouvinte disparado pelo frontend quando o usuário solta uma entidade
@@ -748,11 +873,59 @@ class SchemaBoard extends Component
      */
     public function onNodeDragEnd(string $nodeId, array $position): void
     {
+        if (str_starts_with($nodeId, 'relation-')) {
+            $relationId = substr($nodeId, strlen('relation-'));
+            foreach ($this->relations as &$relation) {
+                if ($relation['id'] === $relationId) {
+                    $relation['diamondX'] = (int) round($position['x'] ?? 0);
+                    $relation['diamondY'] = (int) round($position['y'] ?? 0);
+
+                    if ($this->isSelfRelationship($relation)) {
+                        $patch = [];
+                        foreach ($this->selfRelationshipPortNodesFor($relation) as $port) {
+                            $patch[$port['id']] = ['position' => $port['position']];
+                        }
+                        $this->flowUpdate(['nodes' => $patch]);
+                    }
+                    break;
+                }
+            }
+
+            return;
+        }
+
         // Persiste as coordenadas para que o layout sobreviva a um reload.
         foreach ($this->entities as &$e) {
             if ($e['id'] === $nodeId) {
-                $e['x'] = (int) round($position['x'] ?? $e['x']);
-                $e['y'] = (int) round($position['y'] ?? $e['y']);
+                $newX = (int) round($position['x'] ?? $e['x']);
+                $newY = (int) round($position['y'] ?? $e['y']);
+                $deltaX = $newX - $e['x'];
+                $deltaY = $newY - $e['y'];
+
+                foreach ($this->relations as &$relation) {
+                    if (! $this->isSelfRelationship($relation) || $relation['from'] !== $nodeId) {
+                        continue;
+                    }
+
+                    $diamond = $this->relationshipNodeFor($relation)['position'];
+                    $relation['diamondX'] = $diamond['x'] + $deltaX;
+                    $relation['diamondY'] = $diamond['y'] + $deltaY;
+                }
+                unset($relation);
+
+                $e['x'] = $newX;
+                $e['y'] = $newY;
+
+                foreach ($this->relations as $relation) {
+                    if ($this->isSelfRelationship($relation) && $relation['from'] === $nodeId) {
+                        $node = $this->relationshipNodeFor($relation);
+                        $patch = [$node['id'] => ['position' => $node['position']]];
+                        foreach ($this->selfRelationshipPortNodesFor($relation) as $port) {
+                            $patch[$port['id']] = ['position' => $port['position']];
+                        }
+                        $this->flowUpdate(['nodes' => $patch]);
+                    }
+                }
                 break;
             }
         }
@@ -791,7 +964,6 @@ class SchemaBoard extends Component
 
         return null;
     }
-
 
     private function buscarColunaFkExistente(string $entityId, array $destino): ?string
     {
@@ -864,12 +1036,18 @@ class SchemaBoard extends Component
             if ($r['id'] === $id) {
                 $fn($r);
 
-                $this->dispatch('erd-rebuild-edge', edge: $this->edgeFor($r), select: $manterSelecionada);
+                if (! $this->isCompleteRelationship($r) || $this->isSelfRelationship($r)) {
+                    $this->flowUpdate(['nodes' => [
+                        $this->relationshipNodeId($id) => ['data' => $this->relationshipNodeFor($r)['data']],
+                    ]]);
+                }
+                $this->dispatch('erd-rebuild-edge', edges: $this->edgesForRelation($r), select: $manterSelecionada);
 
                 return;
             }
         }
     }
+
     /**
      * Verifica se já existe relação entre duas entidades, em qualquer direção.
      *
@@ -889,6 +1067,128 @@ class SchemaBoard extends Component
         }
 
         return false;
+    }
+
+    private function relationIdFromNode(string $nodeId): ?string
+    {
+        return str_starts_with($nodeId, 'relation-')
+            ? substr($nodeId, strlen('relation-'))
+            : null;
+    }
+
+    private function isCompleteRelationship(array $relation): bool
+    {
+        return ! empty($relation['from']) && ! empty($relation['to']);
+    }
+
+    private function isSelfRelationship(array $relation): bool
+    {
+        return $this->isCompleteRelationship($relation) && $relation['from'] === $relation['to'];
+    }
+
+    private function relationshipNodeId(string $relationId): string
+    {
+        return 'relation-'.$relationId;
+    }
+
+    /** @return array{entityOut: string, entityIn: string, diamondOut: string, diamondIn: string} */
+    private function selfRelationshipPortNodeIds(string $relationId): array
+    {
+        $prefix = $this->relationshipNodeId($relationId).'-port-';
+
+        return [
+            'entityOut' => $prefix.'entity-out',
+            'entityIn' => $prefix.'entity-in',
+            'diamondOut' => $prefix.'diamond-out',
+            'diamondIn' => $prefix.'diamond-in',
+        ];
+    }
+
+    /**
+     * Cria quatro pontos geométricos invisíveis sobre os dois contornos.
+     * Eles deslizam continuamente: dois pela borda retangular da entidade e
+     * dois pelas arestas do losango. As linhas ligam esses pontos, portanto
+     * não dependem dos quatro handles discretos oferecidos pelo AlpineFlow.
+     *
+     * @return array<int, array>
+     */
+    private function selfRelationshipPortNodesFor(array $relation): array
+    {
+        $entity = $this->findEntity($relation['from']);
+        $diamond = $this->relationshipNodeFor($relation)['position'];
+        $ids = $this->selfRelationshipPortNodeIds($relation['id']);
+
+        $entityWidth = 232.0;
+        $entityHeight = 84.0 + (count($entity['attributes'] ?? []) * 24.5);
+        $entityCenterX = $entity['x'] + ($entityWidth / 2);
+        $entityCenterY = $entity['y'] + ($entityHeight / 2);
+        $diamondCenterX = $diamond['x'] + 60.0;
+        $diamondCenterY = $diamond['y'] + 22.0;
+
+        $dx = $diamondCenterX - $entityCenterX;
+        $dy = $diamondCenterY - $entityCenterY;
+        $length = max(1.0, hypot($dx, $dy));
+        $ux = $dx / $length;
+        $uy = $dy / $length;
+        $px = -$uy;
+        $py = $ux;
+
+        // Abre as duas pernas sem criar uma troca brusca de lado nos cantos.
+        $spread = 0.55;
+        $entityOut = $this->rectangleBorderPoint(
+            $entityCenterX, $entityCenterY, $entityWidth / 2, $entityHeight / 2,
+            $ux + ($px * $spread), $uy + ($py * $spread),
+        );
+        $entityIn = $this->rectangleBorderPoint(
+            $entityCenterX, $entityCenterY, $entityWidth / 2, $entityHeight / 2,
+            $ux - ($px * $spread), $uy - ($py * $spread),
+        );
+
+        // No losango, o par ocupa o eixo perpendicular ao ângulo da relação:
+        // esquerda/direita quando está acima e topo/base quando está ao lado.
+        $diamondOut = $this->diamondBorderPoint($diamondCenterX, $diamondCenterY, 60.0, 22.0, $px, $py);
+        $diamondIn = $this->diamondBorderPoint($diamondCenterX, $diamondCenterY, 60.0, 22.0, -$px, -$py);
+
+        $points = [
+            'entityOut' => $entityOut,
+            'entityIn' => $entityIn,
+            'diamondOut' => $diamondOut,
+            'diamondIn' => $diamondIn,
+        ];
+
+        return array_map(
+            fn (string $role) => [
+                'id' => $ids[$role],
+                'position' => [
+                    'x' => (int) round($points[$role]['x']) - 1,
+                    'y' => (int) round($points[$role]['y']) - 1,
+                ],
+                'data' => [
+                    'kind' => 'relationship-port',
+                    'relationId' => $relation['id'],
+                    'role' => $role,
+                ],
+            ],
+            array_keys($points),
+        );
+    }
+
+    /** @return array{x: float, y: float} */
+    private function rectangleBorderPoint(float $cx, float $cy, float $halfWidth, float $halfHeight, float $dx, float $dy): array
+    {
+        $tx = abs($dx) > 0.0001 ? $halfWidth / abs($dx) : PHP_FLOAT_MAX;
+        $ty = abs($dy) > 0.0001 ? $halfHeight / abs($dy) : PHP_FLOAT_MAX;
+        $scale = min($tx, $ty);
+
+        return ['x' => $cx + ($dx * $scale), 'y' => $cy + ($dy * $scale)];
+    }
+
+    /** @return array{x: float, y: float} */
+    private function diamondBorderPoint(float $cx, float $cy, float $halfWidth, float $halfHeight, float $dx, float $dy): array
+    {
+        $scale = 1 / max(0.0001, (abs($dx) / $halfWidth) + (abs($dy) / $halfHeight));
+
+        return ['x' => $cx + ($dx * $scale), 'y' => $cy + ($dy * $scale)];
     }
 
     /**
@@ -930,31 +1230,57 @@ class SchemaBoard extends Component
      * "Salvar" viram UPDATE, e não ficam criando registros duplicados.
      */
     public function save(): void
-{
-    $payload = [
-        'entities' => $this->entities,
-        'relations' => $this->relations,
-    ];
+    {
+        $this->persistDiagram();
 
-    $model = $this->diagramId
-        ? Diagram::findOrFail($this->diagramId)
-        : new Diagram();
-
-    $model->name = $this->diagramName;
-    $model->data = $payload;
-    $model->save();
-
-    $this->diagramId = $model->id;
-
-            // Evento ouvido no Blade (Alpine, via @saved.window) para exibir o
+        // Evento ouvido no Blade (Alpine, via @saved.window) para exibir o
         // selo "✅ Salvo!" por alguns segundos. O .window é necessário porque
         // o Livewire despacha o evento no nível global do navegador, não só
         // dentro do escopo do componente.
 
-    $this->dispatch('saved'); // pra mostrar um toast/feedback no front, se quiser
-}
+        $this->dispatch('saved'); // pra mostrar um toast/feedback no front, se quiser
+    }
 
- public bool $showJson = false;
+    /**
+     * Salva o ER atual e abre sua cópia relacional já regenerada.
+     * Assim a conversão nunca usa um snapshot antigo nem exige voltar antes
+     * ao dashboard para encontrar o botão da Etapa 2.
+     */
+    public function convertToRelational(ErToRelationalTransformer $transformer): void
+    {
+        $source = $this->persistDiagram();
+
+        $relational = Diagram::query()->updateOrCreate(
+            ['source_diagram_id' => $source->id],
+            [
+                'name' => $source->name.' — Relacional',
+                'type' => Diagram::TYPE_RELATIONAL,
+                'data' => $transformer->transform($source->data ?? []),
+            ],
+        );
+
+        $this->redirectRoute('boards.relational', $relational, navigate: true);
+    }
+
+    private function persistDiagram(): Diagram
+    {
+        $model = $this->diagramId
+            ? Diagram::query()->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->findOrFail($this->diagramId)
+            : new Diagram(['type' => Diagram::TYPE_ENTITY_RELATIONSHIP]);
+
+        $model->name = $this->diagramName;
+        $model->data = [
+            'entities' => $this->entities,
+            'relations' => $this->relations,
+        ];
+        $model->save();
+
+        $this->diagramId = $model->id;
+
+        return $model;
+    }
+
+    public bool $showJson = false;
 
     /** Alterna a exibição do modal com o JSON do diagrama. */
     public function toggleJson(): void
@@ -963,45 +1289,30 @@ class SchemaBoard extends Component
     }
 
     /**
-     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) para
-     * exibir dentro do modal — do modo que estiver ativo no momento:
-     *
-     *   'er'         — $entities/$relations, o modelo editável.
-     *   'relational' — $relationalTables/$relationalLinks, ou seja, o
-     *                  CONTEÚDO DO ARQUIVO aberto (erd/schema-relacional.json),
-     *                  não uma reconversão na hora — é o mesmo dado que o
-     *                  canvas relacional está mostrando.
+     * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) do
+     * estado atual, para exibir dentro do modal.
      *
      * É uma computed property do Livewire (prefixo `get` / sufixo
      * `Property`): fica acessível na view como `$this->jsonPreview` e é
-     * recalculada a cada render, sempre refletindo o modo/estado atual.
+     * recalculada a cada render, sempre refletindo o estado mais recente de
+     * $entities/$relations.
      */
     public function getJsonPreviewProperty(): string
     {
-        $dados = $this->viewMode === 'relational'
-            ? ['tables' => $this->relationalTables, 'links' => $this->relationalLinks]
-            : ['entities' => $this->entities, 'relations' => $this->relations];
-
-        return json_encode($dados, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        return json_encode([
+            'entities' => $this->entities,
+            'relations' => $this->relations,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
     /**
-     * Renderiza o template Blade do componente, injetando as coleções dos
-     * DOIS modos — o Blade decide qual `<x-flow>` mostrar conforme
-     * `$viewMode` (ver a nota no topo da classe). `relationalMeta` só serve
-     * pra exibir, na tela, de qual arquivo o schema relacional veio.
+     * Renderiza o template Blade do componente, injetando as coleções iniciais.
      */
     public function render(): View
     {
         return view('livewire.schema-board', [
             'nodes' => $this->buildNodes(),
             'edges' => $this->buildEdges(),
-            'relationalNodes' => $this->buildRelationalNodes(),
-            'relationalEdges' => $this->buildRelationalEdges(),
-            'relationalMeta' => [
-                'arquivo' => ErdFileStore::caminhoSchemaRelacional(),
-                'geradoEm' => ErdFileStore::abrirSchemaRelacional()['gerado_em'] ?? null,
-            ],
         ]);
     }
 }

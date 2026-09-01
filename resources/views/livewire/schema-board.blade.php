@@ -1,68 +1,61 @@
-<div class="flex h-screen flex-col bg-slate-100 font-sans text-slate-800">
+<div class="er-board flex h-screen flex-col bg-slate-100 font-sans text-slate-800">
 
     {{-- ===================== HEADER ===================== --}}
-    <header class="flex flex-wrap items-center gap-4 border-b border-slate-200 bg-white px-6 py-3 shadow-sm">
-        <div class="flex items-center gap-2">
-            <span class="text-xl">🗂️</span>
-            <h1 class="text-lg font-bold">Modelador Entidade-Relacionamento</h1>
-            <span class="hidden text-sm text-slate-400 sm:inline">— entidades, atributos e relacionamentos</span>
+    <header class="er-toolbar">
+        <div class="er-toolbar-top">
+            <a wire:navigate href="{{ route('dashboard') }}" class="er-toolbar-back">← Projetos</a>
+            <div class="er-toolbar-brand">
+                <span class="er-toolbar-logo" aria-hidden="true">ER</span>
+                <div>
+                    <h1>Modelador ER</h1>
+                    <p>{{ $diagramName }}</p>
+                </div>
+            </div>
+
+            <div class="er-toolbar-actions">
+                <button
+                    type="button"
+                    x-data="{ dark: document.documentElement.classList.contains('dark') }"
+                    @erd-theme-changed.window="dark = $event.detail.theme === 'dark'"
+                    @click="dark = !dark; window.setErdTheme(dark ? 'dark' : 'light')"
+                    :aria-pressed="dark.toString()"
+                    :aria-label="dark ? 'Ativar tema claro' : 'Ativar tema escuro'"
+                    :title="dark ? 'Ativar tema claro' : 'Ativar tema escuro'"
+                    class="er-theme-toggle"
+                >
+                    <span aria-hidden="true" x-text="dark ? '☀' : '☾'"></span>
+                    <span x-text="dark ? 'Claro' : 'Escuro'"></span>
+                </button>
+                <button wire:click="toggleJson" class="er-toolbar-secondary">{ } JSON</button>
+                <button
+                    wire:click="save"
+                    @saved.window="window.alert('✅ Diagrama salvo com sucesso!')"
+                    class="er-toolbar-save"
+                >💾 Salvar</button>
+            </div>
         </div>
 
-        {{-- criar entidade (fica no DOM do Livewire, wire:model/wire:click funcionam) --}}
-        <form wire:submit.prevent="createEntity" class="ml-auto flex items-center gap-2">
-            <input
-                type="text"
-                wire:model="newEntityName"
-                placeholder="nome_da_entidade"
-                class="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-            <button
-                type="submit"
-                class="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
-            >
-                <span class="text-base leading-none">+</span> Nova entidade
-            </button>
-        </form>
+        <div class="er-toolbar-workflow">
+            <form wire:submit.prevent="createEntity" class="er-create-form">
+                <label for="new-entity-name">Nova entidade</label>
+                <input id="new-entity-name" type="text" wire:model="newEntityName" placeholder="Ex.: pedido">
+                <button type="submit"><span aria-hidden="true">＋</span> Adicionar</button>
+            </form>
 
-            <button
-                wire:click="save"
-                @saved.window="window.alert('✅ Diagrama salvo com sucesso!')"
-                class="rounded-md bg-slate-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-            >
-                💾 Salvar
-            </button>
-            <button
-        wire:click="toggleJson"
-        class="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300"
-    >
-        { } Ver JSON
-    </button>
+            <div class="er-toolbar-divider" aria-hidden="true"></div>
 
-<button
-    type="button"
-    wire:click="toggleViewMode"
-    wire:loading.attr="disabled"
-    wire:loading.class="opacity-70 cursor-wait"
-    class="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-indigo-400 hover:text-indigo-700"
-    title="Alterna entre o diagrama ER (editável) e o schema relacional gerado a partir dele"
->
-    <span wire:loading.remove>
-        @if ($viewMode === 'relational')
-            <span class="text-base leading-none">🔀</span> Ver diagrama ER
-        @else
-            <span class="text-base leading-none">🗄️</span> Ver schema relacional
-        @endif
-    </span>
-
-    {{-- Feedback exibido apenas enquanto a requisição Livewire acontece --}}
-    <span wire:loading class="flex items-center gap-1.5">
-        <svg class="h-4 w-4 animate-spin text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-        Carregando...
-    </span>
-</button>
-
-
-
+            <div class="er-convert-group">
+                <span>Etapa 2</span>
+                <button
+                    wire:click="convertToRelational"
+                    wire:loading.attr="disabled"
+                    wire:target="convertToRelational"
+                >
+                    <span wire:loading.remove wire:target="convertToRelational">Converter para relacional →</span>
+                    <span wire:loading wire:target="convertToRelational">Convertendo…</span>
+                </button>
+            </div>
+        </div>
     </header>
     {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
 <div
@@ -74,13 +67,7 @@
 >
     <div class="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
         <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 class="text-sm font-bold">
-                @if ($viewMode === 'relational')
-                    JSON do schema relacional <span class="font-normal text-slate-400">— erd/schema-relacional.json</span>
-                @else
-                    JSON do diagrama ER
-                @endif
-            </h2>
+            <h2 class="text-sm font-bold">JSON do diagrama</h2>
             <div class="flex items-center gap-2">
                 <button
                     x-data
@@ -97,30 +84,7 @@
 </div>
 
     {{-- ===================== CANVAS ===================== --}}
-    {{--
-        Os dois modos são canvases DIFERENTES, cada um no seu wrapper com
-        `wire:key` próprio — é o que garante que o Livewire, ao trocar
-        `$viewMode`, desmonte de vez o `<x-flow wire:ignore>` antigo (e o
-        componente Alpine/AlpineFlow que vivia nele) e monte um novo do zero,
-        já com os nodes/edges do arquivo que acabou de ser aberto. Sem
-        `wire:key` distinto o morph do Livewire poderia tentar reaproveitar
-        o elemento — arriscado com wire:ignore, que existe exatamente pra
-        dizer "não mexa aqui dentro".
-    --}}
     <div class="relative flex-1 overflow-hidden">
-    @if ($viewMode === 'relational')
-        <div wire:key="canvas-relational" class="h-full w-full">
-            {{-- selo mostrando de qual arquivo o schema relacional foi aberto --}}
-            <div class="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-medium text-white shadow">
-                📄 {{ $relationalMeta['arquivo'] }}
-                @if ($relationalMeta['geradoEm'])
-                    <span class="text-slate-300">— gerado em {{ \Illuminate\Support\Carbon::parse($relationalMeta['geradoEm'])->format('d/m/Y H:i:s') }}</span>
-                @endif
-            </div>
-            @include('livewire.partials.relational')
-        </div>
-    @else
-        <div wire:key="canvas-er" class="h-full w-full">
 
         {{-- wire:ignore: o morph do Livewire não pode destruir o DOM do AlpineFlow.
              Sem :sync — o estado é do servidor e as mudanças chegam por comandos WireFlow. --}}
@@ -164,7 +128,42 @@
             style="width: 100%; height: 100%;"
         >
             <x-slot:node>
+                {{-- Autorrelacionamento: é um nó real e externo à entidade. Assim,
+                     cada papel ocupa uma linha independente e nenhuma curva
+                     atravessa o conteúdo da tabela. --}}
+                <template x-if="node.data.kind === 'relationship'">
+                    <div class="er-relationship" :class="{ 'nodrag': node.data.complete && !node.data.isSelf }" :data-id="node.id">
+                        <div class="er-anchor er-anchor-left" x-flow-handle:target.left="'left'"></div>
+                        <div class="er-anchor er-anchor-right" x-flow-handle:source.right="'right'"></div>
+                        <div class="er-anchor er-anchor-top" x-flow-handle:target.top="'top'"></div>
+                        <div class="er-anchor er-anchor-top" x-flow-handle:source.top="'top'"></div>
+                        <div class="er-anchor er-anchor-bottom" x-flow-handle:target.bottom="'bottom'"></div>
+                        <div class="er-anchor er-anchor-bottom" x-flow-handle:source.bottom="'bottom'"></div>
+                        <div
+                            class="er-diamond"
+                            :class="{ 'is-incomplete': !node.data.complete }"
+                            x-text="node.data.name"
+                            @click.stop="$dispatch('erd-open-relation', {
+                                relationId: node.data.relationId,
+                                relationship: node.data,
+                                x: $event.clientX,
+                                y: $event.clientY,
+                            })"
+                            @dblclick.stop="
+                                const nome = window.prompt('Renomear relacionamento', node.data.name);
+                                if (nome) $wire.renameRelation(node.data.relationId, nome);
+                            "
+                            title="Duplo clique para renomear"
+                        ></div>
+                    </div>
+                </template>
+
+                <template x-if="node.data.kind === 'relationship-port'">
+                    <div class="er-relationship-port nodrag" aria-hidden="true"></div>
+                </template>
+
                 {{-- ================= ENTIDADE ================= --}}
+                <template x-if="!node.data.kind">
                 <div class="er-node" :data-id="node.id">
 
                     {{--
@@ -207,6 +206,12 @@
                     <div class="er-anchor er-anchor-right"  x-flow-handle:source.right="'right'"></div>
                     <div class="er-anchor er-anchor-bottom" x-flow-handle:source.bottom="'bottom'"></div>
                     <div class="er-anchor er-anchor-left"   x-flow-handle:source.left="'left'"></div>
+                    {{-- Âncora estrutural do autorrelacionamento. Não participa
+                         do gesto manual e fixa a saída no vértice superior direito. --}}
+                    <div class="er-self-anchor er-self-anchor-top" x-flow-handle:target.top="'self-top'"></div>
+                    <div class="er-self-anchor er-self-anchor-right" x-flow-handle:target.right="'self-right'"></div>
+                    <div class="er-self-anchor er-self-anchor-bottom" x-flow-handle:target.bottom="'self-bottom'"></div>
+                    <div class="er-self-anchor er-self-anchor-left" x-flow-handle:target.left="'self-left'"></div>
 
                     <div class="er-anchor er-anchor-tl" x-flow-handle:target.top.left="'tl'"     x-flow-handle-connectable.end="node.data.canBeParent"></div>
                     <div class="er-anchor er-anchor-tr" x-flow-handle:target.top.right="'tr'"    x-flow-handle-connectable.end="node.data.canBeParent"></div>
@@ -216,18 +221,40 @@
                     {{-- cabeçalho: nome da entidade --}}
                     <div class="er-head" :class="{ 'is-orphan': !node.data.canBeParent }">
                         <span class="er-head-icon">▦</span>
-                        <span
-                            class="er-head-name"
-                            x-text="node.data.name"
-                            @dblclick="
-                                const nome = window.prompt('Renomear entidade', node.data.name);
-                                if (nome) $wire.renameEntity(node.id, nome);
-                            "
-                            title="Duplo clique para renomear"
-                        ></span>
+                        <div
+                            class="er-head-name-wrap nodrag"
+                            x-data="{ editing: false, draft: '' }"
+                            @dblclick.stop="draft = node.data.name; editing = true; $nextTick(() => { $refs.entityName.focus(); $refs.entityName.select(); })"
+                        >
+                            <button
+                                x-show="!editing"
+                                class="er-head-name nodrag"
+                                x-text="node.data.name"
+                                @click.stop="draft = node.data.name; editing = true; $nextTick(() => { $refs.entityName.focus(); $refs.entityName.select(); })"
+                                :aria-label="'Renomear entidade ' + node.data.name"
+                                title="Clique para renomear"
+                            ></button>
+                            <input
+                                x-show="editing"
+                                x-ref="entityName"
+                                x-model="draft"
+                                class="er-head-name-input nodrag"
+                                aria-label="Nome da entidade"
+                                @pointerdown.stop
+                                @click.stop
+                                @keydown.enter.stop.prevent="$event.target.blur()"
+                                @keydown.escape.stop.prevent="draft = node.data.name; editing = false"
+                                @blur="if (draft.trim() && draft.trim() !== node.data.name) $wire.renameEntity(node.id, draft.trim()); editing = false"
+                            >
+                        </div>
                         <span class="er-head-rels" x-show="node.data.relCount > 0"
                               x-text="node.data.relCount"
                               title="Relacionamentos ligados a esta entidade"></span>
+                        <button
+                            class="er-head-self nodrag"
+                            title="Criar autorrelacionamento"
+                            @click.stop="$wire.createSelfRelation(node.id)"
+                        >↻</button>
                         <button
                             class="er-head-del nodrag"
                             title="Excluir entidade"
@@ -299,6 +326,7 @@
                         </div>
                     </div>
                 </div>
+                </template>
             </x-slot:node>
 
             {{--
@@ -327,7 +355,7 @@
                 x-show="open"
                 x-cloak
                 class="er-edge-editor"
-                :style="`left:${panelX}px; top:${panelY}px;`"
+                :style="{ left: panelX + 'px', top: panelY + 'px' }"
                 @click.outside="close()"
                 @keydown.escape.window="close()"
             >
@@ -339,24 +367,35 @@
                         </div>
 
                         {{-- nome que aparece dentro do losango --}}
-                        <button class="er-ee-name nodrag" @click="rename()" title="Clique para renomear">
-                            <span class="er-ee-diamond" x-text="e.label || 'sem nome'"></span>
+                        <button class="er-ee-name nodrag" @click="$refs.relationName.focus(); $refs.relationName.select()" title="Editar nome">
+                            <span class="er-ee-diamond" x-text="e.label || e.data?.relationName || 'sem nome'"></span>
                         </button>
+                        <form class="er-ee-rename" @submit.prevent="rename()">
+                            <label for="relation-name-editor">Nome</label>
+                            <input
+                                id="relation-name-editor"
+                                x-ref="relationName"
+                                x-model="relationName"
+                                @keydown.escape.stop.prevent="close()"
+                                placeholder="Nome do relacionamento"
+                            >
+                            <button type="submit">Aplicar</button>
+                        </form>
 
 
                         {{-- ponta ORIGEM (filho / FK) = markerStart --}}
                         <div class="er-ee-end">
                             <div class="er-ee-label">
-                                Origem <em x-text="'(' + e.source + '.' + (e.labelStart || '?') + ')'"></em>
+                                Origem <em x-text="'(' + (e.data?.sourceName || e.source) + ')'"></em>
                             </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'s'+o.m">
                                     <button
                                         class="er-ee-opt"
-                                        :class="{ 'is-active': tipo(e.markerStart) === o.m }"
+                                        :class="{ 'is-active': tipo(markerFor('markerStart')) === o.m }"
                                         :title="o.t"
                                         @click="setEnd('markerStart', o.m)"
-                                        x-html="o.s"
+                                        x-text="o.s"
                                     ></button>
                                 </template>
                             </div>
@@ -365,25 +404,30 @@
                         {{-- ponta DESTINO (pai / PK) = markerEnd --}}
                         <div class="er-ee-end">
                             <div class="er-ee-label">
-                                Destino <em x-text="'(' + e.target + '.' + (e.labelEnd || '?') + ')'"></em>
+                                Destino <em x-text="'(' + (e.data?.targetName || e.target) + ')'"></em>
                             </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'t'+o.m">
                                     <button
                                         class="er-ee-opt"
-                                        :class="{ 'is-active': tipo(e.markerEnd) === o.m }"
+                                        :class="{ 'is-active': tipo(markerFor('markerEnd')) === o.m }"
                                         :title="o.t"
                                         @click="setEnd('markerEnd', o.m)"
-                                        x-html="o.s"
+                                        x-text="o.s"
                                     ></button>
                                 </template>
                             </div>
                         </div>
 
                         <div class="er-ee-actions">
-                            <button class="er-ee-btn" @click="swap()">⇄ Inverter</button>
+                            <button
+                                class="er-ee-btn"
+                                @click="swap()"
+                                x-text="e.source === e.target ? '⇄ Trocar papéis' : '⇄ Inverter direção'"
+                            ></button>
                             <button class="er-ee-btn er-ee-danger" @click="remove()">🗑 Excluir</button>
                         </div>
+                        <p class="er-ee-feedback" x-show="feedback" x-text="feedback" role="status" aria-live="polite"></p>
                     </div>
                 </template>
             </div>
@@ -414,14 +458,10 @@
                         Segure <kbd>Alt</kbd> e arraste de qualquer ponto de uma entidade até
                         outra para criar o relacionamento.
                         <strong>Clique com o botão direito na linha para editar nome e cardinalidade.</strong>
-                        Use <strong>"Ver schema relacional"</strong>, no cabeçalho, para salvar este
-                        diagrama em arquivo e gerar a conversão — inclusive as tabelas associativas de N:M.
                     </div>
                 </div>
             </x-flow-panel>
         </x-flow>
-        </div>
-    @endif
     </div>
 
 

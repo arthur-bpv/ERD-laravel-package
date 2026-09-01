@@ -36,7 +36,17 @@ class SchemaBoardTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('flow-container', false);
-        $response->assertSee('Modelador Entidade-Relacionamento');
+        $response->assertSee('Modelador ER');
+        $response->assertDontSee('Novo relacionamento');
+    }
+
+    public function test_self_relationship_diamond_opens_the_standard_relationship_editor(): void
+    {
+        $response = $this->get('/schema');
+
+        $response->assertOk();
+        $response->assertSee('erd-open-relation', false);
+        $response->assertSee('node.data.relationId', false);
     }
 
     /**
@@ -44,7 +54,7 @@ class SchemaBoardTest extends TestCase
      * na borda da entidade e deslizar quando a caixa é arrastada, em vez de
      * ficar presa a um ponto fixo.
      */
-    public function test_edges_are_floating(): void
+    public function test_completed_relationships_between_distinct_entities_are_floating(): void
     {
         $edges = Livewire::test(SchemaBoard::class)->instance()->buildEdges();
 
@@ -52,8 +62,6 @@ class SchemaBoardTest extends TestCase
         foreach ($edges as $edge) {
             $this->assertSame('floating', $edge['type']);
             $this->assertSame('smoothstep', $edge['pathType']);
-            $this->assertArrayNotHasKey('sourceHandle', $edge);
-            $this->assertArrayNotHasKey('targetHandle', $edge);
         }
     }
 
@@ -71,6 +79,9 @@ class SchemaBoardTest extends TestCase
 
         foreach ($edges as $edge) {
             foreach (['markerStart', 'markerEnd'] as $ponta) {
+                if (! isset($edge[$ponta])) {
+                    continue;
+                }
                 $this->assertIsArray($edge[$ponta], "{$ponta} não pode ser string");
                 $this->assertArrayHasKey('offset', $edge[$ponta]);
                 $this->assertSame(0, $edge[$ponta]['offset']);
@@ -93,14 +104,51 @@ class SchemaBoardTest extends TestCase
         }
     }
 
-    /** O losango carrega o nome do relacionamento — é o label do meio da linha. */
-    public function test_relationship_name_becomes_the_edge_label(): void
+    /** Em uma relação completa, o losango volta a ser o label fixo da linha. */
+    public function test_completed_relationship_name_becomes_the_edge_diamond(): void
     {
-        $edges = Livewire::test(SchemaBoard::class)->instance()->buildEdges();
+        $component = Livewire::test(SchemaBoard::class);
+        $nodes = collect($component->instance()->buildNodes());
+        $edge = collect($component->instance()->buildEdges())->firstWhere('id', 'r1');
 
-        $this->assertSame('escreve', $edges[0]['label']);
-        $this->assertSame('user_id', $edges[0]['labelStart']);
-        $this->assertSame('id', $edges[0]['labelEnd']);
+        $this->assertNull($nodes->firstWhere('id', 'relation-r1'));
+        $this->assertSame('escreve', $edge['label']);
+        $this->assertSame('user_id', $edge['labelStart']);
+        $this->assertSame('id', $edge['labelEnd']);
+    }
+
+    public function test_self_relationship_diamond_keeps_its_chosen_offset_when_entity_moves(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('createSelfRelation', 'comments');
+
+        $initialPorts = collect($component->instance()->buildNodes())
+            ->filter(fn (array $node) => ($node['data']['kind'] ?? null) === 'relationship-port')
+            ->keyBy(fn (array $node) => $node['data']['role']);
+
+        $component->call('onNodeDragEnd', 'relation-r4', ['x' => 400, 'y' => 120]);
+        $nodesAfterDiamondMove = collect($component->instance()->buildNodes());
+        $afterDiamondMove = $nodesAfterDiamondMove->firstWhere('id', 'relation-r4')['position'];
+        $this->assertSame(['x' => 400, 'y' => 120], $afterDiamondMove);
+        $portsAfterDiamondMove = $nodesAfterDiamondMove
+            ->filter(fn (array $node) => ($node['data']['kind'] ?? null) === 'relationship-port')
+            ->keyBy(fn (array $node) => $node['data']['role']);
+        foreach ($portsAfterDiamondMove as $role => $port) {
+            $this->assertNotSame($initialPorts[$role]['position'], $port['position']);
+        }
+
+        $component->call('onNodeDragEnd', 'comments', ['x' => 200, 'y' => 300]);
+        $nodesAfterEntityMove = collect($component->instance()->buildNodes());
+        $afterEntityMove = $nodesAfterEntityMove->firstWhere('id', 'relation-r4')['position'];
+        $this->assertSame(['x' => 560, 'y' => 160], $afterEntityMove);
+
+        $portsAfterEntityMove = $nodesAfterEntityMove
+            ->filter(fn (array $node) => ($node['data']['kind'] ?? null) === 'relationship-port')
+            ->keyBy(fn (array $node) => $node['data']['role']);
+        foreach ($portsAfterEntityMove as $role => $port) {
+            $this->assertSame($portsAfterDiamondMove[$role]['position']['x'] + 160, $port['position']['x']);
+            $this->assertSame($portsAfterDiamondMove[$role]['position']['y'] + 40, $port['position']['y']);
+        }
     }
 
     /**
@@ -112,7 +160,7 @@ class SchemaBoardTest extends TestCase
     {
         $nodes = Livewire::test(SchemaBoard::class)->instance()->buildNodes();
 
-        foreach ($nodes as $node) {
+        foreach (array_filter($nodes, fn (array $node) => ! isset($node['data']['kind'])) as $node) {
             $this->assertTrue($node['data']['canBeParent']);
         }
 
@@ -129,7 +177,7 @@ class SchemaBoardTest extends TestCase
     public function test_drawing_a_connection_creates_a_server_owned_relation(): void
     {
         $component = Livewire::test(SchemaBoard::class)
-            ->call('onConnect', 'users', 'posts', 's:right', 't:left')
+            ->call('onConnect', 'comments', 'comments', 's:right', 't:left')
             ->assertDispatched('flow:addEdges');
 
         $relations = $component->get('relations');
@@ -137,26 +185,67 @@ class SchemaBoardTest extends TestCase
 
         $nova = $this->relacao($relations, 'r4');
         $this->assertNotNull($nova, 'a relação deveria ter recebido o id do servidor');
-        $this->assertSame('users', $nova['from']);
-        $this->assertSame('posts', $nova['to']);
-        $this->assertSame('posts.id', $nova['toAttr']);
+        $this->assertSame('comments', $nova['from']);
+        $this->assertSame('comments', $nova['to']);
+        $this->assertSame('comments.id', $nova['toAttr']);
+        $this->assertSame('papel_origem', $nova['fromRole']);
+        $this->assertSame('papel_destino', $nova['toRole']);
     }
 
-    /**
-     * Como a ligação é feita de entidade para entidade, a coluna que carrega a
-     * chave estrangeira é criada automaticamente na entidade filha.
-     */
-    public function test_connecting_creates_the_foreign_key_column(): void
+    /** O modelo conceitual não inventa uma FK; isso pertence à etapa relacional. */
+    public function test_connecting_does_not_create_a_foreign_key_column(): void
     {
         $component = Livewire::test(SchemaBoard::class)
-            ->call('onConnect', 'users', 'posts', 's:right', 't:left');
+            ->call('onConnect', 'comments', 'comments', 's:right', 't:left');
 
-        $users = collect($component->get('entities'))->firstWhere('id', 'users');
-        $fk = collect($users['attributes'])->firstWhere('name', 'posts_id');
+        $comments = collect($component->get('entities'))->firstWhere('id', 'comments');
+        $recursiveFk = collect($comments['attributes'])->firstWhere('name', 'comments_id');
 
-        $this->assertNotNull($fk, 'a coluna FK deveria ter sido criada');
-        $this->assertSame('FK', $fk['key']);
-        $this->assertSame('bigint', $fk['type']);
+        $this->assertNull($recursiveFk);
+        $this->assertSame('', $this->relacao($component->get('relations'), 'r4')['fromAttr']);
+    }
+
+    public function test_self_relationship_is_drawn_through_an_external_diamond(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('createSelfRelation', 'comments')
+            ->assertDispatched('flow:addNodes')
+            ->assertDispatched('flow:addEdges');
+
+        $nodes = collect($component->instance()->buildNodes());
+        $entity = $nodes->firstWhere('id', 'comments');
+        $diamond = $nodes->firstWhere('id', 'relation-r4');
+        $ports = $nodes->filter(fn (array $node) => ($node['data']['kind'] ?? null) === 'relationship-port');
+        $edges = collect($component->instance()->buildEdges())
+            ->filter(fn (array $edge) => ($edge['data']['relationId'] ?? null) === 'r4')
+            ->values();
+
+        $this->assertSame('relationship', $diamond['data']['kind']);
+        $this->assertSame('relaciona', $diamond['data']['name']);
+        $this->assertSame($entity['position']['x'] + 56, $diamond['position']['x']);
+        $this->assertLessThan($entity['position']['y'], $diamond['position']['y']);
+        $this->assertCount(4, $ports);
+        $this->assertEqualsCanonicalizing(
+            ['entityOut', 'entityIn', 'diamondOut', 'diamondIn'],
+            $ports->pluck('data.role')->all(),
+        );
+        $this->assertCount(2, $edges);
+        $this->assertSame(
+            ['relation-r4-port-entity-out', 'relation-r4-port-diamond-out'],
+            [$edges[0]['source'], $edges[0]['target']],
+        );
+        $this->assertSame(
+            ['relation-r4-port-diamond-in', 'relation-r4-port-entity-in'],
+            [$edges[1]['source'], $edges[1]['target']],
+        );
+        $this->assertSame('straight', $edges[0]['type']);
+        $this->assertSame('straight', $edges[1]['type']);
+        $this->assertArrayNotHasKey('sourceHandle', $edges[0]);
+        $this->assertArrayNotHasKey('targetHandle', $edges[0]);
+        $this->assertArrayNotHasKey('sourceHandle', $edges[1]);
+        $this->assertArrayNotHasKey('targetHandle', $edges[1]);
+        $this->assertArrayNotHasKey('label', $edges[0]);
+        $this->assertArrayNotHasKey('label', $edges[1]);
     }
 
     /** Sem PK nem UQ no destino, não há o que referenciar — a conexão é recusada. */
@@ -225,8 +314,8 @@ class SchemaBoardTest extends TestCase
         $component = Livewire::test(SchemaBoard::class)
             ->call('setCardinality', 'r1', 'child', 'cf-one-many')
             ->assertDispatched('erd-rebuild-edge', function (string $name, array $params) {
-                return $params['edge']['id'] === 'r1'
-                    && $params['edge']['markerStart']['type'] === 'cf-one-many'
+                return $params['edges'][0]['id'] === 'r1'
+                    && $params['edges'][0]['markerStart']['type'] === 'cf-one-many'
                     && $params['select'] === true;
             });
 
@@ -239,7 +328,7 @@ class SchemaBoardTest extends TestCase
         $component = Livewire::test(SchemaBoard::class)
             ->call('setCardinality', 'r1', 'child', 'nao-existe');
 
-        $this->assertSame('cf-many', $this->relacao($component->get('relations'), 'r1')['childCard']);
+        $this->assertSame('cf-one-many', $this->relacao($component->get('relations'), 'r1')['childCard']);
     }
 
     /** Inverter troca as duas pontas por completo: entidades, colunas e símbolos. */
@@ -253,7 +342,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('users.id', $r1['fromAttr']);
         $this->assertSame('posts.user_id', $r1['toAttr']);
         $this->assertSame('cf-one-one', $r1['childCard']);
-        $this->assertSame('cf-many', $r1['parentCard']);
+        $this->assertSame('cf-one-many', $r1['parentCard']);
     }
 
     /** Renomear o relacionamento troca o texto do losango via patch, sem recriar a linha. */

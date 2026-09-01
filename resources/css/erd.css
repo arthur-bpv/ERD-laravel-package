@@ -45,6 +45,51 @@
 }
 .flow-node-selected .er-node { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.35); }
 
+/* ---- losango independente do autorrelacionamento ---- */
+.er-relationship {
+    position: relative;
+    width: 120px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    user-select: none;
+}
+.er-diamond {
+    box-sizing: border-box;
+    width: 120px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 10px 30px;
+    background: #4f46e5;
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 800;
+    line-height: 1.15;
+    text-align: center;
+    overflow-wrap: anywhere;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+    letter-spacing: .01em;
+    white-space: nowrap;
+    filter: none;
+    cursor: pointer;
+}
+.flow-node-selected .er-diamond {
+    background: #312e81;
+}
+.er-diamond.is-incomplete {
+    background: linear-gradient(145deg, #a78bfa, #7c3aed);
+    outline: 2px dashed #c4b5fd;
+    outline-offset: 3px;
+}
+.er-relationship .er-anchor { opacity: 0; }
+.er-relationship:hover .er-anchor { opacity: .65; }
+.er-relationship-port {
+    width: 2px;
+    height: 2px;
+    opacity: 0;
+    pointer-events: none;
+}
 /* ---- cabeçalho ---- */
 .er-head {
     display: flex; align-items: center; gap: 6px;
@@ -54,12 +99,34 @@
 }
 .er-head.is-orphan { background: linear-gradient(180deg, #64748b, #475569); }
 .er-head-icon { opacity: .8; }
-.er-head-name { flex: 1; cursor: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.er-head-name-wrap { flex: 1; min-width: 0; }
+.er-head-name {
+    display: block; width: 100%; border: 0; background: transparent; color: inherit;
+    padding: 0; cursor: text; font: inherit; text-align: left;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.er-head-name-input {
+    width: 100%; min-width: 0; border: 1px solid rgb(255 255 255 / 45%); border-radius: 5px;
+    background: rgb(255 255 255 / 14%); color: #fff; padding: 2px 5px;
+    font: inherit; line-height: 1.2; outline: none;
+}
+.er-head-name-input:focus { border-color: #fff; box-shadow: 0 0 0 2px rgb(255 255 255 / 18%); }
 .er-head-rels {
     background: rgba(255,255,255,.22); border-radius: 999px;
     min-width: 17px; height: 17px; padding: 0 5px;
     font-size: 10px; line-height: 17px; text-align: center; font-weight: 800;
 }
+.er-head-self {
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #c7d2fe;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 3px 5px;
+}
+.er-head-self:hover { background: rgb(255 255 255 / 12%); color: #fff; }
 .er-head-del {
     border: 0; background: rgba(255,255,255,.15); color: #fff;
     width: 18px; height: 18px; border-radius: 5px; cursor: pointer; line-height: 1; font-size: 11px;
@@ -99,6 +166,17 @@
 .er-anchor-tr { top: -6px; right: -6px; }
 .er-anchor-bl { bottom: -6px; left: -6px; }
 .er-anchor-br { bottom: -6px; right: -6px; }
+.er-self-anchor {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.er-self-anchor-top { top: 0; left: 50%; }
+.er-self-anchor-right { top: 50%; right: 0; }
+.er-self-anchor-bottom { bottom: 0; left: 50%; }
+.er-self-anchor-left { top: 50%; left: 0; }
 
 /* durante um arrasto o AlpineFlow marca as âncoras válidas/inválidas */
 .er-node:hover .er-anchor { opacity: .55; }
@@ -183,7 +261,7 @@
  * então o losango tem que vir do CSS. clip-path desenha o losango e o
  * padding horizontal generoso garante que o texto caiba na parte larga.
  */
-.flow-edge-label:not(.flow-edge-label-start):not(.flow-edge-label-end) {
+.er-board .flow-edge-label:not(.flow-edge-label-start):not(.flow-edge-label-end) {
     background: #4f46e5;
     color: #ffffff;
     font-size: 10.5px;
@@ -204,8 +282,8 @@
  * edição usa para mostrar "Origem (posts.user_id)" — só a renderização na
  * própria linha do canvas é que fica oculta.
  */
-.flow-edge-label-start,
-.flow-edge-label-end {
+.er-board .flow-edge-label-start,
+.er-board .flow-edge-label-end {
     display: none;
 }
 
@@ -219,7 +297,7 @@
 .er-edge-editor {
     position: fixed;
     z-index: 50;
-    width: 250px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    width: 280px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
     box-shadow: 0 10px 30px rgba(15,23,42,.22); font-size: 12px; color: #334155;
     overflow: hidden; outline: none;
 }
@@ -247,6 +325,22 @@
     white-space: nowrap;
 }
 .er-ee-name:hover .er-ee-diamond { background: #e0e7ff; }
+
+.er-ee-rename {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px;
+    padding: 8px 12px; border-bottom: 1px solid #eef2f7;
+}
+.er-ee-rename label { color: #64748b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.er-ee-rename input {
+    min-width: 0; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    color: #1e293b; padding: 5px 7px; font-size: 11px; outline: none;
+}
+.er-ee-rename input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgb(99 102 241 / 15%); }
+.er-ee-rename button {
+    border: 0; border-radius: 6px; background: #4f46e5; color: #fff;
+    padding: 6px 8px; font-size: 10px; font-weight: 800; cursor: pointer;
+}
+.er-ee-feedback { margin: -3px 12px 10px; color: #16a34a; font-size: 10.5px; font-weight: 700; }
 
 .er-ee-tag {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 700;
@@ -301,7 +395,7 @@
     --flow-edge-stroke-width-selected: 1.6;
 }
 .flow-edge-selected path:not(:first-child) { stroke: #4f46e5; }
-.flow-edge-selected .flow-edge-label { background: #312e81; }
+.er-board .flow-edge-selected .flow-edge-label { background: #312e81; }
 
 /* ---- legenda (recolhível, canto inferior direito) ---- */
 .er-legend { background: transparent; border: 0; box-shadow: none; }
@@ -328,71 +422,189 @@
     border-radius: 4px; padding: 0 4px; font-family: inherit; font-size: 10px; font-weight: 700;
 }
 
-/*
- * ---- SCHEMA RELACIONAL (resources/views/livewire/partials/relational.blade.php) ----
- *
- * Canvas separado, aberto a partir de erd/schema-relacional.json (ver
- * App\Support\ErdFileStore / SchemaBoard::toggleViewMode). Visual
- * deliberadamente mais "de livro-texto" que o `.er-node` do modo Chen:
- * cabeçalho neutro, PK em negrito+sublinhado, coluna de tipo em
- * monoespaçada discreta. `.rel-node-assoc` marca as tabelas que
- * RelationalSchemaConverter criou pra resolver uma relação N:M — contorno
- * tracejado pra deixar claro que aquela tabela não existe no ER, foi gerada.
- */
-.rel-node {
+/* ---- toolbar e alternância acessível de tema ---- */
+.er-toolbar {
     position: relative;
-    width: 220px;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    box-shadow: 0 4px 14px rgba(15, 23, 42, .10);
-    font-size: 12.5px;
-    overflow: visible;
-    user-select: none;
+    z-index: 20;
+    flex: none;
+    border-bottom: 1px solid #e2e8f0;
+    background: rgb(255 255 255 / 94%);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 4px 18px rgb(15 23 42 / 6%);
 }
-.flow-node-selected .rel-node { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.35); }
-
-.rel-node-assoc {
-    border-style: dashed;
-    border-color: #94a3b8;
-}
-
-.rel-head {
-    background: #f1f5f9;
-    color: #0f172a;
-    padding: 8px 10px;
-    font-weight: 800;
-    letter-spacing: .02em;
-    text-align: center;
-    border-radius: 7px 7px 0 0;
-}
-.rel-node-assoc .rel-head { background: #eef2ff; color: #3730a3; }
-.rel-head-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.rel-tag {
-    background: #eef2ff; color: #4338ca; border-bottom: 1px solid #e0e7ff;
-    padding: 3px 10px; font-size: 9.5px; font-weight: 700; letter-spacing: .01em; text-align: center;
-}
-
-.rel-rows { display: flex; flex-direction: column; }
-.rel-row {
-    display: grid;
-    grid-template-columns: 20px 1fr auto auto;
+.er-toolbar-top,
+.er-toolbar-workflow {
+    display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
+    gap: 14px;
+    padding: 10px 20px;
+}
+.er-toolbar-top { min-height: 58px; }
+.er-toolbar-workflow {
+    min-height: 50px;
     border-top: 1px solid #eef2f7;
+    background: rgb(248 250 252 / 88%);
 }
-.rel-row.is-pk { background: #fefce8; }
+.er-toolbar-back {
+    flex: none; border-radius: 8px; color: #64748b; padding: 7px 9px; font-size: 12px;
+}
+.er-toolbar-back:hover { background: #f1f5f9; color: #0f172a; }
+.er-toolbar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.er-toolbar-logo {
+    display: grid; width: 32px; height: 32px; flex: none; place-items: center;
+    border-radius: 9px; background: linear-gradient(145deg, #6366f1, #4338ca);
+    color: #fff; font-size: 10px; font-weight: 900; letter-spacing: .06em;
+    box-shadow: 0 5px 14px rgb(79 70 229 / 24%);
+}
+.er-toolbar-brand h1 { color: #0f172a; font-size: 15px; font-weight: 800; line-height: 1.2; }
+.er-toolbar-brand p {
+    max-width: 260px; overflow: hidden; color: #94a3b8; font-size: 10.5px;
+    text-overflow: ellipsis; white-space: nowrap;
+}
+.er-toolbar-actions { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.er-toolbar-actions button,
+.er-theme-toggle {
+    display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 6px;
+    border-radius: 8px; padding: 7px 10px; font-size: 11px; font-weight: 750;
+}
+.er-toolbar-secondary,
+.er-theme-toggle { border: 1px solid #dbe3ee; background: #fff; color: #475569; }
+.er-toolbar-secondary:hover,
+.er-theme-toggle:hover { border-color: #a5b4fc; background: #eef2ff; color: #4338ca; }
+.er-toolbar-save { border: 1px solid #334155; background: #334155; color: #fff; }
+.er-toolbar-save:hover { border-color: #1e293b; background: #1e293b; }
+.er-create-form { display: flex; align-items: center; gap: 8px; }
+.er-create-form label,
+.er-convert-group > span {
+    color: #64748b; font-size: 9.5px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase;
+}
+.er-create-form input {
+    width: 180px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+    color: #0f172a; padding: 7px 10px; font-size: 11.5px; outline: none;
+}
+.er-create-form input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgb(99 102 241 / 15%); }
+.er-create-form button,
+.er-convert-group button {
+    border: 0; border-radius: 8px; color: #fff; padding: 8px 12px;
+    font-size: 11px; font-weight: 800; cursor: pointer;
+}
+.er-create-form button { background: #4f46e5; }
+.er-create-form button:hover { background: #4338ca; }
+.er-toolbar-divider { width: 1px; height: 26px; margin-inline: 4px; background: #dbe3ee; }
+.er-convert-group { display: flex; align-items: center; gap: 8px; }
+.er-convert-group button { background: #0891b2; }
+.er-convert-group button:hover { background: #0e7490; }
+.er-convert-group button:disabled { opacity: .55; }
+.er-toolbar input,
+.er-toolbar button,
+.er-toolbar a {
+    transition: color .15s, background-color .15s, border-color .15s, box-shadow .15s;
+}
+.er-toolbar :focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+}
 
-.rel-key { font-size: 11px; line-height: 1; text-align: center; }
-.rel-attr-name { font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rel-row.is-pk .rel-attr-name { font-weight: 800; text-decoration: underline; text-decoration-color: #f59e0b; }
-.rel-attr-fk {
-    background: #dbeafe; color: #1d4ed8; border-radius: 4px; padding: 1px 5px;
-    font-size: 9px; font-weight: 800; letter-spacing: .02em;
+/* ---- tema escuro do editor completo ---- */
+.dark { color-scheme: dark; }
+.dark .er-board { background: #020617; color: #e2e8f0; }
+.dark .er-toolbar {
+    border-color: #1e293b;
+    background: rgb(2 6 23 / 92%);
+    color: #e2e8f0;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%);
 }
-.rel-attr-type {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 10px; color: #94a3b8; white-space: nowrap;
+.dark .er-toolbar-workflow { border-color: #1e293b; background: rgb(11 19 36 / 88%); }
+.dark .er-toolbar-back { color: #94a3b8; }
+.dark .er-toolbar-back:hover { background: #172033; color: #f8fafc; }
+.dark .er-toolbar-brand h1 { color: #f8fafc; }
+.dark .er-toolbar-brand p { color: #64748b; }
+.dark .er-toolbar-divider { background: #334155; }
+.dark .er-create-form label,
+.dark .er-convert-group > span { color: #94a3b8; }
+.dark .er-toolbar input {
+    border-color: #334155;
+    background: #0f172a;
+    color: #f8fafc;
+}
+.dark .er-toolbar input::placeholder { color: #64748b; }
+.dark .er-toolbar-secondary { border-color: #334155; background: #172033; color: #cbd5e1; }
+.dark .er-toolbar-secondary:hover { border-color: #6366f1; background: #1e293b; color: #fff; }
+.dark .er-theme-toggle { border-color: #334155; background: #0f172a; color: #cbd5e1; }
+.dark .er-theme-toggle:hover { border-color: #475569; background: #172033; color: #fff; }
+
+.dark .er-node {
+    border-color: #334155;
+    background: #0f172a;
+    color: #cbd5e1;
+    box-shadow: 0 12px 30px rgb(0 0 0 / 30%);
+}
+.dark .flow-node-selected .er-node {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 2px rgb(99 102 241 / 35%), 0 14px 35px rgb(0 0 0 / 35%);
+}
+.dark .er-row { border-color: #1e293b; }
+.dark .er-row:hover { background: #172033; }
+.dark .er-row.is-pk { background: #272313; }
+.dark .er-row.is-pk:hover { background: #352f16; }
+.dark .er-attr-name { color: #f1f5f9; }
+.dark .er-attr-type { color: #64748b; }
+.dark .er-foot { border-color: #1e293b; background: #0b1324; }
+.dark .er-add-toggle { color: #a5b4fc; }
+.dark .er-add-input,
+.dark .er-add-select,
+.dark .er-ee-col {
+    border-color: #334155;
+    background: #0b1324;
+    color: #e2e8f0;
+}
+.dark .er-warn { border-color: #78350f; background: #291707; color: #fdba74; }
+.dark .er-anchor { border-color: #64748b; background: #0f172a; }
+
+.dark .er-edge-editor { border-color: #334155; background: #0f172a; color: #cbd5e1; }
+.dark .er-ee-name,
+.dark .er-ee-end,
+.dark .er-ee-rename { border-color: #1e293b; }
+.dark .er-ee-rename label { color: #94a3b8; }
+.dark .er-ee-rename input { border-color: #334155; background: #0b1324; color: #f1f5f9; }
+.dark .er-ee-feedback { color: #4ade80; }
+.dark .er-ee-diamond,
+.dark .er-ee-tag { background: #1e1b4b; color: #c7d2fe; }
+.dark .er-ee-name:hover .er-ee-diamond { background: #312e81; }
+.dark .er-ee-label { color: #94a3b8; }
+.dark .er-ee-opt,
+.dark .er-ee-btn { border-color: #334155; background: #172033; color: #cbd5e1; }
+.dark .er-ee-opt:hover,
+.dark .er-ee-btn:hover { border-color: #6366f1; background: #1e293b; color: #fff; }
+.dark .er-ee-danger { border-color: #7f1d1d; color: #fca5a5; }
+.dark .er-ee-danger:hover { background: #3f1017; }
+
+.dark .er-legend-toggle,
+.dark .er-legend-body {
+    border-color: #334155;
+    background: rgb(15 23 42 / 96%);
+    color: #cbd5e1;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+}
+.dark .er-legend-title { color: #f8fafc; }
+.dark .er-sym,
+.dark .er-legend-hint { color: #94a3b8; }
+.dark .er-legend-hint { border-color: #334155; }
+.dark .er-legend-hint kbd { border-color: #475569; background: #1e293b; }
+
+@media (max-width: 760px) {
+    .er-toolbar-top,
+    .er-toolbar-workflow { padding-inline: 12px; }
+    .er-toolbar-top { flex-wrap: wrap; gap: 8px; }
+    .er-toolbar-brand { order: -1; width: calc(100% - 74px); }
+    .er-toolbar-back { order: -1; margin-left: auto; }
+    .er-toolbar-actions { width: 100%; margin-left: 0; }
+    .er-toolbar-actions button { flex: 1; }
+    .er-toolbar-workflow { align-items: stretch; flex-direction: column; gap: 9px; }
+    .er-create-form { display: grid; grid-template-columns: 1fr auto; }
+    .er-create-form label { grid-column: 1 / -1; }
+    .er-create-form input { width: 100%; min-width: 0; }
+    .er-toolbar-divider { display: none; }
+    .er-convert-group { justify-content: space-between; border-top: 1px solid #dbe3ee; padding-top: 9px; }
+    .dark .er-convert-group { border-color: #334155; }
 }

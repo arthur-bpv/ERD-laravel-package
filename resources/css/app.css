@@ -2,6 +2,7 @@
 @import '../../vendor/getartisanflow/wireflow/dist/alpineflow.css';
 @import '../../vendor/getartisanflow/wireflow/dist/alpineflow-theme.css';
 @import './erd.css';
+@import './relational.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';

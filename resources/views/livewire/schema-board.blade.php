@@ -385,8 +385,7 @@
 
                         {{-- ponta ORIGEM (filho / FK) = markerStart --}}
                         <div class="er-ee-end">
-                            <div class="er-ee-label">
-                                Origem <em x-text="'(' + (e.data?.sourceName || e.source) + ')'"></em>
+                            <div class="er-ee-label" x-text="(e.data?.sourceName || e.source)">
                             </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'s'+o.m">
@@ -403,8 +402,7 @@
 
                         {{-- ponta DESTINO (pai / PK) = markerEnd --}}
                         <div class="er-ee-end">
-                            <div class="er-ee-label">
-                                Destino <em x-text="'(' + (e.data?.targetName || e.target) + ')'"></em>
+                            <div class="er-ee-label" x-text="(e.data?.targetName || e.target)">
                             </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'t'+o.m">

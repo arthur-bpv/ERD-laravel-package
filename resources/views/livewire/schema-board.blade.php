@@ -1,9 +1,8 @@
-<div class="er-board flex h-screen flex-col bg-slate-100 font-sans text-slate-800">
+<div class="er-board flex h-screen flex-col bg-slate-100 font-sans text-slate-800" x-data="{ guideOpen: false }">
 
     {{-- ===================== HEADER ===================== --}}
     <header class="er-toolbar">
         <div class="er-toolbar-top">
-            <a wire:navigate href="{{ route('dashboard') }}" class="er-toolbar-back">← Projetos</a>
             <div class="er-toolbar-brand">
                 <span class="er-toolbar-logo" aria-hidden="true">ER</span>
                 <div>
@@ -11,6 +10,7 @@
                     <p>{{ $diagramName }}</p>
                 </div>
             </div>
+            <a wire:navigate href="{{ route('dashboard') }}" class="er-toolbar-back">← Projetos</a>
 
             <div class="er-toolbar-actions">
                 <button
@@ -26,6 +26,7 @@
                     <span aria-hidden="true" x-text="dark ? '☀' : '☾'"></span>
                     <span x-text="dark ? 'Claro' : 'Escuro'"></span>
                 </button>
+                <button type="button" class="er-toolbar-secondary" @click="guideOpen = !guideOpen">? Guia</button>
                 <button wire:click="toggleJson" class="er-toolbar-secondary">{ } JSON</button>
                 <button
                     wire:click="save"
@@ -34,6 +35,15 @@
                 >💾 Salvar</button>
             </div>
         </div>
+
+        <nav class="er-model-tabs" aria-label="Modelos do projeto">
+            <a class="is-active" aria-current="page">Modelo ER</a>
+            @if ($relationalDiagramId)
+                <a wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}">Modelo Relacional</a>
+            @else
+                <button wire:click="convertToRelational">Modelo Relacional <small>gerar</small></button>
+            @endif
+        </nav>
 
         <div class="er-toolbar-workflow">
             <form wire:submit.prevent="createEntity" class="er-create-form">
@@ -44,19 +54,50 @@
 
             <div class="er-toolbar-divider" aria-hidden="true"></div>
 
+            <div class="er-model-summary" aria-label="Resumo do modelo">
+                <strong>{{ count($entities) }}</strong> entidades
+                <span>•</span>
+                <strong>{{ count($relations) }}</strong> relacionamentos
+            </div>
+
+            <div class="er-toolbar-divider" aria-hidden="true"></div>
+
             <div class="er-convert-group">
                 <span>Etapa 2</span>
-                <button
-                    wire:click="convertToRelational"
-                    wire:loading.attr="disabled"
-                    wire:target="convertToRelational"
-                >
-                    <span wire:loading.remove wire:target="convertToRelational">Converter para relacional →</span>
-                    <span wire:loading wire:target="convertToRelational">Convertendo…</span>
-                </button>
+                @if ($relationalDiagramId)
+                    <a wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}">Abrir modelo relacional →</a>
+                @else
+                    <button
+                        wire:click="convertToRelational"
+                        wire:loading.attr="disabled"
+                        wire:target="convertToRelational"
+                    >
+                        <span wire:loading.remove wire:target="convertToRelational">Converter para relacional →</span>
+                        <span wire:loading wire:target="convertToRelational">Convertendo…</span>
+                    </button>
+                @endif
             </div>
         </div>
     </header>
+
+    <div x-show="guideOpen" x-cloak class="er-guide" @keydown.escape.window="guideOpen = false">
+        <div class="er-guide-intro">
+            <span class="er-guide-step">1</span>
+            <p><strong>Modele o domínio</strong><small>Crie entidades, identificadores e atributos.</small></p>
+        </div>
+        <span class="er-guide-arrow">→</span>
+        <div class="er-guide-intro">
+            <span class="er-guide-step">2</span>
+            <p><strong>Defina as relações</strong><small><kbd>Alt</kbd> + arrastar conecta entidades.</small></p>
+        </div>
+        <div class="er-guide-cardinalities" aria-label="Cardinalidades">
+            <span><b>&#8214;</b> 1:1</span>
+            <span><b>&#9711;&#8739;</b> 0:1</span>
+            <span><b>&#8739;&lt;</b> 1:N</span>
+            <span><b>&#9711;&lt;</b> 0:N</span>
+        </div>
+        <button type="button" @click="guideOpen = false" aria-label="Fechar guia">✕</button>
+    </div>
     {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
 <div
     x-show="$wire.showJson"
@@ -164,7 +205,7 @@
 
                 {{-- ================= ENTIDADE ================= --}}
                 <template x-if="!node.data.kind">
-                <div class="er-node" :data-id="node.id">
+                <div class="er-node" :data-id="node.id" x-erd-measure-node="node">
 
                     {{--
                         8 pontos de conexão: 4 `source` nos lados (iniciam o
@@ -382,6 +423,19 @@
                             <button type="submit">Aplicar</button>
                         </form>
 
+                        <form x-show="isSelf" x-cloak class="er-ee-roles" @submit.prevent="updateRoles()">
+                            <div class="er-ee-roles-title">Papéis do auto-relacionamento</div>
+                            <label>
+                                <span>Papel A</span>
+                                <input x-model="fromRole" maxlength="80" placeholder="Ex.: subordinado">
+                            </label>
+                            <label>
+                                <span>Papel B</span>
+                                <input x-model="toRole" maxlength="80" placeholder="Ex.: supervisor">
+                            </label>
+                            <button type="submit">Aplicar papéis</button>
+                        </form>
+
 
                         {{-- ponta ORIGEM (filho / FK) = markerStart --}}
                         <div class="er-ee-end">
@@ -430,35 +484,6 @@
                 </template>
             </div>
 
-            {{-- ================= LEGENDA ================= --}}
-            {{--
-                Vai no canto inferior DIREITO e começa recolhida.
-
-                Em bottom-left ela caía exatamente sobre os controles de zoom do
-                AlpineFlow (que ficam ali por padrão), e aberta o tempo todo
-                cobria parte do diagrama.
-            --}}
-            <x-flow-panel position="bottom-right" class="er-legend" x-data="{ aberta: false }">
-                <button class="er-legend-toggle" @click="aberta = !aberta">
-                    <span x-text="aberta ? '✕' : '?'"></span>
-                    <span x-show="!aberta">ajuda</span>
-                </button>
-
-                <div x-show="aberta" x-cloak class="er-legend-body">
-                    <div class="er-legend-title">Cardinalidade (IE / pé de galinha)</div>
-                    <div class="er-legend-grid">
-                        <div><span class="er-sym">&#8214;</span> um e só um</div>
-                        <div><span class="er-sym">&#9711;&#8739;</span> zero ou um</div>
-                        <div><span class="er-sym">&#8739;&lt;</span> um ou muitos</div>
-                        <div><span class="er-sym">&#9711;&lt;</span> zero ou muitos</div>
-                    </div>
-                    <div class="er-legend-hint">
-                        Segure <kbd>Alt</kbd> e arraste de qualquer ponto de uma entidade até
-                        outra para criar o relacionamento.
-                        <strong>Clique com o botão direito na linha para editar nome e cardinalidade.</strong>
-                    </div>
-                </div>
-            </x-flow-panel>
         </x-flow>
     </div>
 

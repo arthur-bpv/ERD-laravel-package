@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Livewire\SchemaBoard;
-use App\Support\ErdFileStore;
+use App\Models\Diagram;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -17,6 +17,8 @@ use Tests\TestCase;
  */
 class SchemaBoardTest extends TestCase
 {
+    use RefreshDatabase;
+
     /** Localiza uma relação pelo id dentro do estado do componente. */
     private function relacao(array $relations, string $id): ?array
     {
@@ -37,6 +39,8 @@ class SchemaBoardTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('flow-container', false);
         $response->assertSee('Modelador ER');
+        $response->assertSee('x-erd-measure-node="node"', false);
+        $response->assertSee('Papéis do auto-relacionamento');
         $response->assertDontSee('Novo relacionamento');
     }
 
@@ -149,6 +153,52 @@ class SchemaBoardTest extends TestCase
             $this->assertSame($portsAfterDiamondMove[$role]['position']['x'] + 160, $port['position']['x']);
             $this->assertSame($portsAfterDiamondMove[$role]['position']['y'] + 40, $port['position']['y']);
         }
+    }
+
+    public function test_attribute_changes_publish_fresh_dimensions_and_reposition_self_relationship_ports(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('createSelfRelation', 'comments');
+
+        $before = collect($component->instance()->buildNodes());
+        $entityBefore = $before->firstWhere('id', 'comments');
+        $portsBefore = $before
+            ->filter(fn (array $node) => ($node['data']['kind'] ?? null) === 'relationship-port')
+            ->keyBy(fn (array $node) => $node['data']['role']);
+
+        $component
+            ->call('addAttribute', 'comments', 'created_at')
+            ->assertDispatched('flow:update');
+
+        $after = collect($component->instance()->buildNodes());
+        $entityAfter = $after->firstWhere('id', 'comments');
+        $portsAfter = $after
+            ->filter(fn (array $node) => ($node['data']['kind'] ?? null) === 'relationship-port')
+            ->keyBy(fn (array $node) => $node['data']['role']);
+
+        $this->assertGreaterThan($entityBefore['dimensions']['height'], $entityAfter['dimensions']['height']);
+        $this->assertNotSame(
+            $portsBefore->pluck('position')->all(),
+            $portsAfter->pluck('position')->all(),
+        );
+    }
+
+    public function test_self_relationship_roles_can_be_renamed_but_not_blank_or_duplicated(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('createSelfRelation', 'comments')
+            ->call('renameSelfRelationRoles', 'r4', 'subordinado', 'supervisor')
+            ->assertDispatched('flow:update');
+
+        $relation = $this->relacao($component->get('relations'), 'r4');
+        $this->assertSame('subordinado', $relation['fromRole']);
+        $this->assertSame('supervisor', $relation['toRole']);
+
+        $component->call('renameSelfRelationRoles', 'r4', ' ', 'supervisor');
+        $this->assertSame('subordinado', $this->relacao($component->get('relations'), 'r4')['fromRole']);
+
+        $component->call('renameSelfRelationRoles', 'r4', 'pessoa', 'pessoa');
+        $this->assertSame('subordinado', $this->relacao($component->get('relations'), 'r4')['fromRole']);
     }
 
     /**
@@ -393,134 +443,93 @@ class SchemaBoardTest extends TestCase
         $this->assertSame(456, $posts['y']);
     }
 
-    // ---------------------------------------------------------------------
-    // Modo de tela — troca de arquivo de verdade (App\Support\ErdFileStore)
-    // ---------------------------------------------------------------------
-
-    /**
-     * Entrar no modo relacional GRAVA o diagrama ER em arquivo e CRIA o
-     * arquivo do schema relacional — não é só virar uma flag em memória.
-     */
-    public function test_entering_relational_mode_saves_the_diagram_file_and_creates_the_schema_file(): void
+    public function test_converting_saves_the_current_er_and_opens_an_independent_relational_board(): void
     {
-        Storage::fake('local');
-
-        $component = Livewire::test(SchemaBoard::class)->call('toggleViewMode');
-
-        $this->assertSame('relational', $component->get('viewMode'));
-
-        Storage::disk('local')->assertExists(ErdFileStore::caminhoDiagrama());
-        Storage::disk('local')->assertExists(ErdFileStore::caminhoSchemaRelacional());
-
-        $diagrama = json_decode(Storage::disk('local')->get(ErdFileStore::caminhoDiagrama()), true);
-        $this->assertCount(3, $diagrama['entities']);
-        $this->assertCount(3, $diagrama['relations']);
-
-        $schema = json_decode(Storage::disk('local')->get(ErdFileStore::caminhoSchemaRelacional()), true);
-        $this->assertNotEmpty($schema['tables']);
-        $this->assertNotEmpty($schema['links']);
-    }
-
-    /** A tela em modo relacional mostra o que está de fato gravado no arquivo recém-aberto. */
-    public function test_relational_canvas_reflects_the_opened_file(): void
-    {
-        Storage::fake('local');
-
-        $component = Livewire::test(SchemaBoard::class)->call('toggleViewMode');
-
-        $tables = collect($component->instance()->buildRelationalNodes());
-        $this->assertNull($tables->first(fn ($n) => $n['data']['isAssociative'] ?? false));
-
-        $edges = collect($component->instance()->buildRelationalEdges());
-        $r1 = $edges->firstWhere('id', 'r1');
-        $this->assertNotNull($r1);
-        $this->assertArrayNotHasKey('label', $r1);
-        $this->assertArrayNotHasKey('markerStart', $r1);
-        $this->assertSame('arrow', $r1['markerEnd']['type']);
-    }
-
-    /**
-     * Relação N:M (as duas pontas em "muitos"): o arquivo criado tem uma
-     * tabela associativa com chave primária composta, e a FK que só existia
-     * pra sustentar a relação sai da tabela original.
-     */
-    public function test_relational_file_gets_an_associative_table_for_a_many_to_many_relation(): void
-    {
-        Storage::fake('local');
-
         $component = Livewire::test(SchemaBoard::class)
-            ->call('setCardinality', 'r1', 'parent', 'cf-one-many') // agora as duas pontas de r1 são "muitos"
-            ->call('toggleViewMode');
+            ->call('addAttribute', 'users', 'active')
+            ->call('convertToRelational')
+            ->assertRedirect();
 
-        $tables = collect($component->instance()->buildRelationalNodes());
+        $source = Diagram::query()->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->sole();
+        $relational = Diagram::query()->where('type', Diagram::TYPE_RELATIONAL)->sole();
+        $users = collect($source->data['entities'])->firstWhere('id', 'users');
+        $usersTable = collect($relational->data['tables'])->firstWhere('id', 'users');
 
-        $associativa = $tables->first(fn ($n) => $n['data']['isAssociative'] ?? false);
-        $this->assertNotNull($associativa, 'deveria ter nascido uma tabela associativa para a relação N:M');
-        $this->assertSame('assoc_r1', $associativa['id']);
-
-        $this->assertCount(2, $associativa['data']['attributes']);
-        foreach ($associativa['data']['attributes'] as $coluna) {
-            $this->assertSame('PK', $coluna['key']);
-            $this->assertTrue($coluna['fk']);
-        }
-
-        $posts = $tables->firstWhere('id', 'posts');
-        $this->assertNull(collect($posts['data']['attributes'])->firstWhere('id', 'posts.user_id'));
-
-        $edges = collect($component->instance()->buildRelationalEdges());
-        $this->assertNull($edges->firstWhere('id', 'r1'));
-        $this->assertNotNull($edges->firstWhere('id', 'r1:a'));
-        $this->assertNotNull($edges->firstWhere('id', 'r1:b'));
+        $this->assertSame($source->id, $relational->source_diagram_id);
+        $this->assertContains('active', array_column($users['attributes'], 'name'));
+        $this->assertContains('active', array_column($usersTable['columns'], 'name'));
+        $this->assertNotEmpty($relational->data['foreignKeys']);
     }
 
-    /**
-     * Voltar pro modo ER ABRE (lê) o arquivo do diagrama — não só desfaz a
-     * flag. Simula outra sessão tendo sobrescrito o arquivo enquanto o
-     * usuário estava vendo o schema relacional, e confirma que o que volta
-     * pra tela é o CONTEÚDO DO ARQUIVO, não o que já estava em memória.
-     */
-    public function test_returning_to_er_mode_opens_whatever_is_currently_in_the_diagram_file(): void
+    public function test_er_header_keeps_a_link_to_its_existing_relational_model(): void
     {
-        Storage::fake('local');
+        $source = Diagram::create([
+            'name' => 'Biblioteca',
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => ['entities' => [], 'relations' => []],
+        ]);
+        $relational = Diagram::create([
+            'name' => 'Biblioteca — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $source->id,
+            'data' => ['tables' => [], 'foreignKeys' => [], 'warnings' => []],
+        ]);
 
-        $component = Livewire::test(SchemaBoard::class)->call('toggleViewMode'); // er -> relational (salva o arquivo)
+        Livewire::test(SchemaBoard::class, ['diagram' => $source])
+            ->assertSet('relationalDiagramId', $relational->id)
+            ->assertSee('Modelo ER')
+            ->assertSee('Modelo Relacional')
+            ->assertSee(route('boards.relational', $relational), escape: false);
+    }
 
-        // "outra sessão" grava o arquivo com um diagrama diferente
-        ErdFileStore::salvarDiagrama(
-            entities: [['id' => 'x', 'name' => 'tabela_de_fora', 'x' => 0, 'y' => 0, 'attributes' => [
-                ['id' => 'x.id', 'name' => 'id', 'type' => 'bigint', 'key' => 'PK'],
-            ]]],
-            relations: [],
-            seq: 99,
-            relSeq: 5,
+    public function test_er_guide_is_rendered_below_the_header_instead_of_over_the_minimap(): void
+    {
+        $component = Livewire::test(SchemaBoard::class);
+
+        $component
+            ->assertSeeHtml('class="er-guide"')
+            ->assertDontSeeHtml('position="bottom-right" class="er-legend"');
+
+        $html = $component->html();
+        $this->assertLessThan(strpos($html, 'class="relative flex-1 overflow-hidden"'), strpos($html, 'class="er-guide"'));
+    }
+
+    public function test_opening_an_existing_relational_model_does_not_regenerate_its_manual_edits(): void
+    {
+        $source = Diagram::create([
+            'name' => 'Biblioteca',
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => ['entities' => [], 'relations' => []],
+        ]);
+        $relational = Diagram::create([
+            'name' => 'Biblioteca — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $source->id,
+            'data' => [
+                'tables' => [['id' => 'manual', 'name' => 'Auditoria', 'kind' => 'strong', 'x' => 0, 'y' => 0, 'columns' => [], 'primaryKey' => []]],
+                'foreignKeys' => [],
+                'warnings' => [],
+                'customized' => true,
+            ],
+        ]);
+
+        Livewire::test(SchemaBoard::class, ['diagram' => $source])
+            ->call('convertToRelational')
+            ->assertRedirect(route('boards.relational', $relational));
+
+        $this->assertSame('Auditoria', $relational->fresh()->data['tables'][0]['name']);
+        $this->assertTrue($relational->fresh()->data['customized']);
+    }
+
+    public function test_json_preview_remains_the_er_source_model(): void
+    {
+        $json = json_decode(
+            Livewire::test(SchemaBoard::class)->instance()->getJsonPreviewProperty(),
+            true,
         );
 
-        $component->call('toggleViewMode'); // relational -> er (deveria abrir o arquivo, não o que já tinha em memória)
-
-        $this->assertSame('er', $component->get('viewMode'));
-        $this->assertCount(1, $component->get('entities'));
-        $this->assertSame('tabela_de_fora', $component->get('entities')[0]['name']);
-        $this->assertSame(99, $component->get('seq'));
-    }
-
-    /** "Ver JSON" mostra o schema relacional (não o diagrama ER) enquanto esse modo está ativo. */
-    public function test_json_preview_shows_the_relational_schema_while_in_relational_mode(): void
-    {
-        Storage::fake('local');
-
-        $component = Livewire::test(SchemaBoard::class)->call('toggleViewMode'); // er -> relational
-
-        $json = json_decode($component->instance()->getJsonPreviewProperty(), true);
-
-        $this->assertArrayHasKey('tables', $json);
-        $this->assertArrayHasKey('links', $json);
-        $this->assertArrayNotHasKey('entities', $json);
-        $this->assertArrayNotHasKey('relations', $json);
-
-        $component->call('toggleViewMode'); // relational -> er
-
-        $json = json_decode($component->instance()->getJsonPreviewProperty(), true);
         $this->assertArrayHasKey('entities', $json);
         $this->assertArrayHasKey('relations', $json);
+        $this->assertArrayNotHasKey('tables', $json);
     }
 }

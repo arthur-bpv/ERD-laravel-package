@@ -3,9 +3,12 @@ import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.e
 import AlpineFlow from '../../vendor/getartisanflow/wireflow/dist/alpineflow.bundle.esm.js';
 import './erd/markers';
 import './erd/edge-editor';
+import './erd/node-measurement';
+import { relationalSelfLoopPath } from './erd/relational-self-loop';
 
 Alpine.plugin(AlpineFlow);
 
 window.Alpine = Alpine;
+window.relationalSelfLoopPath = relationalSelfLoopPath;
 
 Livewire.start();

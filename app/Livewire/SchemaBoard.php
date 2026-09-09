@@ -64,6 +64,12 @@ class SchemaBoard extends Component
     /** Cor padrão das relações. */
     private const COR_RELACAO = '#64748b';
 
+    private const ENTITY_WIDTH = 232.0;
+
+    private const ENTITY_BASE_HEIGHT = 84.0;
+
+    private const ENTITY_ROW_HEIGHT = 24.5;
+
     /**
      * Estrutura que guarda as entidades (tabelas) no servidor.
      *
@@ -94,6 +100,9 @@ class SchemaBoard extends Component
     #[Locked]
     public ?int $diagramId = null;
 
+    #[Locked]
+    public ?int $relationalDiagramId = null;
+
     public string $diagramName = 'Diagrama sem nome';
 
     public function mount($diagram = null): void
@@ -105,6 +114,7 @@ class SchemaBoard extends Component
 
             $this->diagramId = $diagram->id;
             $this->diagramName = $diagram->name;
+            $this->relationalDiagramId = $diagram->relationalDiagram()->value('id');
 
             // Um projeto recém-criado possui `data: []`. Isso representa um
             // quadro realmente vazio, não um pedido para carregar o exemplo.
@@ -210,7 +220,16 @@ class SchemaBoard extends Component
         return [
             'id' => $e['id'],
             'position' => ['x' => $e['x'], 'y' => $e['y']],
+            'dimensions' => $this->entityDimensions($e),
             'data' => $this->nodeData($e),
+        ];
+    }
+
+    private function entityDimensions(array $entity): array
+    {
+        return [
+            'width' => self::ENTITY_WIDTH,
+            'height' => self::ENTITY_BASE_HEIGHT + (count($entity['attributes'] ?? []) * self::ENTITY_ROW_HEIGHT),
         ];
     }
 
@@ -312,6 +331,8 @@ class SchemaBoard extends Component
                 'targetName' => $target['name'] ?? 'não conectada',
                 'childCard' => $relation['childCard'],
                 'parentCard' => $relation['parentCard'],
+                'fromRole' => $relation['fromRole'] ?? 'papel_origem',
+                'toRole' => $relation['toRole'] ?? 'papel_destino',
             ],
         ];
     }
@@ -334,6 +355,9 @@ class SchemaBoard extends Component
             'toAttr' => $relation['toAttr'],
             'sourceName' => $source['name'] ?? 'não conectada',
             'targetName' => $target['name'] ?? 'não conectada',
+            'isSelf' => $isSelfRelationship,
+            'fromRole' => $relation['fromRole'] ?? null,
+            'toRole' => $relation['toRole'] ?? null,
         ];
         $base = [
             'type' => 'straight',
@@ -393,6 +417,9 @@ class SchemaBoard extends Component
                 'toAttr' => $relation['toAttr'],
                 'sourceName' => $source['name'] ?? $relation['from'],
                 'targetName' => $target['name'] ?? $relation['to'],
+                'isSelf' => false,
+                'fromRole' => $relation['fromRole'] ?? null,
+                'toRole' => $relation['toRole'] ?? null,
             ],
         ];
     }
@@ -802,6 +829,29 @@ class SchemaBoard extends Component
         }
     }
 
+    public function renameSelfRelationRoles(string $relationId, string $fromRole, string $toRole): void
+    {
+        $fromRole = trim(mb_substr($fromRole, 0, 80));
+        $toRole = trim(mb_substr($toRole, 0, 80));
+
+        if ($fromRole === '' || $toRole === '' || mb_strtolower($fromRole) === mb_strtolower($toRole)) {
+            return;
+        }
+
+        foreach ($this->relations as $relation) {
+            if ($relation['id'] !== $relationId || ! $this->isSelfRelationship($relation)) {
+                continue;
+            }
+
+            $this->mutateRelation($relationId, function (&$item) use ($fromRole, $toRole) {
+                $item['fromRole'] = $fromRole;
+                $item['toRole'] = $toRole;
+            });
+
+            return;
+        }
+    }
+
     /**
      * Inverte a direção do relacionamento (quem é pai vira filho).
      */
@@ -998,7 +1048,24 @@ class SchemaBoard extends Component
         foreach ($this->entities as &$e) {
             if ($e['id'] === $id) {
                 $fn($e);
-                $this->flowUpdate(['nodes' => [$id => ['data' => $this->nodeData($e)]]]);
+                $patch = [
+                    $id => [
+                        'data' => $this->nodeData($e),
+                        'dimensions' => $this->entityDimensions($e),
+                    ],
+                ];
+
+                foreach ($this->relations as $relation) {
+                    if (! $this->isSelfRelationship($relation) || $relation['from'] !== $id) {
+                        continue;
+                    }
+
+                    foreach ($this->selfRelationshipPortNodesFor($relation) as $port) {
+                        $patch[$port['id']] = ['position' => $port['position']];
+                    }
+                }
+
+                $this->flowUpdate(['nodes' => $patch]);
 
                 return;
             }
@@ -1118,8 +1185,9 @@ class SchemaBoard extends Component
         $diamond = $this->relationshipNodeFor($relation)['position'];
         $ids = $this->selfRelationshipPortNodeIds($relation['id']);
 
-        $entityWidth = 232.0;
-        $entityHeight = 84.0 + (count($entity['attributes'] ?? []) * 24.5);
+        $entityDimensions = $this->entityDimensions($entity);
+        $entityWidth = $entityDimensions['width'];
+        $entityHeight = $entityDimensions['height'];
         $entityCenterX = $entity['x'] + ($entityWidth / 2);
         $entityCenterY = $entity['y'] + ($entityHeight / 2);
         $diamondCenterX = $diamond['x'] + 60.0;
@@ -1250,7 +1318,7 @@ class SchemaBoard extends Component
     {
         $source = $this->persistDiagram();
 
-        $relational = Diagram::query()->updateOrCreate(
+        $relational = Diagram::query()->firstOrCreate(
             ['source_diagram_id' => $source->id],
             [
                 'name' => $source->name.' — Relacional',
@@ -1258,6 +1326,8 @@ class SchemaBoard extends Component
                 'data' => $transformer->transform($source->data ?? []),
             ],
         );
+
+        $this->relationalDiagramId = $relational->id;
 
         $this->redirectRoute('boards.relational', $relational, navigate: true);
     }

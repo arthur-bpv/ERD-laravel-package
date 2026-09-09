@@ -86,6 +86,16 @@ document.addEventListener('alpine:init', () => {
                 if (entity && !entity.data?.kind) delete this.selfOffsets[entity.id];
             });
 
+            container.addEventListener('erd-node-resized', (ev) => {
+                const entity = this.$flow?.getNode(ev.detail?.nodeId);
+                if (!entity || entity.data?.kind) return;
+
+                for (const relationId of this.selfRelationshipIds(entity)) {
+                    const diamond = this.$flow.getNode(`relation-${relationId}`);
+                    if (diamond) this.updateSelfRelationshipGeometry(entity, diamond);
+                }
+            });
+
             /*
              * Redesenho de aresta pedido pelo servidor (troca de
              * cardinalidade, inversão de sentido).
@@ -276,6 +286,8 @@ document.addEventListener('alpine:init', () => {
         activeEdgeId: null,
         activeRelationship: null,
         relationName: '',
+        fromRole: '',
+        toRole: '',
         feedback: '',
 
         // Ver nota em erdCanvas: $flow não tem .on() — os eventos chegam como
@@ -289,6 +301,8 @@ document.addEventListener('alpine:init', () => {
                 this.activeEdgeId = edge.id;
                 this.activeRelationship = null;
                 this.relationName = edge.label || edge.data?.relationName || '';
+                this.fromRole = edge.data?.fromRole || '';
+                this.toRole = edge.data?.toRole || '';
                 this.feedback = '';
                 this._positionAt(event.clientX, event.clientY);
                 this.open = true;
@@ -307,6 +321,8 @@ document.addEventListener('alpine:init', () => {
                     this.activeEdgeId = edge?.id ?? null;
                     this.activeRelationship = relationship;
                     this.relationName = relationship.name || relationship.relationName || '';
+                    this.fromRole = relationship.fromRole || '';
+                    this.toRole = relationship.toRole || '';
                     this.feedback = '';
                     this._positionAt(x, y);
                     this.open = true;
@@ -333,6 +349,8 @@ document.addEventListener('alpine:init', () => {
             this.activeEdgeId = null;
             this.activeRelationship = null;
             this.relationName = '';
+            this.fromRole = '';
+            this.toRole = '';
             this.feedback = '';
         },
 
@@ -358,6 +376,9 @@ document.addEventListener('alpine:init', () => {
                         relationName: this.activeRelationship.name,
                         sourceName: this.activeRelationship.sourceName,
                         targetName: this.activeRelationship.targetName,
+                        isSelf: true,
+                        fromRole: this.activeRelationship.fromRole,
+                        toRole: this.activeRelationship.toRole,
                     },
                 };
             }
@@ -374,6 +395,10 @@ document.addEventListener('alpine:init', () => {
 
         relationId(edge) {
             return edge?.data?.relationId ?? edge?.id;
+        },
+
+        get isSelf() {
+            return Boolean(this.e?.data?.isSelf);
         },
 
         markerFor(campo) {
@@ -418,6 +443,29 @@ document.addEventListener('alpine:init', () => {
             if ('label' in edge) edge.label = nome;
             this.$wire.renameRelation(relationId, nome);
             this.feedback = 'Nome atualizado.';
+        },
+
+        updateRoles() {
+            const edge = this.e;
+            const fromRole = this.fromRole.trim();
+            const toRole = this.toRole.trim();
+            if (!edge || !this.isSelf) return;
+
+            if (!fromRole || !toRole) {
+                this.feedback = 'Informe os dois papéis.';
+                return;
+            }
+            if (fromRole.toLocaleLowerCase() === toRole.toLocaleLowerCase()) {
+                this.feedback = 'Os papéis precisam ter nomes diferentes.';
+                return;
+            }
+
+            if (this.activeRelationship) {
+                this.activeRelationship.fromRole = fromRole;
+                this.activeRelationship.toRole = toRole;
+            }
+            this.$wire.renameSelfRelationRoles(this.relationId(edge), fromRole, toRole);
+            this.feedback = 'Papéis atualizados.';
         },
 
         swap() {

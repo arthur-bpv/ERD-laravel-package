@@ -200,12 +200,13 @@ class SchemaBoard extends Component
         $nodes = array_map(fn ($e) => $this->nodeFor($e), $this->entities);
 
         foreach ($this->relations as $relation) {
-            if (! $this->isCompleteRelationship($relation) || $this->isSelfRelationship($relation)) {
-                $nodes[] = $this->relationshipNodeFor($relation);
-                if ($this->isSelfRelationship($relation)) {
-                    array_push($nodes, ...$this->selfRelationshipPortNodesFor($relation));
-                }
+            $nodes[] = $this->relationshipNodeFor($relation);
+
+            if ($this->isSelfRelationship($relation)) {
+                array_push($nodes, ...$this->selfRelationshipPortNodesFor($relation));
             }
+
+            array_push($nodes, ...$this->relationshipAttributeNodesFor($relation));
         }
 
         return $nodes;
@@ -247,16 +248,13 @@ class SchemaBoard extends Component
     private function nodeData(array $e): array
     {
         $usadas = [];
-        $relCount = 0;
 
         foreach ($this->relations as $r) {
             if ($r['from'] === $e['id']) {
                 $usadas[] = $r['fromAttr'];
-                $relCount++;
             }
             if ($r['to'] === $e['id']) {
                 $usadas[] = $r['toAttr'];
-                $relCount++;
             }
         }
 
@@ -269,11 +267,10 @@ class SchemaBoard extends Component
         }
 
         return [
-            'name' => $e['name'],
-            'attributes' => array_values($e['attributes']),
-            'canBeParent' => $temIdentificador,
-            'usedAttrs' => array_values(array_unique($usadas)),
-            'relCount' => $relCount,
+        'name' => $e['name'],
+        'attributes' => array_values($e['attributes']),
+        'canBeParent' => $temIdentificador,
+        'usedAttrs' => array_values(array_unique($usadas)),
         ];
     }
 
@@ -284,7 +281,13 @@ class SchemaBoard extends Component
      */
     public function buildEdges(): array
     {
-        return array_values(array_merge(...array_map(fn ($r) => $this->edgesForRelation($r), $this->relations)));
+        $edges = array_merge(...array_map(fn ($r) => $this->edgesForRelation($r), $this->relations));
+
+        foreach ($this->relations as $relation) {
+            array_push($edges, ...$this->attributeEdgesFor($relation));
+        }
+
+        return array_values($edges);
     }
 
     private function relationshipNodeFor(array $relation): array
@@ -339,15 +342,12 @@ class SchemaBoard extends Component
 
     private function edgesForRelation(array $relation): array
     {
-        if ($this->isCompleteRelationship($relation) && ! $this->isSelfRelationship($relation)) {
-            return [$this->completedRelationshipEdgeFor($relation)];
-        }
-
         $source = $relation['from'] ? $this->findEntity($relation['from']) : null;
         $target = $relation['to'] ? $this->findEntity($relation['to']) : null;
         $diamondId = $this->relationshipNodeId($relation['id']);
         $isSelfRelationship = $this->isSelfRelationship($relation);
         $selfPorts = $isSelfRelationship ? $this->selfRelationshipPortNodeIds($relation['id']) : null;
+
         $data = [
             'relationId' => $relation['id'],
             'relationName' => $relation['name'],
@@ -389,39 +389,6 @@ class SchemaBoard extends Component
         }
 
         return $edges;
-    }
-
-    private function completedRelationshipEdgeFor(array $relation): array
-    {
-        $source = $this->findEntity($relation['from']);
-        $target = $this->findEntity($relation['to']);
-
-        return [
-            'id' => $relation['id'],
-            'source' => $relation['from'],
-            'target' => $relation['to'],
-            'type' => 'floating',
-            'pathType' => 'smoothstep',
-            'color' => self::COR_RELACAO,
-            'strokeWidth' => 1.6,
-            'interactionWidth' => 34,
-            'label' => $relation['name'],
-            'labelStart' => $this->nomeCurto($relation['fromAttr']),
-            'labelEnd' => $this->nomeCurto($relation['toAttr']),
-            'markerStart' => $this->marker($relation['childCard']),
-            'markerEnd' => $this->marker($relation['parentCard']),
-            'data' => [
-                'relationId' => $relation['id'],
-                'relationName' => $relation['name'],
-                'fromAttr' => $relation['fromAttr'],
-                'toAttr' => $relation['toAttr'],
-                'sourceName' => $source['name'] ?? $relation['from'],
-                'targetName' => $target['name'] ?? $relation['to'],
-                'isSelf' => false,
-                'fromRole' => $relation['fromRole'] ?? null,
-                'toRole' => $relation['toRole'] ?? null,
-            ],
-        ];
     }
 
     /**
@@ -494,15 +461,17 @@ class SchemaBoard extends Component
         // Toda relação que encosta nessa entidade (como origem ou destino) morre junto.
         $removidas = [];
         $nodesRemovidos = [];
-        foreach ($this->relations as $r) {
-            if ($r['from'] === $id || $r['to'] === $id) {
-                array_push($removidas, ...array_column($this->edgesForRelation($r), 'id'));
-                $nodesRemovidos[] = $this->relationshipNodeId($r['id']);
-                if ($this->isSelfRelationship($r)) {
-                    array_push($nodesRemovidos, ...array_values($this->selfRelationshipPortNodeIds($r['id'])));
-                }
+    foreach ($this->relations as $r) {
+        if ($r['from'] === $id || $r['to'] === $id) {
+            array_push($removidas, ...array_column($this->edgesForRelation($r), 'id'));
+            array_push($removidas, ...$this->attributeEdgeIds($r));                    // ← novo
+            $nodesRemovidos[] = $this->relationshipNodeId($r['id']);
+            array_push($nodesRemovidos, ...$this->relationshipAttributeNodeIds($r));    // ← novo
+            if ($this->isSelfRelationship($r)) {
+                array_push($nodesRemovidos, ...array_values($this->selfRelationshipPortNodeIds($r['id'])));
             }
         }
+    }
 
         $this->entities = array_values(array_filter($this->entities, fn ($e) => $e['id'] !== $id));
 
@@ -592,12 +561,14 @@ class SchemaBoard extends Component
             if ($r['fromAttr'] === $attrId || $r['toAttr'] === $attrId) {
                 $relationIds[] = $r['id'];
                 array_push($removidas, ...array_column($this->edgesForRelation($r), 'id'));
+                array_push($removidas, ...$this->attributeEdgeIds($r));                    // ← novo
                 $nodesRemovidos[] = $this->relationshipNodeId($r['id']);
+                array_push($nodesRemovidos, ...$this->relationshipAttributeNodeIds($r));    // ← novo
                 if ($this->isSelfRelationship($r)) {
                     array_push($nodesRemovidos, ...array_values($this->selfRelationshipPortNodeIds($r['id'])));
                 }
             }
-        }
+}
 
         if ($removidas) {
             $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $relationIds, true)));
@@ -606,6 +577,150 @@ class SchemaBoard extends Component
                 $this->flowRemoveNodes($nodesRemovidos);
             }
             $this->syncNodeData();
+        }
+    }
+
+       private function relationshipAttributeNodesFor(array $relation): array
+    {
+        $attributes = array_values($relation['attributes'] ?? []);
+        if (! $attributes) {
+            return [];
+        }
+
+        $diamond = $this->relationshipNodeFor($relation)['position'];
+        $diamondCenterX = $diamond['x'] + 60.0;
+        $diamondBottomY = $diamond['y'] + 44.0;
+
+        $count = count($attributes);
+        $spacing = 130;
+        $startX = $diamondCenterX - (($count - 1) * $spacing / 2);
+
+        $nodes = [];
+        foreach ($attributes as $i => $attr) {
+            $nodes[] = [
+                'id' => $this->relationshipAttributeNodeId($relation['id'], $attr['id']),
+                'position' => [
+                    'x' => (int) round($startX + $i * $spacing - 50),
+                    'y' => (int) round($diamondBottomY + 70),
+                ],
+                'data' => [
+                    'kind' => 'relationship-attribute',
+                    'relationId' => $relation['id'],
+                    'attrId' => $attr['id'],
+                    'name' => $attr['name'],
+                ],
+            ];
+        }
+
+        return $nodes;
+    }
+
+    private function relationshipAttributeNodeId(string $relationId, string $attrId): string
+    {
+        return $this->relationshipNodeId($relationId).'-attr-'.$attrId;
+    }
+
+    private function attributeEdgesFor(array $relation): array
+    {
+        $attributes = $relation['attributes'] ?? [];
+        if (! $attributes) {
+            return [];
+        }
+
+        $diamondId = $this->relationshipNodeId($relation['id']);
+
+        return array_map(fn ($attr) => [
+            'id' => $diamondId.'-attr-edge-'.$attr['id'],
+            'source' => $diamondId,
+            'target' => $this->relationshipAttributeNodeId($relation['id'], $attr['id']),
+            'type' => 'straight',
+            'pathType' => 'straight',
+            'color' => self::COR_RELACAO,
+            'strokeWidth' => 1.2,
+            'interactionWidth' => 20,
+        ], array_values($attributes));
+    }
+
+    public function addRelationAttribute(string $relationId, string $name = ''): void
+{
+    $name = trim($name) ?: 'atributo';
+
+    foreach ($this->relations as &$relation) {
+        if ($relation['id'] !== $relationId) {
+            continue;
+        }
+
+        $attrId = $relationId.'.attr'.(++$this->seq);
+        $relation['attributes'][] = ['id' => $attrId, 'name' => $name];
+
+        $novoNode = collect($this->relationshipAttributeNodesFor($relation))
+            ->firstWhere('id', $this->relationshipAttributeNodeId($relationId, $attrId));
+
+        $this->flowAddNodes([$novoNode]);
+        $this->flowAddEdges([[
+            'id' => $this->relationshipNodeId($relationId).'-attr-edge-'.$attrId,
+            'source' => $this->relationshipNodeId($relationId),
+            'target' => $novoNode['id'],
+            'type' => 'straight',
+            'pathType' => 'straight',
+            'color' => self::COR_RELACAO,
+            'strokeWidth' => 1.2,
+            'interactionWidth' => 20,
+        ]]);
+
+        return;
+    }
+}
+
+    public function renameRelationAttribute(string $relationId, string $attrId, string $name): void
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return;
+        }
+
+        foreach ($this->relations as &$relation) {
+            if ($relation['id'] !== $relationId) {
+                continue;
+            }
+
+            foreach ($relation['attributes'] as &$attr) {
+                if ($attr['id'] === $attrId) {
+                    $attr['name'] = $name;
+                    break;
+                }
+            }
+            unset($attr);
+
+            $this->flowUpdate(['nodes' => [
+                $this->relationshipAttributeNodeId($relationId, $attrId) => ['data' => [
+                    'kind' => 'relationship-attribute',
+                    'relationId' => $relationId,
+                    'attrId' => $attrId,
+                    'name' => $name,
+                ]],
+            ]]);
+
+            return;
+        }
+    }
+
+    public function removeRelationAttribute(string $relationId, string $attrId): void
+    {
+        foreach ($this->relations as &$relation) {
+            if ($relation['id'] !== $relationId) {
+                continue;
+            }
+
+            $relation['attributes'] = array_values(array_filter(
+                $relation['attributes'] ?? [],
+                fn ($a) => $a['id'] !== $attrId
+            ));
+
+            $this->flowRemoveNodes([$this->relationshipAttributeNodeId($relationId, $attrId)]);
+            $this->flowRemoveEdges([$this->relationshipNodeId($relationId).'-attr-edge-'.$attrId]);
+
+            return;
         }
     }
 
@@ -712,6 +827,7 @@ class SchemaBoard extends Component
             'toAttr' => $pk,
             'childCard' => 'cf-one-many', // o lado da FK costuma ser "muitos"
             'parentCard' => 'cf-one-one', // o lado da PK costuma ser "um e só um"
+            'attributes' => [],
         ];
 
         if ($source === $target) {
@@ -768,13 +884,9 @@ class SchemaBoard extends Component
                 removeIds: $oldEdgeIds,
                 select: false,
             );
-            if ($this->isCompleteRelationship($relation) && ! $this->isSelfRelationship($relation)) {
-                $this->flowRemoveNodes([$this->relationshipNodeId($relationId)]);
-            } else {
-                $this->flowUpdate(['nodes' => [
-                    $this->relationshipNodeId($relationId) => ['data' => $this->relationshipNodeFor($relation)['data']],
-                ]]);
-            }
+            $this->flowUpdate(['nodes' => [
+                $this->relationshipNodeId($relationId) => ['data' => $this->relationshipNodeFor($relation)['data']],
+            ]]);
             $this->syncNodeData();
 
             return;
@@ -813,16 +925,9 @@ class SchemaBoard extends Component
             if ($r['id'] === $relationId) {
                 $r['name'] = $name;
 
-                // `label` é uma das poucas propriedades de aresta que o
-                // flowUpdate consegue alterar in-place, sem recriar a linha.
-                if (! $this->isCompleteRelationship($r) || $this->isSelfRelationship($r)) {
-                    $this->flowUpdate(['nodes' => [
-                        $this->relationshipNodeId($relationId) => ['data' => $this->relationshipNodeFor($r)['data']],
-                    ]]);
-                    $this->dispatch('erd-rebuild-edge', edges: $this->edgesForRelation($r), select: false);
-                } else {
-                    $this->flowUpdate(['edges' => [$relationId => ['label' => $name]]]);
-                }
+                $this->flowUpdate(['nodes' => [
+                    $this->relationshipNodeId($relationId) => ['data' => $this->relationshipNodeFor($r)['data']],
+                ]]);
 
                 return;
             }
@@ -876,8 +981,13 @@ class SchemaBoard extends Component
         $this->relations = array_values(array_filter($this->relations, fn ($r) => $r['id'] !== $relationId));
 
         if ($relation) {
-            $this->flowRemoveEdges(array_column($this->edgesForRelation($relation), 'id'));
+            $this->flowRemoveEdges(array_merge(
+                array_column($this->edgesForRelation($relation), 'id'),
+                $this->attributeEdgeIds($relation)                                     // ← novo
+            ));
+
             $nodeIds = [$this->relationshipNodeId($relationId)];
+            array_push($nodeIds, ...$this->relationshipAttributeNodeIds($relation));   // ← novo
             if ($this->isSelfRelationship($relation)) {
                 array_push($nodeIds, ...array_values($this->selfRelationshipPortNodeIds($relationId)));
             }
@@ -1037,6 +1147,24 @@ class SchemaBoard extends Component
         return null;
     }
 
+    private function relationshipAttributeNodeIds(array $relation): array
+    {
+        return array_map(
+            fn ($attr) => $this->relationshipAttributeNodeId($relation['id'], $attr['id']),
+            $relation['attributes'] ?? []
+        );
+    }
+
+    private function attributeEdgeIds(array $relation): array
+    {
+        $diamondId = $this->relationshipNodeId($relation['id']);
+
+        return array_map(
+            fn ($attr) => $diamondId.'-attr-edge-'.$attr['id'],
+            $relation['attributes'] ?? []
+        );
+    }
+
     /**
      * Aplica uma modificação numa entidade e sincroniza o node no cliente.
      *
@@ -1097,23 +1225,6 @@ class SchemaBoard extends Component
      * erd/edge-editor.js. O servidor continua sendo autoridade do dado; só
      * a orquestração de timing do redesenho passou para o cliente.
      */
-    private function mutateRelation(string $id, callable $fn, bool $manterSelecionada = true): void
-    {
-        foreach ($this->relations as &$r) {
-            if ($r['id'] === $id) {
-                $fn($r);
-
-                if (! $this->isCompleteRelationship($r) || $this->isSelfRelationship($r)) {
-                    $this->flowUpdate(['nodes' => [
-                        $this->relationshipNodeId($id) => ['data' => $this->relationshipNodeFor($r)['data']],
-                    ]]);
-                }
-                $this->dispatch('erd-rebuild-edge', edges: $this->edgesForRelation($r), select: $manterSelecionada);
-
-                return;
-            }
-        }
-    }
 
     /**
      * Verifica se já existe relação entre duas entidades, em qualquer direção.

@@ -196,11 +196,38 @@
                             "
                             title="Duplo clique para renomear"
                         ></div>
+                        <button
+                            class="er-diamond-add nodrag"
+                            title="Adicionar atributo ao relacionamento"
+                            @click.stop="
+                                const nome = window.prompt('Nome do atributo do relacionamento');
+                                if (nome) $wire.addRelationAttribute(node.data.relationId, nome);
+                            "
+                        >+</button>
                     </div>
                 </template>
 
                 <template x-if="node.data.kind === 'relationship-port'">
                     <div class="er-relationship-port nodrag" aria-hidden="true"></div>
+                </template>
+
+                <template x-if="node.data.kind === 'relationship-attribute'">
+                    <div class="er-relation-attr nodrag" :data-id="node.id">
+                        <span
+                            class="er-relation-attr-name"
+                            x-text="node.data.name"
+                            @dblclick.stop="
+                                const nome = window.prompt('Renomear atributo', node.data.name);
+                                if (nome) $wire.renameRelationAttribute(node.data.relationId, node.data.attrId, nome);
+                            "
+                            title="Duplo clique para renomear"
+                        ></span>
+                        <button
+                            class="er-relation-attr-del nodrag"
+                            title="Remover atributo"
+                            @click.stop="$wire.removeRelationAttribute(node.data.relationId, node.data.attrId)"
+                        >✕</button>
+                    </div>
                 </template>
 
                 {{-- ================= ENTIDADE ================= --}}
@@ -288,9 +315,6 @@
                                 @blur="if (draft.trim() && draft.trim() !== node.data.name) $wire.renameEntity(node.id, draft.trim()); editing = false"
                             >
                         </div>
-                        <span class="er-head-rels" x-show="node.data.relCount > 0"
-                              x-text="node.data.relCount"
-                              title="Relacionamentos ligados a esta entidade"></span>
                         <button
                             class="er-head-self nodrag"
                             title="Criar autorrelacionamento"

@@ -288,9 +288,6 @@
                                 @blur="if (draft.trim() && draft.trim() !== node.data.name) $wire.renameEntity(node.id, draft.trim()); editing = false"
                             >
                         </div>
-                        <span class="er-head-rels" x-show="node.data.relCount > 0"
-                              x-text="node.data.relCount"
-                              title="Relacionamentos ligados a esta entidade"></span>
                         <button
                             class="er-head-self nodrag"
                             title="Criar autorrelacionamento"

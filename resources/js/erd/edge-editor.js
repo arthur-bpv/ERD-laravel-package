@@ -111,16 +111,20 @@ document.addEventListener('alpine:init', () => {
              * (`$flow.edges`) fica correto, mas o símbolo de cardinalidade
              * desenhado na tela continua sendo o antigo.
              */
-            this.$wire.on('erd-rebuild-edge', ({ edges, removeIds = [], select }) => {
-                const flow = this.$flow;
-                if (!flow) return;
+        this.$wire.on('erd-rebuild-edge', ({ edges, removeIds = [], select }) => {
+            const flow = this.$flow;
+            if (!flow) return;
 
-                flow.removeEdges([...new Set([...removeIds, ...edges.map((edge) => edge.id)])]);
-                apósUmFrameDeVerdade(() => {
-                    if (edges.length) flow.addEdges(edges);
-                    if (select && edges.length) flow.selectedEdges?.add(edges[0].id);
-                });
+            flow.removeEdges([...new Set([...removeIds, ...edges.map((edge) => edge.id)])]);
+
+
+            apósUmFrameDeVerdade(() => {
+                if (edges.length) flow.addEdges(edges);
+                if (select && edges.length) flow.selectedEdges?.add(edges[0].id);
+
+
             });
+        });
         },
 
         selfRelationshipIds(entity) {

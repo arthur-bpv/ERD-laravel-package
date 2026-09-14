@@ -111,11 +111,6 @@
     font: inherit; line-height: 1.2; outline: none;
 }
 .er-head-name-input:focus { border-color: #fff; box-shadow: 0 0 0 2px rgb(255 255 255 / 18%); }
-.er-head-rels {
-    background: rgba(255,255,255,.22); border-radius: 999px;
-    min-width: 17px; height: 17px; padding: 0 5px;
-    font-size: 10px; line-height: 17px; text-align: center; font-weight: 800;
-}
 .er-head-self {
     border: 0;
     border-radius: 5px;

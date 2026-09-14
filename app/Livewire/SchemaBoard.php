@@ -247,16 +247,13 @@ class SchemaBoard extends Component
     private function nodeData(array $e): array
     {
         $usadas = [];
-        $relCount = 0;
 
         foreach ($this->relations as $r) {
             if ($r['from'] === $e['id']) {
                 $usadas[] = $r['fromAttr'];
-                $relCount++;
             }
             if ($r['to'] === $e['id']) {
                 $usadas[] = $r['toAttr'];
-                $relCount++;
             }
         }
 
@@ -273,7 +270,6 @@ class SchemaBoard extends Component
             'attributes' => array_values($e['attributes']),
             'canBeParent' => $temIdentificador,
             'usedAttrs' => array_values(array_unique($usadas)),
-            'relCount' => $relCount,
         ];
     }
 

@@ -7,17 +7,24 @@
         <title>{{ $title ?? config('app.name') }}</title>
 
         <script>
-            (() => {
+            function applyErdTheme() {
                 const saved = localStorage.getItem('erd-theme');
                 const theme = saved ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
                 document.documentElement.classList.toggle('dark', theme === 'dark');
-            })();
+            }
+
+            // Roda no carregamento inicial
+            applyErdTheme();
+
+            // Roda de novo a cada navegação via wire:navigate
+            document.addEventListener('livewire:navigated', applyErdTheme);
 
             window.setErdTheme = (theme) => {
                 document.documentElement.classList.toggle('dark', theme === 'dark');
                 localStorage.setItem('erd-theme', theme);
                 window.dispatchEvent(new CustomEvent('erd-theme-changed', { detail: { theme } }));
             };
+
         </script>
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@custom-variant dark (&:where(.dark, .dark *));
 @import '../../vendor/getartisanflow/wireflow/dist/alpineflow.css';
 @import '../../vendor/getartisanflow/wireflow/dist/alpineflow-theme.css';
 @import './erd.css';

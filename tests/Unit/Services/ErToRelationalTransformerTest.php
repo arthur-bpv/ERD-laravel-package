@@ -435,6 +435,30 @@ class ErToRelationalTransformerTest extends TestCase
         }
     }
 
+    public function test_relationship_attribute_name_collision_is_preserved_with_a_distinct_name(): void
+    {
+        $result = $this->transformer->transform([
+            'entities' => [
+                $this->entity('orders', 'orders', [
+                    $this->attribute('orders.id', 'id', 'bigint', 'PK'),
+                    $this->attribute('orders.status', 'status', 'varchar'),
+                ]),
+                $this->entity('users', 'users', [$this->attribute('users.id', 'id', 'bigint', 'PK')]),
+            ],
+            'relations' => [[
+                'id' => 'places', 'name' => 'places',
+                'from' => 'orders', 'fromAttr' => '', 'to' => 'users', 'toAttr' => 'users.id',
+                'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one',
+                'attributes' => [$this->attribute('places.status', 'status', 'varchar')],
+            ]],
+        ]);
+
+        $orders = $this->table($result, 'orders');
+        $this->assertContains('status', array_column($orders['columns'], 'name'));
+        $this->assertContains('places_status', array_column($orders['columns'], 'name'));
+        $this->assertNotEmpty($result['warnings']);
+    }
+
     private function entity(string $id, string $name, array $attributes, string $kind = 'strong'): array
     {
         return compact('id', 'name', 'attributes', 'kind') + ['x' => 0, 'y' => 0];

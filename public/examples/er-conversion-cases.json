@@ -1,0 +1,1900 @@
+{
+  "version": 1,
+  "title": "Análise de alternativas ER → relacional",
+  "entities": [
+    {
+      "id": "case_zero_one_zero_one_plain_a",
+      "name": "A01 0..1",
+      "x": 40,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_zero_one_plain_b",
+      "name": "B01 0..1",
+      "x": 470,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_zero_one_attr_a",
+      "name": "A02 0..1",
+      "x": 840,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_zero_one_attr_b",
+      "name": "B02 0..1",
+      "x": 1270,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_one_plain_a",
+      "name": "A03 0..1",
+      "x": 1640,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_one_plain_b",
+      "name": "B03 1..1",
+      "x": 2070,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_one_attr_a",
+      "name": "A04 0..1",
+      "x": 2440,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_one_attr_b",
+      "name": "B04 1..1",
+      "x": 2870,
+      "y": 80,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_zero_many_plain_a",
+      "name": "A05 0..1",
+      "x": 40,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_zero_many_plain_b",
+      "name": "B05 0..N",
+      "x": 470,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_zero_many_attr_a",
+      "name": "A06 0..1",
+      "x": 840,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_zero_many_attr_b",
+      "name": "B06 0..N",
+      "x": 1270,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_many_plain_a",
+      "name": "A07 0..1",
+      "x": 1640,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_many_plain_b",
+      "name": "B07 1..N",
+      "x": 2070,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_many_attr_a",
+      "name": "A08 0..1",
+      "x": 2440,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_one_one_many_attr_b",
+      "name": "B08 1..N",
+      "x": 2870,
+      "y": 380,
+      "attributes": [
+        {
+          "id": "case_zero_one_one_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_one_plain_a",
+      "name": "A09 1..1",
+      "x": 40,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_one_plain_b",
+      "name": "B09 0..1",
+      "x": 470,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_one_attr_a",
+      "name": "A10 1..1",
+      "x": 840,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_one_attr_b",
+      "name": "B10 0..1",
+      "x": 1270,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_one_plain_a",
+      "name": "A11 1..1",
+      "x": 1640,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_one_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_one_plain_b",
+      "name": "B11 1..1",
+      "x": 2070,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_one_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_one_attr_a",
+      "name": "A12 1..1",
+      "x": 2440,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_one_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_one_attr_b",
+      "name": "B12 1..1",
+      "x": 2870,
+      "y": 680,
+      "attributes": [
+        {
+          "id": "case_one_one_one_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_many_plain_a",
+      "name": "A13 1..1",
+      "x": 40,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_many_plain_b",
+      "name": "B13 0..N",
+      "x": 470,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_many_attr_a",
+      "name": "A14 1..1",
+      "x": 840,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_zero_many_attr_b",
+      "name": "B14 0..N",
+      "x": 1270,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_zero_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_many_plain_a",
+      "name": "A15 1..1",
+      "x": 1640,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_one_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_many_plain_b",
+      "name": "B15 1..N",
+      "x": 2070,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_one_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_many_attr_a",
+      "name": "A16 1..1",
+      "x": 2440,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_one_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_one_one_many_attr_b",
+      "name": "B16 1..N",
+      "x": 2870,
+      "y": 980,
+      "attributes": [
+        {
+          "id": "case_one_one_one_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_one_plain_a",
+      "name": "A17 0..N",
+      "x": 40,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_one_plain_b",
+      "name": "B17 0..1",
+      "x": 470,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_one_attr_a",
+      "name": "A18 0..N",
+      "x": 840,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_one_attr_b",
+      "name": "B18 0..1",
+      "x": 1270,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_one_plain_a",
+      "name": "A19 0..N",
+      "x": 1640,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_one_plain_b",
+      "name": "B19 1..1",
+      "x": 2070,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_one_attr_a",
+      "name": "A20 0..N",
+      "x": 2440,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_one_attr_b",
+      "name": "B20 1..1",
+      "x": 2870,
+      "y": 1280,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_many_plain_a",
+      "name": "A21 0..N",
+      "x": 40,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_many_plain_b",
+      "name": "B21 0..N",
+      "x": 470,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_many_attr_a",
+      "name": "A22 0..N",
+      "x": 840,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_zero_many_attr_b",
+      "name": "B22 0..N",
+      "x": 1270,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_many_plain_a",
+      "name": "A23 0..N",
+      "x": 1640,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_many_plain_b",
+      "name": "B23 1..N",
+      "x": 2070,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_many_attr_a",
+      "name": "A24 0..N",
+      "x": 2440,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_zero_many_one_many_attr_b",
+      "name": "B24 1..N",
+      "x": 2870,
+      "y": 1580,
+      "attributes": [
+        {
+          "id": "case_zero_many_one_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_one_plain_a",
+      "name": "A25 1..N",
+      "x": 40,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_one_plain_b",
+      "name": "B25 0..1",
+      "x": 470,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_one_attr_a",
+      "name": "A26 1..N",
+      "x": 840,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_one_attr_b",
+      "name": "B26 0..1",
+      "x": 1270,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_one_plain_a",
+      "name": "A27 1..N",
+      "x": 1640,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_one_one_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_one_plain_b",
+      "name": "B27 1..1",
+      "x": 2070,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_one_one_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_one_attr_a",
+      "name": "A28 1..N",
+      "x": 2440,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_one_one_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_one_attr_b",
+      "name": "B28 1..1",
+      "x": 2870,
+      "y": 1880,
+      "attributes": [
+        {
+          "id": "case_one_many_one_one_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_many_plain_a",
+      "name": "A29 1..N",
+      "x": 40,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_many_plain_b",
+      "name": "B29 0..N",
+      "x": 470,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_many_attr_a",
+      "name": "A30 1..N",
+      "x": 840,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_zero_many_attr_b",
+      "name": "B30 0..N",
+      "x": 1270,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_zero_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_many_plain_a",
+      "name": "A31 1..N",
+      "x": 1640,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_one_many_plain_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_many_plain_b",
+      "name": "B31 1..N",
+      "x": 2070,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_one_many_plain_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_many_attr_a",
+      "name": "A32 1..N",
+      "x": 2440,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_one_many_attr_a.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "case_one_many_one_many_attr_b",
+      "name": "B32 1..N",
+      "x": 2870,
+      "y": 2180,
+      "attributes": [
+        {
+          "id": "case_one_many_one_many_attr_b.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "employee",
+      "name": "employee",
+      "x": 40,
+      "y": 2480,
+      "attributes": [
+        {
+          "id": "employee.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "person",
+      "name": "person",
+      "x": 40,
+      "y": 2780,
+      "attributes": [
+        {
+          "id": "person.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "spouse",
+      "name": "spouse",
+      "x": 40,
+      "y": 3080,
+      "attributes": [
+        {
+          "id": "spouse.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "warehouse",
+      "name": "warehouse",
+      "x": 40,
+      "y": 3380,
+      "attributes": [
+        {
+          "id": "warehouse.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "warehouse.code",
+          "name": "code",
+          "type": "varchar",
+          "key": "UQ"
+        }
+      ]
+    },
+    {
+      "id": "shelf",
+      "name": "shelf",
+      "x": 500,
+      "y": 3380,
+      "attributes": [
+        {
+          "id": "shelf.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "document",
+      "name": "document",
+      "x": 40,
+      "y": 3680,
+      "attributes": [
+        {
+          "id": "document.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "document.locale",
+          "name": "locale",
+          "type": "varchar",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "revision",
+      "name": "revision",
+      "x": 500,
+      "y": 3680,
+      "attributes": [
+        {
+          "id": "revision.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "invoice",
+      "name": "invoice",
+      "x": 40,
+      "y": 3980,
+      "attributes": [
+        {
+          "id": "invoice.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "invoice_line",
+      "name": "invoice_line",
+      "x": 500,
+      "y": 3980,
+      "attributes": [
+        {
+          "id": "invoice_line.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "invoice_line.line_no",
+          "name": "line_no",
+          "type": "int",
+          "key": "PK"
+        }
+      ],
+      "kind": "weak"
+    },
+    {
+      "id": "customer",
+      "name": "customer",
+      "x": 40,
+      "y": 4280,
+      "attributes": [
+        {
+          "id": "customer.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "customer.phone",
+          "name": "phone",
+          "type": "varchar",
+          "key": "",
+          "multivalued": true
+        },
+        {
+          "id": "customer.address",
+          "name": "address",
+          "type": "varchar",
+          "key": "",
+          "components": [
+            {
+              "id": "customer.street",
+              "name": "street",
+              "type": "varchar",
+              "key": ""
+            },
+            {
+              "id": "customer.city",
+              "name": "city",
+              "type": "varchar",
+              "key": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "supplier",
+      "name": "supplier",
+      "x": 40,
+      "y": 4580,
+      "attributes": [
+        {
+          "id": "supplier.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "product",
+      "name": "product",
+      "x": 500,
+      "y": 4580,
+      "attributes": [
+        {
+          "id": "product.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "project",
+      "name": "project",
+      "x": 960,
+      "y": 4580,
+      "attributes": [
+        {
+          "id": "project.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "name": "account",
+      "x": 40,
+      "y": 4880,
+      "attributes": [
+        {
+          "id": "account.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    },
+    {
+      "id": "profile",
+      "name": "profile",
+      "x": 500,
+      "y": 4880,
+      "attributes": [
+        {
+          "id": "profile.id",
+          "name": "id",
+          "type": "bigint",
+          "key": "PK"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "id": "case_zero_one_zero_one_plain",
+      "name": "R01",
+      "from": "case_zero_one_zero_one_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_one_zero_one_plain_b",
+      "toAttr": "case_zero_one_zero_one_plain_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-zero-one",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 130,
+      "note": "0..1 : 0..1"
+    },
+    {
+      "id": "case_zero_one_zero_one_attr",
+      "name": "R02+",
+      "from": "case_zero_one_zero_one_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_one_zero_one_attr_b",
+      "toAttr": "case_zero_one_zero_one_attr_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-zero-one",
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 130,
+      "note": "0..1 : 0..1"
+    },
+    {
+      "id": "case_zero_one_one_one_plain",
+      "name": "R03",
+      "from": "case_zero_one_one_one_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_one_one_one_plain_b",
+      "toAttr": "case_zero_one_one_one_plain_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-one-one",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 130,
+      "note": "0..1 : 1..1"
+    },
+    {
+      "id": "case_zero_one_one_one_attr",
+      "name": "R04+",
+      "from": "case_zero_one_one_one_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_one_one_one_attr_b",
+      "toAttr": "case_zero_one_one_one_attr_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "case_zero_one_one_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 130,
+      "note": "0..1 : 1..1"
+    },
+    {
+      "id": "case_zero_one_zero_many_plain",
+      "name": "R05",
+      "from": "case_zero_one_zero_many_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_one_zero_many_plain_b",
+      "toAttr": "case_zero_one_zero_many_plain_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-zero-many",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 430,
+      "note": "0..1 : 0..N"
+    },
+    {
+      "id": "case_zero_one_zero_many_attr",
+      "name": "R06+",
+      "from": "case_zero_one_zero_many_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_one_zero_many_attr_b",
+      "toAttr": "case_zero_one_zero_many_attr_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "case_zero_one_zero_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 430,
+      "note": "0..1 : 0..N"
+    },
+    {
+      "id": "case_zero_one_one_many_plain",
+      "name": "R07",
+      "from": "case_zero_one_one_many_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_one_one_many_plain_b",
+      "toAttr": "case_zero_one_one_many_plain_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-one-many",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 430,
+      "note": "0..1 : 1..N"
+    },
+    {
+      "id": "case_zero_one_one_many_attr",
+      "name": "R08+",
+      "from": "case_zero_one_one_many_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_one_one_many_attr_b",
+      "toAttr": "case_zero_one_one_many_attr_b.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-one-many",
+      "attributes": [
+        {
+          "id": "case_zero_one_one_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 430,
+      "note": "0..1 : 1..N"
+    },
+    {
+      "id": "case_one_one_zero_one_plain",
+      "name": "R09",
+      "from": "case_one_one_zero_one_plain_a",
+      "fromAttr": "",
+      "to": "case_one_one_zero_one_plain_b",
+      "toAttr": "case_one_one_zero_one_plain_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-zero-one",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 730,
+      "note": "1..1 : 0..1"
+    },
+    {
+      "id": "case_one_one_zero_one_attr",
+      "name": "R10+",
+      "from": "case_one_one_zero_one_attr_a",
+      "fromAttr": "",
+      "to": "case_one_one_zero_one_attr_b",
+      "toAttr": "case_one_one_zero_one_attr_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-zero-one",
+      "attributes": [
+        {
+          "id": "case_one_one_zero_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 730,
+      "note": "1..1 : 0..1"
+    },
+    {
+      "id": "case_one_one_one_one_plain",
+      "name": "R11",
+      "from": "case_one_one_one_one_plain_a",
+      "fromAttr": "",
+      "to": "case_one_one_one_one_plain_b",
+      "toAttr": "case_one_one_one_one_plain_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-one-one",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 730,
+      "note": "1..1 : 1..1"
+    },
+    {
+      "id": "case_one_one_one_one_attr",
+      "name": "R12+",
+      "from": "case_one_one_one_one_attr_a",
+      "fromAttr": "",
+      "to": "case_one_one_one_one_attr_b",
+      "toAttr": "case_one_one_one_one_attr_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "case_one_one_one_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 730,
+      "note": "1..1 : 1..1"
+    },
+    {
+      "id": "case_one_one_zero_many_plain",
+      "name": "R13",
+      "from": "case_one_one_zero_many_plain_a",
+      "fromAttr": "",
+      "to": "case_one_one_zero_many_plain_b",
+      "toAttr": "case_one_one_zero_many_plain_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-zero-many",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 1030,
+      "note": "1..1 : 0..N"
+    },
+    {
+      "id": "case_one_one_zero_many_attr",
+      "name": "R14+",
+      "from": "case_one_one_zero_many_attr_a",
+      "fromAttr": "",
+      "to": "case_one_one_zero_many_attr_b",
+      "toAttr": "case_one_one_zero_many_attr_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "case_one_one_zero_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 1030,
+      "note": "1..1 : 0..N"
+    },
+    {
+      "id": "case_one_one_one_many_plain",
+      "name": "R15",
+      "from": "case_one_one_one_many_plain_a",
+      "fromAttr": "",
+      "to": "case_one_one_one_many_plain_b",
+      "toAttr": "case_one_one_one_many_plain_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-one-many",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 1030,
+      "note": "1..1 : 1..N"
+    },
+    {
+      "id": "case_one_one_one_many_attr",
+      "name": "R16+",
+      "from": "case_one_one_one_many_attr_a",
+      "fromAttr": "",
+      "to": "case_one_one_one_many_attr_b",
+      "toAttr": "case_one_one_one_many_attr_b.id",
+      "childCard": "cf-one-one",
+      "parentCard": "cf-one-many",
+      "attributes": [
+        {
+          "id": "case_one_one_one_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 1030,
+      "note": "1..1 : 1..N"
+    },
+    {
+      "id": "case_zero_many_zero_one_plain",
+      "name": "R17",
+      "from": "case_zero_many_zero_one_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_many_zero_one_plain_b",
+      "toAttr": "case_zero_many_zero_one_plain_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-one",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 1330,
+      "note": "0..N : 0..1"
+    },
+    {
+      "id": "case_zero_many_zero_one_attr",
+      "name": "R18+",
+      "from": "case_zero_many_zero_one_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_many_zero_one_attr_b",
+      "toAttr": "case_zero_many_zero_one_attr_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-one",
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 1330,
+      "note": "0..N : 0..1"
+    },
+    {
+      "id": "case_zero_many_one_one_plain",
+      "name": "R19",
+      "from": "case_zero_many_one_one_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_many_one_one_plain_b",
+      "toAttr": "case_zero_many_one_one_plain_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 1330,
+      "note": "0..N : 1..1"
+    },
+    {
+      "id": "case_zero_many_one_one_attr",
+      "name": "R20+",
+      "from": "case_zero_many_one_one_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_many_one_one_attr_b",
+      "toAttr": "case_zero_many_one_one_attr_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "case_zero_many_one_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 1330,
+      "note": "0..N : 1..1"
+    },
+    {
+      "id": "case_zero_many_zero_many_plain",
+      "name": "R21",
+      "from": "case_zero_many_zero_many_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_many_zero_many_plain_b",
+      "toAttr": "case_zero_many_zero_many_plain_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 1630,
+      "note": "0..N : 0..N"
+    },
+    {
+      "id": "case_zero_many_zero_many_attr",
+      "name": "R22+",
+      "from": "case_zero_many_zero_many_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_many_zero_many_attr_b",
+      "toAttr": "case_zero_many_zero_many_attr_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "case_zero_many_zero_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 1630,
+      "note": "0..N : 0..N"
+    },
+    {
+      "id": "case_zero_many_one_many_plain",
+      "name": "R23",
+      "from": "case_zero_many_one_many_plain_a",
+      "fromAttr": "",
+      "to": "case_zero_many_one_many_plain_b",
+      "toAttr": "case_zero_many_one_many_plain_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-many",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 1630,
+      "note": "0..N : 1..N"
+    },
+    {
+      "id": "case_zero_many_one_many_attr",
+      "name": "R24+",
+      "from": "case_zero_many_one_many_attr_a",
+      "fromAttr": "",
+      "to": "case_zero_many_one_many_attr_b",
+      "toAttr": "case_zero_many_one_many_attr_b.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-many",
+      "attributes": [
+        {
+          "id": "case_zero_many_one_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 1630,
+      "note": "0..N : 1..N"
+    },
+    {
+      "id": "case_one_many_zero_one_plain",
+      "name": "R25",
+      "from": "case_one_many_zero_one_plain_a",
+      "fromAttr": "",
+      "to": "case_one_many_zero_one_plain_b",
+      "toAttr": "case_one_many_zero_one_plain_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-zero-one",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 1930,
+      "note": "1..N : 0..1"
+    },
+    {
+      "id": "case_one_many_zero_one_attr",
+      "name": "R26+",
+      "from": "case_one_many_zero_one_attr_a",
+      "fromAttr": "",
+      "to": "case_one_many_zero_one_attr_b",
+      "toAttr": "case_one_many_zero_one_attr_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-zero-one",
+      "attributes": [
+        {
+          "id": "case_one_many_zero_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 1930,
+      "note": "1..N : 0..1"
+    },
+    {
+      "id": "case_one_many_one_one_plain",
+      "name": "R27",
+      "from": "case_one_many_one_one_plain_a",
+      "fromAttr": "",
+      "to": "case_one_many_one_one_plain_b",
+      "toAttr": "case_one_many_one_one_plain_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-one-one",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 1930,
+      "note": "1..N : 1..1"
+    },
+    {
+      "id": "case_one_many_one_one_attr",
+      "name": "R28+",
+      "from": "case_one_many_one_one_attr_a",
+      "fromAttr": "",
+      "to": "case_one_many_one_one_attr_b",
+      "toAttr": "case_one_many_one_one_attr_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "case_one_many_one_one_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 1930,
+      "note": "1..N : 1..1"
+    },
+    {
+      "id": "case_one_many_zero_many_plain",
+      "name": "R29",
+      "from": "case_one_many_zero_many_plain_a",
+      "fromAttr": "",
+      "to": "case_one_many_zero_many_plain_b",
+      "toAttr": "case_one_many_zero_many_plain_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [],
+      "diamondX": 330,
+      "diamondY": 2230,
+      "note": "1..N : 0..N"
+    },
+    {
+      "id": "case_one_many_zero_many_attr",
+      "name": "R30+",
+      "from": "case_one_many_zero_many_attr_a",
+      "fromAttr": "",
+      "to": "case_one_many_zero_many_attr_b",
+      "toAttr": "case_one_many_zero_many_attr_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "case_one_many_zero_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 1130,
+      "diamondY": 2230,
+      "note": "1..N : 0..N"
+    },
+    {
+      "id": "case_one_many_one_many_plain",
+      "name": "R31",
+      "from": "case_one_many_one_many_plain_a",
+      "fromAttr": "",
+      "to": "case_one_many_one_many_plain_b",
+      "toAttr": "case_one_many_one_many_plain_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-one-many",
+      "attributes": [],
+      "diamondX": 1930,
+      "diamondY": 2230,
+      "note": "1..N : 1..N"
+    },
+    {
+      "id": "case_one_many_one_many_attr",
+      "name": "R32+",
+      "from": "case_one_many_one_many_attr_a",
+      "fromAttr": "",
+      "to": "case_one_many_one_many_attr_b",
+      "toAttr": "case_one_many_one_many_attr_b.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-one-many",
+      "attributes": [
+        {
+          "id": "case_one_many_one_many_attr.occurred_at",
+          "name": "occurred_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "diamondX": 2730,
+      "diamondY": 2230,
+      "note": "1..N : 1..N"
+    },
+    {
+      "id": "manages",
+      "name": "manages",
+      "from": "employee",
+      "fromAttr": "",
+      "to": "employee",
+      "toAttr": "employee.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-one",
+      "attributes": [
+        {
+          "id": "manages.since",
+          "name": "since",
+          "type": "date",
+          "key": ""
+        }
+      ],
+      "fromRole": "subordinate",
+      "toRole": "manager",
+      "diamondX": 380,
+      "diamondY": 2380
+    },
+    {
+      "id": "follows",
+      "name": "follows",
+      "from": "person",
+      "fromAttr": "",
+      "to": "person",
+      "toAttr": "person.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "follows.started_at",
+          "name": "started_at",
+          "type": "datetime",
+          "key": ""
+        }
+      ],
+      "fromRole": "follower",
+      "toRole": "followed",
+      "diamondX": 380,
+      "diamondY": 2680
+    },
+    {
+      "id": "married_to",
+      "name": "married_to",
+      "from": "spouse",
+      "fromAttr": "",
+      "to": "spouse",
+      "toAttr": "spouse.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-zero-one",
+      "attributes": [
+        {
+          "id": "married_to.date",
+          "name": "date",
+          "type": "date",
+          "key": ""
+        }
+      ],
+      "fromRole": "partner_a",
+      "toRole": "partner_b",
+      "diamondX": 380,
+      "diamondY": 2980
+    },
+    {
+      "id": "located_at",
+      "name": "located_at",
+      "from": "shelf",
+      "fromAttr": "",
+      "to": "warehouse",
+      "toAttr": "warehouse.code",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "located_at.since",
+          "name": "since",
+          "type": "date",
+          "key": ""
+        }
+      ]
+    },
+    {
+      "id": "has_revision",
+      "name": "has_revision",
+      "from": "revision",
+      "fromAttr": "",
+      "to": "document",
+      "toAttr": "document.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "has_revision.reason",
+          "name": "reason",
+          "type": "text",
+          "key": ""
+        }
+      ]
+    },
+    {
+      "id": "identifies_line",
+      "name": "identifies_line",
+      "from": "invoice_line",
+      "fromAttr": "",
+      "to": "invoice",
+      "toAttr": "invoice.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-one-one",
+      "attributes": []
+    },
+    {
+      "id": "supplies_for",
+      "name": "supplies_for",
+      "from": "supplier",
+      "fromAttr": "",
+      "to": "product",
+      "toAttr": "product.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "supplies_for.price",
+          "name": "price",
+          "type": "decimal",
+          "key": ""
+        }
+      ],
+      "kind": "complex",
+      "participants": [
+        {
+          "entity": "supplier",
+          "role": "supplier",
+          "many": true
+        },
+        {
+          "entity": "product",
+          "role": "product",
+          "many": true
+        },
+        {
+          "entity": "project",
+          "role": "project",
+          "many": true
+        }
+      ]
+    },
+    {
+      "id": "has_profile",
+      "name": "has_profile",
+      "from": "profile",
+      "fromAttr": "",
+      "to": "account",
+      "toAttr": "account.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-one-one",
+      "attributes": []
+    },
+    {
+      "id": "audits_profile",
+      "name": "audits_profile",
+      "from": "profile",
+      "fromAttr": "",
+      "to": "account",
+      "toAttr": "account.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "audits_profile.comment",
+          "name": "comment",
+          "type": "text",
+          "key": ""
+        }
+      ],
+      "diamondX": 360,
+      "diamondY": 5025
+    }
+  ]
+}

@@ -27,6 +27,7 @@
                     <span x-text="dark ? 'Claro' : 'Escuro'"></span>
                 </button>
                 <button type="button" class="er-toolbar-secondary" @click="guideOpen = !guideOpen">? Guia</button>
+                <button type="button" wire:click="toggleImport" class="er-toolbar-secondary">↑ Importar</button>
                 <button wire:click="toggleJson" class="er-toolbar-secondary">{ } JSON</button>
                 <button
                     wire:click="save"
@@ -78,6 +79,11 @@
                 @endif
             </div>
         </div>
+        @if ($diagramName === 'Análise de alternativas ER → relacional')
+            <div class="er-analysis-guide">
+                <strong>Casos R01–R32:</strong> A e B mostram as cardinalidades de cada ponta; números ímpares não têm atributo e pares com “+” têm um balão. Os casos N:N exibem o retângulo associativo. Abaixo da matriz estão os casos recursivos, chave composta, UQ, entidade fraca, atributo multivalorado e relacionamento ternário.
+            </div>
+        @endif
     </header>
 
     <div x-show="guideOpen" x-cloak class="er-guide" @keydown.escape.window="guideOpen = false">
@@ -97,6 +103,25 @@
             <span><b>&#9711;&lt;</b> 0:N</span>
         </div>
         <button type="button" @click="guideOpen = false" aria-label="Fechar guia">✕</button>
+    </div>
+    <div x-show="$wire.showImport" x-cloak class="er-import-overlay" @click.self="$wire.toggleImport()" @keydown.escape.window="$wire.showImport = false">
+        <div class="er-import-dialog">
+            <div class="er-import-heading">
+                <h2>Importar diagrama ER</h2>
+                <button type="button" wire:click="toggleImport" aria-label="Fechar importação">✕</button>
+            </div>
+            <p>Escolha um arquivo JSON ou cole o conteúdo. A importação cria um novo board.</p>
+            <div class="er-import-example">
+                <button type="button" wire:click="createAnalysisBoard">Criar board de análise completo</button>
+                <a href="{{ asset('examples/er-conversion-cases.json') }}" download>Baixar JSON do exemplo</a>
+            </div>
+            <input type="file" accept=".json,application/json" aria-label="Arquivo JSON do diagrama" @change="if ($event.target.files[0]) $event.target.files[0].text().then(text => $wire.set('importJson', text))">
+            <textarea wire:model="importJson" rows="9" placeholder='{"entities":[],"relations":[]}' aria-label="JSON para importar"></textarea>
+            @if ($importError)
+                <p class="er-import-error" role="alert">{{ $importError }}</p>
+            @endif
+            <button type="button" wire:click="importDiagram" wire:loading.attr="disabled" wire:target="importDiagram">Importar como novo board</button>
+        </div>
     </div>
     {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
 <div
@@ -173,7 +198,7 @@
                      cada papel ocupa uma linha independente e nenhuma curva
                      atravessa o conteúdo da tabela. --}}
                 <template x-if="node.data.kind === 'relationship'">
-                    <div class="er-relationship" :class="{ 'nodrag': node.data.complete && !node.data.isSelf }" :data-id="node.id">
+                    <div class="er-relationship" :class="{ 'is-associative': node.data.associative }" :data-id="node.id">
                         <div class="er-anchor er-anchor-left" x-flow-handle:target.left="'left'"></div>
                         <div class="er-anchor er-anchor-right" x-flow-handle:source.right="'right'"></div>
                         <div class="er-anchor er-anchor-top" x-flow-handle:target.top="'top'"></div>
@@ -209,6 +234,10 @@
 
                 <template x-if="node.data.kind === 'relationship-port'">
                     <div class="er-relationship-port nodrag" aria-hidden="true"></div>
+                </template>
+
+                <template x-if="node.data.kind === 'relationship-attribute-anchor'">
+                    <div class="er-relationship-attribute-anchor nodrag" aria-hidden="true"></div>
                 </template>
 
                 <template x-if="node.data.kind === 'relationship-attribute'">
@@ -380,14 +409,14 @@
                         <button class="er-add-toggle" @click="open = !open" x-text="open ? '− cancelar' : '+ atributo'"></button>
 
                         <div x-show="open" x-cloak class="er-add-form" @keydown.enter.prevent="
-                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }
+                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), 'varchar', k); n=''; k=''; open=false; }
                         ">
                             <input class="er-add-input" x-model="n" placeholder="nome" @pointerdown.stop>
                             <select class="er-add-select er-add-key" x-model="k" @pointerdown.stop>
                                 <option value="">—</option>
                                 <option value="PK">PK</option>
                             </select>
-                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }">ok</button>
+                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), 'varchar', k); n=''; k=''; open=false; }">ok</button>
                         </div>
                     </div>
                 </div>
@@ -421,6 +450,7 @@
                 x-cloak
                 class="er-edge-editor"
                 :style="{ left: panelX + 'px', top: panelY + 'px' }"
+                @click.stop
                 @click.outside="close()"
                 @keydown.escape.window="close()"
             >
@@ -430,6 +460,11 @@
                             <span>Relacionamento</span>
                             <button class="er-ee-close" title="Fechar" @click="close()">✕</button>
                         </div>
+                        <div class="er-ee-tabs" role="tablist" aria-label="Gerenciar relacionamento">
+                            <button type="button" role="tab" :aria-selected="tab === 'relationship'" :class="{ 'is-active': tab === 'relationship' }" @click="tab = 'relationship'">Relacionamento</button>
+                            <button type="button" role="tab" :aria-selected="tab === 'attributes'" :class="{ 'is-active': tab === 'attributes' }" @click="tab = 'attributes'">Atributos <span x-text="attributes.length"></span></button>
+                        </div>
+                        <div x-show="tab === 'relationship'">
 
                         {{-- nome que aparece dentro do losango --}}
                         <button class="er-ee-name nodrag" @click="$refs.relationName.focus(); $refs.relationName.select()" title="Editar nome">
@@ -502,6 +537,32 @@
                                 x-text="e.source === e.target ? '⇄ Trocar papéis' : '⇄ Inverter direção'"
                             ></button>
                             <button class="er-ee-btn er-ee-danger" @click="remove()">🗑 Excluir</button>
+                        </div>
+                        </div>
+                        <div x-show="tab === 'attributes'" class="er-ee-attributes">
+                            <p>Os atributos descrevem cada ocorrência deste relacionamento.</p>
+                            <template x-for="attribute in attributes" :key="attribute.id">
+                                <div class="er-ee-attribute">
+                                    <span x-text="attribute.name"></span>
+                                    <small x-text="attribute.type || 'varchar'"></small>
+                                    <button type="button" @click="renameAttribute(attribute)" title="Renomear atributo">✎</button>
+                                    <button type="button" @click="removeAttribute(attribute)" title="Excluir atributo">✕</button>
+                                </div>
+                            </template>
+                            <form class="er-ee-add-attribute" @submit.prevent="addAttribute()">
+                                <input x-model="attributeName" maxlength="80" placeholder="Nome do atributo" aria-label="Nome do atributo">
+                                <select x-model="attributeType" aria-label="Tipo do atributo">
+                                    <option value="varchar">Texto curto</option>
+                                    <option value="text">Texto longo</option>
+                                    <option value="int">Inteiro</option>
+                                    <option value="bigint">Inteiro grande</option>
+                                    <option value="decimal">Decimal</option>
+                                    <option value="date">Data</option>
+                                    <option value="datetime">Data e hora</option>
+                                    <option value="boolean">Booleano</option>
+                                </select>
+                                <button type="submit">+ Adicionar</button>
+                            </form>
                         </div>
                         <p class="er-ee-feedback" x-show="feedback" x-text="feedback" role="status" aria-live="polite"></p>
                     </div>

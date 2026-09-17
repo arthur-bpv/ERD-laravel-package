@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Livewire\SchemaBoard;
 use App\Models\Diagram;
+use App\Support\ErDiagramImport;
+use App\Services\ErToRelationalTransformer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -18,6 +20,78 @@ use Tests\TestCase;
 class SchemaBoardTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_relationship_attributes_are_nodes_and_many_to_many_is_automatically_associative(): void
+    {
+        $board = Livewire::test(SchemaBoard::class)
+            ->call('addRelationAttribute', 'r1', 'published_at', 'date');
+        $relation = $this->relacao($board->get('relations'), 'r1');
+        $this->assertSame('date', $relation['attributes'][0]['type']);
+        $nodes = $board->instance()->buildNodes();
+        $this->assertContains('relation-r1-attribute-anchor', array_column($nodes, 'id'));
+        $this->assertNotContains('relation-r1', array_column($nodes, 'id'));
+        $this->assertContains('relation-r1-attr-'.$relation['attributes'][0]['id'], array_column($nodes, 'id'));
+        $this->assertContains('r1:attr:'.$relation['attributes'][0]['id'], array_column($board->instance()->buildEdges(), 'id'));
+        $originalEdge = collect($board->instance()->buildEdges())->firstWhere('id', 'r1');
+        $this->assertSame('floating', $originalEdge['type']);
+
+        $board->call('setCardinality', 'r1', 'parent', 'cf-zero-many');
+        $mainEdge = collect($board->instance()->buildEdges())->firstWhere('id', 'r1');
+        $this->assertSame('floating', $mainEdge['type']);
+        $this->assertTrue($mainEdge['data']['associative']);
+        foreach (['id', 'source', 'target', 'type', 'pathType'] as $connectionField) {
+            $this->assertSame($originalEdge[$connectionField], $mainEdge[$connectionField]);
+        }
+        $result = app(ErToRelationalTransformer::class)->transform([
+            'entities' => $board->get('entities'), 'relations' => $board->get('relations'),
+        ]);
+        $table = collect($result['tables'])->firstWhere('id', 'relation_r1');
+        $this->assertNotNull($table);
+        $this->assertContains('published_at', array_column($table['columns'], 'name'));
+
+        $board->call('setCardinality', 'r1', 'parent', 'cf-one-one');
+        $this->assertFalse(collect($board->instance()->buildEdges())->firstWhere('id', 'r1')['data']['associative']);
+        $board->call('removeRelationAttribute', 'r1', $relation['attributes'][0]['id']);
+        $this->assertNotContains('relation-r1-attribute-anchor', array_column($board->instance()->buildNodes(), 'id'));
+    }
+
+    public function test_relationship_balloons_keep_relative_offsets_when_an_entity_moves(): void
+    {
+        $board = Livewire::test(SchemaBoard::class)->call('addRelationAttribute', 'r1', 'signed_at');
+        $attributeId = $this->relacao($board->get('relations'), 'r1')['attributes'][0]['id'];
+        $nodeId = 'relation-r1-attr-'.$attributeId;
+        $before = collect($board->instance()->buildNodes())->firstWhere('id', $nodeId)['position'];
+
+        $board->call('onNodeDragEnd', 'posts', ['x' => 590, 'y' => 160]);
+        $after = collect($board->instance()->buildNodes())->firstWhere('id', $nodeId)['position'];
+        $this->assertSame($before['x'] + 100, $after['x']);
+        $this->assertSame($before['y'] + 50, $after['y']);
+
+        $board->call('onRelationAttributeDragEnd', 'r1', $attributeId, ['x' => 210, 'y' => -40]);
+        $relation = $this->relacao($board->get('relations'), 'r1');
+        $this->assertSame(210, $relation['attributes'][0]['offsetX']);
+        $this->assertSame(-40, $relation['attributes'][0]['offsetY']);
+    }
+
+    public function test_import_rejects_invalid_json_without_creating_a_board_and_accepts_analysis_example(): void
+    {
+        $before = Diagram::count();
+        Livewire::test(SchemaBoard::class)
+            ->set('importJson', '{"entities":[],"relations":[{"id":"r1"}]}')
+            ->call('importDiagram')
+            ->assertSet('importError', 'relations[0].name precisa ter nome de até 80 caracteres.');
+        $this->assertSame($before, Diagram::count());
+
+        $json = file_get_contents(public_path('examples/er-conversion-cases.json'));
+        $data = ErDiagramImport::parse($json);
+        $this->assertCount(41, $data['relations']);
+        $converted = app(ErToRelationalTransformer::class)->transform($data);
+        $this->assertGreaterThan(count($data['entities']), count($converted['tables']));
+        $this->assertNotEmpty($converted['foreignKeys']);
+        Livewire::test(SchemaBoard::class)->set('importJson', $json)->call('importDiagram');
+        $this->assertSame($before + 1, Diagram::count());
+        $this->assertCount(41, Diagram::latest('id')->first()->data['relations']);
+    }
 
     /** Localiza uma relação pelo id dentro do estado do componente. */
     private function relacao(array $relations, string $id): ?array

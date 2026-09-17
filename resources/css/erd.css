@@ -54,6 +54,15 @@
     place-items: center;
     user-select: none;
 }
+.er-relationship.is-associative::before {
+    content: '';
+    position: absolute;
+    inset: -10px -12px;
+    border: 2px solid #6366f1;
+    border-radius: 3px;
+    background: rgb(238 242 255 / 45%);
+    pointer-events: none;
+}
 .er-diamond {
     box-sizing: border-box;
     width: 120px;
@@ -90,6 +99,8 @@
     opacity: 0;
     pointer-events: none;
 }
+.er-relationship-attribute-anchor { width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+.flow-node:has(.er-relationship-attribute-anchor) { pointer-events: none; }
 /* ---- cabeçalho ---- */
 .er-head {
     display: flex; align-items: center; gap: 6px;
@@ -269,6 +280,24 @@
     white-space: nowrap;
     pointer-events: none;
 }
+.er-board .flow-edge-label.er-associative-label:not(.flow-edge-label-start):not(.flow-edge-label-end) {
+    position: absolute;
+    overflow: visible;
+    isolation: isolate;
+    background: transparent;
+    clip-path: none;
+    border: 2px solid #6366f1;
+    border-radius: 3px;
+    padding: 13px 34px;
+}
+.er-board .flow-edge-label.er-associative-label:not(.flow-edge-label-start):not(.flow-edge-label-end)::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 5px 7px;
+    background: #4f46e5;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
 
 /*
  * Escondidos: o chip de coluna (labelStart/labelEnd) nascia bem em cima do
@@ -349,6 +378,34 @@
 .er-ee-roles button { grid-column: 1 / -1; border: 0; border-radius: 6px; padding: 5px 8px; background: #e0e7ff; color: #3730a3; font-size: 10.5px; font-weight: 800; cursor: pointer; }
 .er-ee-roles button:hover { background: #c7d2fe; }
 .er-ee-feedback { margin: -3px 12px 10px; color: #16a34a; font-size: 10.5px; font-weight: 700; }
+.er-ee-tabs { display: flex; border-bottom: 1px solid #e2e8f0; }
+.er-ee-tabs button { flex: 1; padding: 9px 5px; border: 0; background: transparent; color: #64748b; cursor: pointer; font-weight: 700; }
+.er-ee-tabs button.is-active { color: #4f46e5; box-shadow: inset 0 -2px #4f46e5; }
+.er-ee-attributes { padding: 10px 12px; display: grid; gap: 8px; max-height: 340px; overflow-y: auto; }
+.er-ee-attributes p { margin: 0; color: #64748b; font-size: 11px; }
+.er-ee-attribute { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border: 1px solid #e2e8f0; border-radius: 7px; }
+.er-ee-attribute span { flex: 1; overflow-wrap: anywhere; font-weight: 700; }
+.er-ee-attribute small { color: #64748b; }
+.er-ee-attribute button { border: 0; background: transparent; cursor: pointer; color: #475569; }
+.er-ee-add-attribute { display: grid; gap: 6px; grid-template-columns: 1fr auto; }
+.er-ee-add-attribute input, .er-ee-add-attribute select { min-width: 0; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #334155; }
+.er-ee-add-attribute button { grid-column: 1 / -1; border: 0; border-radius: 6px; padding: 7px; background: #4f46e5; color: #fff; cursor: pointer; }
+.er-import-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: rgb(15 23 42 / 55%); }
+.er-import-dialog { width: min(620px, 100%); max-height: 90vh; overflow: auto; display: grid; gap: 12px; padding: 18px; border-radius: 12px; background: #fff; color: #334155; box-shadow: 0 16px 45px rgb(15 23 42 / 25%); }
+.er-import-heading { display: flex; justify-content: space-between; align-items: center; }
+.er-import-heading h2 { margin: 0; font-size: 18px; font-weight: 800; }
+.er-import-heading button { border: 0; background: transparent; cursor: pointer; }
+.er-import-dialog p { margin: 0; font-size: 12px; }
+.er-import-dialog textarea { width: 100%; min-height: 180px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font: 12px/1.4 ui-monospace, monospace; }
+.er-import-dialog > button { padding: 9px; border: 0; border-radius: 7px; background: #4f46e5; color: #fff; font-weight: 800; cursor: pointer; }
+.er-import-dialog .er-import-error { color: #b91c1c; font-weight: 700; }
+.er-import-example { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.er-import-example button { border: 1px solid #6366f1; border-radius: 7px; padding: 7px 10px; background: #eef2ff; color: #3730a3; font-weight: 700; cursor: pointer; }
+.er-import-example a { color: #4f46e5; font-weight: 700; text-decoration: underline; }
+.er-analysis-guide { padding: 7px 18px; border-top: 1px solid rgb(148 163 184 / 25%); font-size: 11px; line-height: 1.4; color: #cbd5e1; }
+.er-analysis-guide strong { color: #fff; }
+.dark .er-import-dialog { background: #0f172a; color: #e2e8f0; }
+.dark .er-import-dialog textarea { background: #111a2d; color: #f1f5f9; border-color: #334155; }
 
 .er-ee-tag {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 700;

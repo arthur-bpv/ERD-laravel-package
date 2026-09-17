@@ -1,4 +1,5 @@
 import { Alpine } from '../../../vendor/livewire/livewire/dist/livewire.esm';
+import { installRelationshipBalloons } from './relationship-balloons';
 
 /*
  * -------------------------------------------------------------------------
@@ -42,10 +43,12 @@ function apósUmFrameDeVerdade(fn) {
 document.addEventListener('alpine:init', () => {
     Alpine.data('erdCanvas', () => ({
         selfOffsets: {},
+        balloonsCleanup: null,
 
         init() {
             const container = this.$el.closest('.flow-container');
             if (!container) return;
+            this.balloonsCleanup = installRelationshipBalloons(container, () => this.$flow, this.$wire);
 
             container.addEventListener('flow-connect', () => {
                 const flow = this.$flow;
@@ -125,6 +128,23 @@ document.addEventListener('alpine:init', () => {
 
             });
         });
+        this.$wire.on('erd-sync-relation', ({ removeEdgeIds, removeNodeIds, nodes, edges, relationId }) => {
+            const flow = this.$flow;
+            if (!flow) return;
+            flow.removeEdges(removeEdgeIds);
+            flow.removeNodes(removeNodeIds);
+            apósUmFrameDeVerdade(() => {
+                if (nodes.length) flow.addNodes(nodes);
+                if (edges.length) flow.addEdges(edges);
+                container.dispatchEvent(new CustomEvent('erd-relation-synced', {
+                    detail: { relationId, relationship: nodes.find((node) => node.data?.kind === 'relationship')?.data, edges },
+                }));
+            });
+        });
+        },
+
+        destroy() {
+            this.balloonsCleanup?.();
         },
 
         selfRelationshipIds(entity) {
@@ -288,11 +308,15 @@ document.addEventListener('alpine:init', () => {
         panelX: 0,
         panelY: 0,
         activeEdgeId: null,
+        activeRelationId: null,
         activeRelationship: null,
         relationName: '',
         fromRole: '',
         toRole: '',
         feedback: '',
+        tab: 'relationship',
+        attributeName: '',
+        attributeType: 'varchar',
 
         // Ver nota em erdCanvas: $flow não tem .on() — os eventos chegam como
         // CustomEvent `flow-<evento>` despachados no elemento `.flow-container`.
@@ -302,12 +326,17 @@ document.addEventListener('alpine:init', () => {
 
             container.addEventListener('flow-edge-click', (ev) => {
                 const { edge, event } = ev.detail;
-                this.activeEdgeId = edge.id;
+                const selectedEdge = edge.data?.isAttributeLink
+                    ? this.$flow?.edges.find((item) => this.relationId(item) === this.relationId(edge) && !item.data?.isAttributeLink) ?? edge
+                    : edge;
+                this.activeEdgeId = selectedEdge.id;
+                this.activeRelationId = this.relationId(edge);
                 this.activeRelationship = null;
-                this.relationName = edge.label || edge.data?.relationName || '';
-                this.fromRole = edge.data?.fromRole || '';
-                this.toRole = edge.data?.toRole || '';
+                this.relationName = selectedEdge.label || selectedEdge.data?.relationName || '';
+                this.fromRole = selectedEdge.data?.fromRole || '';
+                this.toRole = selectedEdge.data?.toRole || '';
                 this.feedback = '';
+                this.tab = 'relationship';
                 this._positionAt(event.clientX, event.clientY);
                 this.open = true;
             });
@@ -323,11 +352,13 @@ document.addEventListener('alpine:init', () => {
                         (item) => this.relationId(item) === relationId,
                     );
                     this.activeEdgeId = edge?.id ?? null;
+                    this.activeRelationId = relationId;
                     this.activeRelationship = relationship;
                     this.relationName = relationship.name || relationship.relationName || '';
                     this.fromRole = relationship.fromRole || '';
                     this.toRole = relationship.toRole || '';
                     this.feedback = '';
+                    this.tab = 'relationship';
                     this._positionAt(x, y);
                     this.open = true;
                 });
@@ -336,6 +367,13 @@ document.addEventListener('alpine:init', () => {
             // clicar no canvas vazio ou em outra entidade fecha o painel
             container.addEventListener('flow-pane-click', () => this.close());
             container.addEventListener('flow-node-click', () => this.close());
+            container.addEventListener('erd-relation-synced', (ev) => {
+                if (this.activeRelationId !== ev.detail.relationId) return;
+                const main = ev.detail.edges.find((edge) => !edge.data?.isAttributeLink);
+                this.activeEdgeId = main?.id ?? null;
+                this.activeRelationship = ev.detail.relationship ?? null;
+                if (this.activeRelationship) this.activeRelationship.relationId = ev.detail.relationId;
+            });
         },
 
         // Ancora perto do cursor, mas sem deixar o painel estourar a borda
@@ -351,6 +389,7 @@ document.addEventListener('alpine:init', () => {
         close() {
             this.open = false;
             this.activeEdgeId = null;
+            this.activeRelationId = null;
             this.activeRelationship = null;
             this.relationName = '';
             this.fromRole = '';
@@ -380,9 +419,10 @@ document.addEventListener('alpine:init', () => {
                         relationName: this.activeRelationship.name,
                         sourceName: this.activeRelationship.sourceName,
                         targetName: this.activeRelationship.targetName,
-                        isSelf: true,
+                        isSelf: Boolean(this.activeRelationship.isSelf),
                         fromRole: this.activeRelationship.fromRole,
                         toRole: this.activeRelationship.toRole,
+                        attributes: this.activeRelationship.attributes || [],
                     },
                 };
             }
@@ -403,6 +443,27 @@ document.addEventListener('alpine:init', () => {
 
         get isSelf() {
             return Boolean(this.e?.data?.isSelf);
+        },
+
+        get attributes() {
+            return this.e?.data?.attributes || [];
+        },
+
+        addAttribute() {
+            const name = this.attributeName.trim();
+            if (!name || !this.e) return;
+            this.$wire.addRelationAttribute(this.relationId(this.e), name, this.attributeType);
+            this.attributeName = '';
+            this.feedback = 'Atributo adicionado.';
+        },
+
+        renameAttribute(attribute) {
+            const name = window.prompt('Renomear atributo', attribute.name)?.trim();
+            if (name && this.e) this.$wire.renameRelationAttribute(this.relationId(this.e), attribute.id, name);
+        },
+
+        removeAttribute(attribute) {
+            if (this.e) this.$wire.removeRelationAttribute(this.relationId(this.e), attribute.id);
         },
 
         markerFor(campo) {

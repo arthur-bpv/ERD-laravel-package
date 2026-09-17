@@ -459,11 +459,19 @@ class ErToRelationalTransformer
     private function appendRelationshipAttributes(array &$table, array $relation, bool $nullable = false): void
     {
         foreach ($relation['attributes'] ?? [] as $attribute) {
-            if (! $this->hasColumn($table, $attribute['name'])) {
-                $column = $this->columnFromAttribute($attribute, 'relationship:'.$relation['id']);
-                $column['nullable'] = $nullable || $column['nullable'];
-                $table['columns'][] = $column;
+            $column = $this->columnFromAttribute($attribute, 'relationship:'.$relation['id']);
+            if ($this->hasColumn($table, $column['name'])) {
+                $base = Str::snake((string) $relation['name']).'_'.Str::snake($column['name']);
+                $candidate = $base;
+                $suffix = 2;
+                while ($this->hasColumn($table, $candidate)) {
+                    $candidate = $base.'_'.$suffix++;
+                }
+                $this->warnings[] = "O atributo {$column['name']} do relacionamento {$relation['name']} foi renomeado para {$candidate} em {$table['name']} para evitar colisão.";
+                $column['name'] = $candidate;
             }
+            $column['nullable'] = $nullable || $column['nullable'];
+            $table['columns'][] = $column;
         }
     }
 

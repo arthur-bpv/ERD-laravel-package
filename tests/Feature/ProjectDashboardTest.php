@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Livewire\ProjectDashboard;
 use App\Livewire\SchemaBoard;
 use App\Models\Diagram;
+use App\Support\ErDiagramImport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -32,6 +33,71 @@ class ProjectDashboardTest extends TestCase
 
         $this->assertSame(Diagram::TYPE_ENTITY_RELATIONSHIP, $diagram->type);
         $this->assertNull($diagram->source_diagram_id);
+    }
+
+    public function test_import_name_does_not_block_the_regular_project_form(): void
+    {
+        Livewire::test(ProjectDashboard::class)
+            ->set('importProjectName', '')
+            ->set('projectName', 'Biblioteca')
+            ->call('createProject')
+            ->assertRedirect();
+
+        $this->assertSame('Biblioteca', Diagram::sole()->name);
+    }
+
+    public function test_dashboard_imports_json_as_a_new_project(): void
+    {
+        $json = file_get_contents(public_path('examples/er-conversion-cases.json'));
+
+        Livewire::test(ProjectDashboard::class)
+            ->set('importProjectName', 'Cenários de conversão')
+            ->set('importJson', $json)
+            ->call('importProject')
+            ->assertRedirect();
+
+        $diagram = Diagram::sole();
+
+        $this->assertSame('Cenários de conversão', $diagram->name);
+        $this->assertSame(Diagram::TYPE_ENTITY_RELATIONSHIP, $diagram->type);
+        $this->assertNull($diagram->source_diagram_id);
+        $this->assertCount(41, $diagram->data['relations']);
+    }
+
+    public function test_dashboard_rejects_an_invalid_import_without_creating_a_project(): void
+    {
+        Livewire::test(ProjectDashboard::class)
+            ->set('importProjectName', 'Inválido')
+            ->set('importJson', '{"entities":[],"relations":[{"id":"r1"}]}')
+            ->call('importProject')
+            ->assertSet('importError', 'relations[0].name precisa ter nome de até 80 caracteres.');
+
+        $this->assertSame(0, Diagram::count());
+    }
+
+    public function test_import_controls_exist_only_on_the_dashboard(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('Importar projeto');
+
+        $this->get('/schema')
+            ->assertOk()
+            ->assertDontSee('Importar diagrama ER');
+    }
+
+    public function test_analysis_example_always_creates_a_new_project(): void
+    {
+        Livewire::test(ProjectDashboard::class)->call('createAnalysisProject')->assertRedirect();
+        Livewire::test(ProjectDashboard::class)->call('createAnalysisProject')->assertRedirect();
+
+        $this->assertSame(2, Diagram::query()
+            ->where('name', 'Análise de alternativas ER → relacional')
+            ->count());
+        $this->assertCount(41, Diagram::latest('id')->first()->data['relations']);
+        $this->assertCount(41, ErDiagramImport::parse(
+            file_get_contents(public_path('examples/er-conversion-cases.json')),
+        )['relations']);
     }
 
     public function test_new_project_er_board_starts_empty(): void

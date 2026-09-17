@@ -104,6 +104,7 @@ class ErDiagramImport
             $ids[$id] = true;
             $names[mb_strtolower($name)] = true;
         }
+
         return $ids;
     }
 
@@ -120,6 +121,7 @@ class ErDiagramImport
         if (! is_string($value) || strlen($value) > 100 || ! preg_match($pattern, $value)) {
             throw new InvalidArgumentException("$path tem identificador inválido.");
         }
+
         return $value;
     }
 
@@ -128,6 +130,7 @@ class ErDiagramImport
         if (! is_string($value) || trim($value) === '' || mb_strlen($value) > 80) {
             throw new InvalidArgumentException("$path precisa ter nome de até 80 caracteres.");
         }
+
         return trim($value);
     }
 

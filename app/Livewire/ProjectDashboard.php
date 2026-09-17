@@ -4,8 +4,10 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Support\ErDiagramImport;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -16,6 +18,15 @@ class ProjectDashboard extends Component
 {
     #[Validate('required|string|max:120')]
     public string $projectName = '';
+
+    #[Validate('required|string|max:120')]
+    public string $importProjectName = 'Projeto importado';
+
+    public bool $showImport = false;
+
+    public string $importJson = '';
+
+    public string $importError = '';
 
     #[Computed]
     public function projects(): Collection
@@ -29,12 +40,53 @@ class ProjectDashboard extends Component
 
     public function createProject(): void
     {
-        $this->validate();
+        $this->validateOnly('projectName');
 
         $diagram = Diagram::create([
             'name' => trim($this->projectName),
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => [],
+        ]);
+
+        $this->redirectRoute('boards.er', $diagram, navigate: true);
+    }
+
+    public function toggleImport(): void
+    {
+        $this->showImport = ! $this->showImport;
+        $this->importError = '';
+        $this->resetValidation('importProjectName');
+    }
+
+    public function importProject(): void
+    {
+        $this->validateOnly('importProjectName');
+
+        try {
+            $data = ErDiagramImport::parse($this->importJson);
+        } catch (InvalidArgumentException $exception) {
+            $this->importError = $exception->getMessage();
+
+            return;
+        }
+
+        $diagram = Diagram::create([
+            'name' => trim($this->importProjectName),
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => $data,
+        ]);
+
+        $this->redirectRoute('boards.er', $diagram, navigate: true);
+    }
+
+    public function createAnalysisProject(): void
+    {
+        $diagram = Diagram::create([
+            'name' => 'Análise de alternativas ER → relacional',
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => ErDiagramImport::parse(
+                file_get_contents(public_path('examples/er-conversion-cases.json')),
+            ),
         ]);
 
         $this->redirectRoute('boards.er', $diagram, navigate: true);

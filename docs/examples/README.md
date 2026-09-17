@@ -1,6 +1,17 @@
 # Board de análise ER → relacional
 
-O arquivo [`public/examples/er-conversion-cases.json`](../../public/examples/er-conversion-cases.json) pode ser carregado por **Importar** ou pelo botão **Criar board de análise completo**. O gerador reproduz o arquivo com `node docs/examples/generate-er-conversion-cases.mjs`.
+Os exemplos podem ser baixados diretamente pela janela **Importar projeto** da página inicial. Ao importar, cada arquivo cria um projeto independente e pode ser convertido para o modelo relacional.
+
+## Cenários reais
+
+- [`marketplace-er.json`](../../public/examples/marketplace-er.json): acompanha o fluxo cliente → pedido → produto e separa endereços, pagamentos, categorias e fornecedores. Demonstra telefone multivalorado, 1:N, 1:1 e duas relações N:N com atributos próprios, como quantidade, preço praticado e prazo do fornecedor.
+- [`clinic-er.json`](../../public/examples/clinic-er.json): organiza paciente → consulta → médico, com sala, especialidades e medicamentos. Demonstra endereço composto, telefone multivalorado, autorrelacionamento de mentoria e relações N:N para qualificações e itens prescritos.
+
+As entidades desses arquivos já possuem coordenadas distribuídas por fluxo de leitura e os atributos dos relacionamentos possuem offsets próprios. Assim, os recursos ficam visíveis no board sem empilhar entidades ou balões.
+
+## Matriz técnica
+
+O arquivo [`er-conversion-cases.json`](../../public/examples/er-conversion-cases.json) pode ser carregado por **Importar** ou pelo botão **Criar projeto de análise completo**. O gerador reproduz o arquivo com `node docs/examples/generate-er-conversion-cases.mjs`.
 
 R01–R32 cobrem todas as 16 combinações ordenadas das pontas `0..1`, `1..1`, `0..N` e `1..N`, cada uma sem atributo (número ímpar) e com atributo `occurred_at` (número par, marcado com `+`). As entidades A e B mostram a cardinalidade ao lado do seu número. Os relacionamentos N:N aparecem com um retângulo em volta do losango, inclusive quando não possuem atributos.
 

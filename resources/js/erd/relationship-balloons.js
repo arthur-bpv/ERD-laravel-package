@@ -1,5 +1,13 @@
 // A aresta floating continua responsável pelos handles, percurso e cardinalidade.
 // Este módulo apenas decora o label N:N e posiciona os atributos em relação a ele.
+export function setRelationshipAttributeFollowing(container, nodeId, following) {
+    const escapedId = globalThis.CSS?.escape
+        ? globalThis.CSS.escape(nodeId)
+        : String(nodeId).replaceAll('"', '\\"');
+    const element = container.querySelector(`[data-flow-node-id="${escapedId}"]`);
+    element?.classList.toggle('er-relation-attribute-following', following);
+}
+
 export function installRelationshipBalloons(container, getFlow, wire) {
     const viewport = container.querySelector('.flow-viewport') || container;
     let scheduled = false;
@@ -34,7 +42,9 @@ export function installRelationshipBalloons(container, getFlow, wire) {
     function positionAttributes(flow, relationId, anchor) {
         for (const node of flow.nodes) {
             if (node.data?.kind !== 'relationship-attribute' || node.data.relationId !== relationId) continue;
-            if (node.id === draggedAttributeId) continue;
+            const following = node.id !== draggedAttributeId;
+            setRelationshipAttributeFollowing(container, node.id, following);
+            if (!following) continue;
             const x = anchor.position.x + Number(node.data.offsetX || 0);
             const y = anchor.position.y + Number(node.data.offsetY || 0);
             if (node.position.x !== x) node.position.x = x;
@@ -55,6 +65,7 @@ export function installRelationshipBalloons(container, getFlow, wire) {
     container.addEventListener('flow-node-drag-start', (event) => {
         if (event.detail?.node?.data?.kind === 'relationship-attribute') {
             draggedAttributeId = event.detail.node.id;
+            setRelationshipAttributeFollowing(container, draggedAttributeId, false);
         }
     });
     container.addEventListener('flow-node-drag', (event) => {

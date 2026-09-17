@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "title": "Marketplace — pedidos, catálogo e fornecedores",
+  "description": "Fluxo realista de compra com atributos multivalorados, relações 1:N, 1:1 e N:N com atributos próprios.",
+  "entities": [
+    {
+      "id": "customers",
+      "name": "Customer",
+      "kind": "strong",
+      "x": 40,
+      "y": 300,
+      "attributes": [
+        { "id": "customers.id", "name": "customer_id", "type": "bigint", "key": "PK" },
+        { "id": "customers.name", "name": "full_name", "type": "varchar", "key": "" },
+        { "id": "customers.email", "name": "email", "type": "varchar", "key": "UQ" },
+        { "id": "customers.phone", "name": "phone", "type": "varchar", "key": "", "multivalued": true }
+      ]
+    },
+    {
+      "id": "orders",
+      "name": "Order",
+      "kind": "strong",
+      "x": 400,
+      "y": 300,
+      "attributes": [
+        { "id": "orders.id", "name": "order_id", "type": "bigint", "key": "PK" },
+        { "id": "orders.number", "name": "order_number", "type": "varchar", "key": "UQ" },
+        { "id": "orders.placed_at", "name": "placed_at", "type": "datetime", "key": "" },
+        { "id": "orders.status", "name": "status", "type": "varchar", "key": "" }
+      ]
+    },
+    {
+      "id": "products",
+      "name": "Product",
+      "kind": "strong",
+      "x": 800,
+      "y": 300,
+      "attributes": [
+        { "id": "products.id", "name": "product_id", "type": "bigint", "key": "PK" },
+        { "id": "products.sku", "name": "sku", "type": "varchar", "key": "UQ" },
+        { "id": "products.name", "name": "name", "type": "varchar", "key": "" },
+        { "id": "products.price", "name": "list_price", "type": "decimal(10,2)", "key": "" }
+      ]
+    },
+    {
+      "id": "categories",
+      "name": "Category",
+      "kind": "strong",
+      "x": 1160,
+      "y": 60,
+      "attributes": [
+        { "id": "categories.id", "name": "category_id", "type": "bigint", "key": "PK" },
+        { "id": "categories.name", "name": "name", "type": "varchar", "key": "UQ" }
+      ]
+    },
+    {
+      "id": "addresses",
+      "name": "Delivery Address",
+      "kind": "strong",
+      "x": 40,
+      "y": 680,
+      "attributes": [
+        { "id": "addresses.id", "name": "address_id", "type": "bigint", "key": "PK" },
+        { "id": "addresses.label", "name": "label", "type": "varchar", "key": "" },
+        { "id": "addresses.street", "name": "street", "type": "varchar", "key": "" },
+        { "id": "addresses.city", "name": "city", "type": "varchar", "key": "" },
+        { "id": "addresses.postal_code", "name": "postal_code", "type": "varchar", "key": "" }
+      ]
+    },
+    {
+      "id": "payments",
+      "name": "Payment",
+      "kind": "strong",
+      "x": 400,
+      "y": 680,
+      "attributes": [
+        { "id": "payments.id", "name": "payment_id", "type": "bigint", "key": "PK" },
+        { "id": "payments.reference", "name": "provider_reference", "type": "varchar", "key": "UQ" },
+        { "id": "payments.method", "name": "method", "type": "varchar", "key": "" },
+        { "id": "payments.amount", "name": "amount", "type": "decimal(10,2)", "key": "" },
+        { "id": "payments.paid_at", "name": "paid_at", "type": "datetime", "key": "" }
+      ]
+    },
+    {
+      "id": "suppliers",
+      "name": "Supplier",
+      "kind": "strong",
+      "x": 1160,
+      "y": 680,
+      "attributes": [
+        { "id": "suppliers.id", "name": "supplier_id", "type": "bigint", "key": "PK" },
+        { "id": "suppliers.tax_id", "name": "tax_id", "type": "varchar", "key": "UQ" },
+        { "id": "suppliers.name", "name": "legal_name", "type": "varchar", "key": "" }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "id": "customer_orders",
+      "name": "places",
+      "from": "orders",
+      "fromAttr": "",
+      "to": "customers",
+      "toAttr": "customers.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": []
+    },
+    {
+      "id": "order_delivery_address",
+      "name": "ships to",
+      "from": "orders",
+      "fromAttr": "",
+      "to": "addresses",
+      "toAttr": "addresses.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "order_delivery_address.instructions",
+          "name": "delivery_instructions",
+          "type": "varchar",
+          "key": "",
+          "offsetX": 80,
+          "offsetY": 70
+        }
+      ]
+    },
+    {
+      "id": "order_items",
+      "name": "contains",
+      "from": "orders",
+      "fromAttr": "orders.id",
+      "to": "products",
+      "toAttr": "products.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "order_items.quantity",
+          "name": "quantity",
+          "type": "integer",
+          "key": "",
+          "offsetX": -170,
+          "offsetY": -150
+        },
+        {
+          "id": "order_items.unit_price",
+          "name": "unit_price",
+          "type": "decimal(10,2)",
+          "key": "",
+          "offsetX": 0,
+          "offsetY": -150
+        },
+        {
+          "id": "order_items.discount",
+          "name": "discount_percent",
+          "type": "decimal(5,2)",
+          "key": "",
+          "offsetX": 170,
+          "offsetY": -110
+        }
+      ]
+    },
+    {
+      "id": "product_category",
+      "name": "classified as",
+      "from": "products",
+      "fromAttr": "",
+      "to": "categories",
+      "toAttr": "categories.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": []
+    },
+    {
+      "id": "supplier_catalog",
+      "name": "supplies",
+      "from": "suppliers",
+      "fromAttr": "suppliers.id",
+      "to": "products",
+      "toAttr": "products.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "supplier_catalog.sku",
+          "name": "supplier_sku",
+          "type": "varchar",
+          "key": "",
+          "offsetX": -190,
+          "offsetY": 100
+        },
+        {
+          "id": "supplier_catalog.cost",
+          "name": "cost_price",
+          "type": "decimal(10,2)",
+          "key": "",
+          "offsetX": -10,
+          "offsetY": 145
+        },
+        {
+          "id": "supplier_catalog.lead_time",
+          "name": "lead_time_days",
+          "type": "integer",
+          "key": "",
+          "offsetX": 170,
+          "offsetY": 105
+        }
+      ]
+    },
+    {
+      "id": "order_payment",
+      "name": "settled by",
+      "from": "payments",
+      "fromAttr": "",
+      "to": "orders",
+      "toAttr": "orders.id",
+      "childCard": "cf-zero-one",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "order_payment.authorized_at",
+          "name": "authorized_at",
+          "type": "datetime",
+          "key": "",
+          "offsetX": 120,
+          "offsetY": -20
+        }
+      ]
+    }
+  ]
+}

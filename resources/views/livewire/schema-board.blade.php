@@ -27,7 +27,6 @@
                     <span x-text="dark ? 'Claro' : 'Escuro'"></span>
                 </button>
                 <button type="button" class="er-toolbar-secondary" @click="guideOpen = !guideOpen">? Guia</button>
-                <button type="button" wire:click="toggleImport" class="er-toolbar-secondary">↑ Importar</button>
                 <button wire:click="toggleJson" class="er-toolbar-secondary">{ } JSON</button>
                 <button
                     wire:click="save"
@@ -103,25 +102,6 @@
             <span><b>&#9711;&lt;</b> 0:N</span>
         </div>
         <button type="button" @click="guideOpen = false" aria-label="Fechar guia">✕</button>
-    </div>
-    <div x-show="$wire.showImport" x-cloak class="er-import-overlay" @click.self="$wire.toggleImport()" @keydown.escape.window="$wire.showImport = false">
-        <div class="er-import-dialog">
-            <div class="er-import-heading">
-                <h2>Importar diagrama ER</h2>
-                <button type="button" wire:click="toggleImport" aria-label="Fechar importação">✕</button>
-            </div>
-            <p>Escolha um arquivo JSON ou cole o conteúdo. A importação cria um novo board.</p>
-            <div class="er-import-example">
-                <button type="button" wire:click="createAnalysisBoard">Criar board de análise completo</button>
-                <a href="{{ asset('examples/er-conversion-cases.json') }}" download>Baixar JSON do exemplo</a>
-            </div>
-            <input type="file" accept=".json,application/json" aria-label="Arquivo JSON do diagrama" @change="if ($event.target.files[0]) $event.target.files[0].text().then(text => $wire.set('importJson', text))">
-            <textarea wire:model="importJson" rows="9" placeholder='{"entities":[],"relations":[]}' aria-label="JSON para importar"></textarea>
-            @if ($importError)
-                <p class="er-import-error" role="alert">{{ $importError }}</p>
-            @endif
-            <button type="button" wire:click="importDiagram" wire:loading.attr="disabled" wire:target="importDiagram">Importar como novo board</button>
-        </div>
     </div>
     {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
 <div
@@ -251,8 +231,11 @@
                             "
                             title="Duplo clique para renomear"
                         ></span>
+                        <small x-text="node.data.type || 'varchar'"></small>
                         <button
                             class="er-relation-attr-del nodrag"
+                            type="button"
+                            aria-label="Remover atributo do relacionamento"
                             title="Remover atributo"
                             @click.stop="$wire.removeRelationAttribute(node.data.relationId, node.data.attrId)"
                         >✕</button>

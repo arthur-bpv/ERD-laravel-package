@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Livewire\SchemaBoard;
 use App\Models\Diagram;
-use App\Support\ErDiagramImport;
 use App\Services\ErToRelationalTransformer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -71,26 +70,6 @@ class SchemaBoardTest extends TestCase
         $relation = $this->relacao($board->get('relations'), 'r1');
         $this->assertSame(210, $relation['attributes'][0]['offsetX']);
         $this->assertSame(-40, $relation['attributes'][0]['offsetY']);
-    }
-
-    public function test_import_rejects_invalid_json_without_creating_a_board_and_accepts_analysis_example(): void
-    {
-        $before = Diagram::count();
-        Livewire::test(SchemaBoard::class)
-            ->set('importJson', '{"entities":[],"relations":[{"id":"r1"}]}')
-            ->call('importDiagram')
-            ->assertSet('importError', 'relations[0].name precisa ter nome de até 80 caracteres.');
-        $this->assertSame($before, Diagram::count());
-
-        $json = file_get_contents(public_path('examples/er-conversion-cases.json'));
-        $data = ErDiagramImport::parse($json);
-        $this->assertCount(41, $data['relations']);
-        $converted = app(ErToRelationalTransformer::class)->transform($data);
-        $this->assertGreaterThan(count($data['entities']), count($converted['tables']));
-        $this->assertNotEmpty($converted['foreignKeys']);
-        Livewire::test(SchemaBoard::class)->set('importJson', $json)->call('importDiagram');
-        $this->assertSame($before + 1, Diagram::count());
-        $this->assertCount(41, Diagram::latest('id')->first()->data['relations']);
     }
 
     /** Localiza uma relação pelo id dentro do estado do componente. */

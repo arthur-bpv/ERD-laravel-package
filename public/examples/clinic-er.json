@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "title": "Clínica — agenda, equipe e prescrições",
+  "description": "Atendimento clínico com atributo composto e multivalorado, autorrelacionamento e relações N:N convertíveis.",
+  "entities": [
+    {
+      "id": "patients",
+      "name": "Patient",
+      "kind": "strong",
+      "x": 40,
+      "y": 300,
+      "attributes": [
+        { "id": "patients.id", "name": "patient_id", "type": "bigint", "key": "PK" },
+        { "id": "patients.name", "name": "full_name", "type": "varchar", "key": "" },
+        { "id": "patients.document", "name": "document", "type": "varchar", "key": "UQ" },
+        { "id": "patients.birth_date", "name": "birth_date", "type": "date", "key": "" },
+        { "id": "patients.phone", "name": "phone", "type": "varchar", "key": "", "multivalued": true },
+        {
+          "id": "patients.address",
+          "name": "address",
+          "type": "composite",
+          "key": "",
+          "components": [
+            { "id": "patients.address.street", "name": "street", "type": "varchar", "key": "" },
+            { "id": "patients.address.city", "name": "city", "type": "varchar", "key": "" },
+            { "id": "patients.address.postal_code", "name": "postal_code", "type": "varchar", "key": "" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "appointments",
+      "name": "Appointment",
+      "kind": "strong",
+      "x": 400,
+      "y": 300,
+      "attributes": [
+        { "id": "appointments.id", "name": "appointment_id", "type": "bigint", "key": "PK" },
+        { "id": "appointments.starts_at", "name": "starts_at", "type": "datetime", "key": "" },
+        { "id": "appointments.status", "name": "status", "type": "varchar", "key": "" },
+        { "id": "appointments.reason", "name": "reason", "type": "text", "key": "" }
+      ]
+    },
+    {
+      "id": "doctors",
+      "name": "Doctor",
+      "kind": "strong",
+      "x": 800,
+      "y": 300,
+      "attributes": [
+        { "id": "doctors.id", "name": "doctor_id", "type": "bigint", "key": "PK" },
+        { "id": "doctors.name", "name": "full_name", "type": "varchar", "key": "" },
+        { "id": "doctors.license", "name": "medical_license", "type": "varchar", "key": "UQ" }
+      ]
+    },
+    {
+      "id": "specialties",
+      "name": "Specialty",
+      "kind": "strong",
+      "x": 1160,
+      "y": 60,
+      "attributes": [
+        { "id": "specialties.id", "name": "specialty_id", "type": "bigint", "key": "PK" },
+        { "id": "specialties.name", "name": "name", "type": "varchar", "key": "UQ" }
+      ]
+    },
+    {
+      "id": "rooms",
+      "name": "Consulting Room",
+      "kind": "strong",
+      "x": 400,
+      "y": 680,
+      "attributes": [
+        { "id": "rooms.id", "name": "room_id", "type": "bigint", "key": "PK" },
+        { "id": "rooms.code", "name": "code", "type": "varchar", "key": "UQ" },
+        { "id": "rooms.floor", "name": "floor", "type": "integer", "key": "" }
+      ]
+    },
+    {
+      "id": "medicines",
+      "name": "Medicine",
+      "kind": "strong",
+      "x": 860,
+      "y": 680,
+      "attributes": [
+        { "id": "medicines.id", "name": "medicine_id", "type": "bigint", "key": "PK" },
+        { "id": "medicines.name", "name": "commercial_name", "type": "varchar", "key": "" },
+        { "id": "medicines.active_ingredient", "name": "active_ingredient", "type": "varchar", "key": "" },
+        { "id": "medicines.registration", "name": "registration_code", "type": "varchar", "key": "UQ" }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "id": "patient_appointments",
+      "name": "books",
+      "from": "appointments",
+      "fromAttr": "",
+      "to": "patients",
+      "toAttr": "patients.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": []
+    },
+    {
+      "id": "doctor_appointments",
+      "name": "conducts",
+      "from": "appointments",
+      "fromAttr": "",
+      "to": "doctors",
+      "toAttr": "doctors.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "doctor_appointments.attendance",
+          "name": "attendance_status",
+          "type": "varchar",
+          "key": "",
+          "offsetX": 10,
+          "offsetY": -130
+        }
+      ]
+    },
+    {
+      "id": "appointment_room",
+      "name": "takes place in",
+      "from": "appointments",
+      "fromAttr": "",
+      "to": "rooms",
+      "toAttr": "rooms.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-one-one",
+      "attributes": [
+        {
+          "id": "appointment_room.check_in",
+          "name": "check_in_at",
+          "type": "datetime",
+          "key": "",
+          "offsetX": 130,
+          "offsetY": -10
+        }
+      ]
+    },
+    {
+      "id": "doctor_specialties",
+      "name": "qualified in",
+      "from": "doctors",
+      "fromAttr": "doctors.id",
+      "to": "specialties",
+      "toAttr": "specialties.id",
+      "childCard": "cf-one-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "doctor_specialties.certified_at",
+          "name": "certified_at",
+          "type": "date",
+          "key": "",
+          "offsetX": 80,
+          "offsetY": -100
+        }
+      ]
+    },
+    {
+      "id": "prescription_items",
+      "name": "prescribes",
+      "from": "appointments",
+      "fromAttr": "appointments.id",
+      "to": "medicines",
+      "toAttr": "medicines.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-many",
+      "attributes": [
+        {
+          "id": "prescription_items.dosage",
+          "name": "dosage",
+          "type": "varchar",
+          "key": "",
+          "offsetX": -180,
+          "offsetY": 105
+        },
+        {
+          "id": "prescription_items.frequency",
+          "name": "frequency",
+          "type": "varchar",
+          "key": "",
+          "offsetX": 0,
+          "offsetY": 150
+        },
+        {
+          "id": "prescription_items.duration",
+          "name": "duration_days",
+          "type": "integer",
+          "key": "",
+          "offsetX": 180,
+          "offsetY": 105
+        }
+      ]
+    },
+    {
+      "id": "doctor_mentorship",
+      "name": "mentors",
+      "from": "doctors",
+      "fromAttr": "",
+      "to": "doctors",
+      "toAttr": "doctors.id",
+      "childCard": "cf-zero-many",
+      "parentCard": "cf-zero-one",
+      "fromRole": "mentored",
+      "toRole": "mentor",
+      "diamondX": 1010,
+      "diamondY": 410,
+      "attributes": [
+        {
+          "id": "doctor_mentorship.started_at",
+          "name": "mentorship_started_at",
+          "type": "date",
+          "key": "",
+          "offsetX": 170,
+          "offsetY": 40
+        }
+      ]
+    }
+  ]
+}

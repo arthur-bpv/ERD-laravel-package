@@ -4,13 +4,11 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
-use App\Support\ErDiagramImport;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
-use InvalidArgumentException;
 
 /**
  * Editor visual de modelo Entidade-Relacionamento.
@@ -488,11 +486,14 @@ class SchemaBoard extends Component
             : $this->relationshipNodeFor($relation)['position'];
         $nodes = [];
         foreach (array_values($relation['attributes'] ?? []) as $index => $attribute) {
+            $defaultOffsetX = 150 + (intdiv($index, 4) * 164);
+            $defaultOffsetY = -108 + (($index % 4) * 72);
+
             $nodes[] = [
                 'id' => $this->relationshipAttributeNodeId($relation['id'], $attribute['id']),
                 'position' => [
-                    'x' => $diamond['x'] + ($attribute['offsetX'] ?? (155 + (intdiv($index, 4) * 120))),
-                    'y' => $diamond['y'] + ($attribute['offsetY'] ?? (-75 + (($index % 4) * 48))),
+                    'x' => $diamond['x'] + ($attribute['offsetX'] ?? $defaultOffsetX),
+                    'y' => $diamond['y'] + ($attribute['offsetY'] ?? $defaultOffsetY),
                 ],
                 'data' => [
                     'kind' => 'relationship-attribute',
@@ -500,8 +501,8 @@ class SchemaBoard extends Component
                     'attrId' => $attribute['id'],
                     'name' => $attribute['name'],
                     'type' => $attribute['type'] ?? 'varchar',
-                    'offsetX' => $attribute['offsetX'] ?? (155 + (intdiv($index, 4) * 120)),
-                    'offsetY' => $attribute['offsetY'] ?? (-75 + (($index % 4) * 48)),
+                    'offsetX' => $attribute['offsetX'] ?? $defaultOffsetX,
+                    'offsetY' => $attribute['offsetY'] ?? $defaultOffsetY,
                 ],
             ];
         }
@@ -519,8 +520,8 @@ class SchemaBoard extends Component
             'target' => $this->relationshipAttributeNodeId($relation['id'], $attribute['id']),
             'type' => 'straight',
             'pathType' => 'straight',
-            'color' => self::COR_RELACAO,
-            'strokeWidth' => 1.4,
+            'color' => '#94a3b8',
+            'strokeWidth' => 1.25,
             'interactionWidth' => 20,
             'data' => ['relationId' => $relation['id'], 'isAttributeLink' => true],
         ], $relation['attributes'] ?? []);
@@ -1175,6 +1176,7 @@ class SchemaBoard extends Component
                 }
                 $relation['attributes'][$index]['offsetX'] = (int) round($offset['x'] ?? 0);
                 $relation['attributes'][$index]['offsetY'] = (int) round($offset['y'] ?? 0);
+
                 return;
             }
         }
@@ -1561,45 +1563,6 @@ class SchemaBoard extends Component
     }
 
     public bool $showJson = false;
-
-    public bool $showImport = false;
-
-    public string $importJson = '';
-
-    public string $importError = '';
-
-    public function toggleImport(): void
-    {
-        $this->showImport = ! $this->showImport;
-        $this->importError = '';
-    }
-
-    public function importDiagram(): void
-    {
-        try {
-            $data = ErDiagramImport::parse($this->importJson);
-        } catch (InvalidArgumentException $exception) {
-            $this->importError = $exception->getMessage();
-            return;
-        }
-
-        $diagram = Diagram::create([
-            'name' => ($this->diagramName === 'Diagrama sem nome' ? 'Diagrama importado' : $this->diagramName.' — importado'),
-            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
-            'data' => $data,
-        ]);
-        $this->redirectRoute('boards.er', $diagram, navigate: true);
-    }
-
-    public function createAnalysisBoard(): void
-    {
-        $name = 'Análise de alternativas ER → relacional';
-        $diagram = Diagram::query()->firstOrCreate(
-            ['name' => $name, 'type' => Diagram::TYPE_ENTITY_RELATIONSHIP],
-            ['data' => ErDiagramImport::parse(file_get_contents(public_path('examples/er-conversion-cases.json')))],
-        );
-        $this->redirectRoute('boards.er', $diagram, navigate: true);
-    }
 
     /** Alterna a exibição do modal com o JSON do diagrama. */
     public function toggleJson(): void

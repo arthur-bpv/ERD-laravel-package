@@ -9,18 +9,101 @@
                 </p>
             </div>
 
-            <form wire:submit="createProject" class="w-full rounded-2xl border border-white/10 bg-white/5 p-4 lg:max-w-md">
-                <label for="project-name" class="text-sm font-medium text-slate-200">Novo projeto</label>
-                <div class="mt-2 flex gap-2">
-                    <input id="project-name" wire:model="projectName" type="text" placeholder="Ex.: Sistema da biblioteca"
-                        class="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-400">
-                    <button type="submit" class="rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-60" wire:loading.attr="disabled" wire:target="createProject">
-                        Criar ER
-                    </button>
-                </div>
-                @error('projectName') <p class="mt-2 text-xs text-rose-300">{{ $message }}</p> @enderror
-            </form>
+            <div class="w-full space-y-3 lg:max-w-md">
+                <form wire:submit="createProject" class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <label for="project-name" class="text-sm font-medium text-slate-200">Novo projeto</label>
+                    <div class="mt-2 flex gap-2">
+                        <input id="project-name" wire:model="projectName" type="text" placeholder="Ex.: Sistema da biblioteca"
+                            class="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-400">
+                        <button type="submit" class="rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-60" wire:loading.attr="disabled" wire:target="createProject">
+                            Criar ER
+                        </button>
+                    </div>
+                    @error('projectName') <p class="mt-2 text-xs text-rose-300">{{ $message }}</p> @enderror
+                </form>
+
+                <button
+                    type="button"
+                    wire:click="toggleImport"
+                    class="flex w-full items-center justify-between rounded-2xl border border-dashed border-indigo-300/25 bg-indigo-400/[0.06] px-4 py-3 text-left text-sm font-semibold text-indigo-200 transition hover:border-indigo-300/50 hover:bg-indigo-400/10"
+                >
+                    <span><span aria-hidden="true">↑</span> Importar projeto</span>
+                    <span class="text-xs font-normal text-slate-500">JSON de modelo ER</span>
+                </button>
+            </div>
         </header>
+
+        <div
+            x-show="$wire.showImport"
+            x-cloak
+            x-transition.opacity
+            class="er-import-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-project-title"
+            @click.self="$wire.toggleImport()"
+            @keydown.escape.window="$wire.showImport = false"
+        >
+            <div class="er-import-dialog">
+                <div class="er-import-heading">
+                    <div>
+                        <p class="er-import-kicker">Novo projeto</p>
+                        <h2 id="import-project-title">Importar diagrama ER</h2>
+                    </div>
+                    <button type="button" wire:click="toggleImport" aria-label="Fechar importação">✕</button>
+                </div>
+
+                <p>O arquivo será validado e salvo como um projeto independente. Nenhum projeto existente será alterado.</p>
+
+                <label class="er-import-field">
+                    <span>Nome do projeto</span>
+                    <input wire:model="importProjectName" type="text" maxlength="120" placeholder="Ex.: Sistema importado">
+                </label>
+                @error('importProjectName') <p class="er-import-error" role="alert">{{ $message }}</p> @enderror
+
+                <label class="er-import-drop">
+                    <span>Selecionar arquivo JSON</span>
+                    <small>Máximo de 2 MB</small>
+                    <input
+                        type="file"
+                        accept=".json,application/json"
+                        aria-label="Arquivo JSON do projeto"
+                        @change="
+                            const file = $event.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 2000000) {
+                                $wire.importError = 'O arquivo ultrapassa o limite de 2 MB.';
+                                $event.target.value = '';
+                                return;
+                            }
+                            $wire.importError = '';
+                            file.text().then(text => $wire.importJson = text);
+                        "
+                    >
+                </label>
+
+                <details class="er-import-advanced">
+                    <summary>Ou colar o JSON manualmente</summary>
+                    <textarea wire:model="importJson" rows="8" placeholder='{"entities":[],"relations":[]}' aria-label="JSON para importar"></textarea>
+                </details>
+
+                @if ($importError)
+                    <p class="er-import-error" role="alert">{{ $importError }}</p>
+                @endif
+
+                <div class="er-import-example">
+                    <button type="button" wire:click="createAnalysisProject">Criar projeto de análise completo</button>
+                    <a href="{{ asset('examples/marketplace-er.json') }}" download>Marketplace</a>
+                    <a href="{{ asset('examples/clinic-er.json') }}" download>Clínica</a>
+                    <a href="{{ asset('examples/er-conversion-cases.json') }}" download>Matriz técnica</a>
+                </div>
+
+                <button type="button" wire:click="importProject" wire:loading.attr="disabled" wire:target="importProject">
+                    <span wire:loading.remove wire:target="importProject">Criar projeto importado</span>
+                    <span wire:loading wire:target="importProject">Importando…</span>
+                </button>
+            </div>
+        </div>
 
         <section class="py-10">
             <div class="mb-6 flex items-center justify-between">

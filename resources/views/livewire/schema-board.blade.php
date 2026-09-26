@@ -221,26 +221,26 @@
                 </template>
 
                 <template x-if="node.data.kind === 'relationship-attribute'">
-                    <div class="er-relation-attr nodrag" :data-id="node.id">
-                        <span
-                            class="er-relation-attr-name"
-                            x-text="node.data.name"
-                            @dblclick.stop="
-                                const nome = window.prompt('Renomear atributo', node.data.name);
-                                if (nome) $wire.renameRelationAttribute(node.data.relationId, node.data.attrId, nome);
-                            "
-                            title="Duplo clique para renomear"
-                        ></span>
-                        <small x-text="node.data.type || 'varchar'"></small>
-                        <button
-                            class="er-relation-attr-del nodrag"
-                            type="button"
-                            aria-label="Remover atributo do relacionamento"
-                            title="Remover atributo"
-                            @click.stop="$wire.removeRelationAttribute(node.data.relationId, node.data.attrId)"
-                        >✕</button>
-                    </div>
-                </template>
+    <div class="er-relation-attr" :data-id="node.id">
+        <span
+            class="er-relation-attr-name nodrag"
+            x-text="node.data.name"
+            @dblclick.stop="
+                const nome = window.prompt('Renomear atributo', node.data.name);
+                if (nome) $wire.renameRelationAttribute(node.data.relationId, node.data.attrId, nome);
+            "
+            title="Duplo clique para renomear"
+        ></span>
+
+        <button
+            class="er-relation-attr-del nodrag"
+            type="button"
+            aria-label="Remover atributo do relacionamento"
+            title="Remover atributo"
+            @click.stop="$wire.removeRelationAttribute(node.data.relationId, node.data.attrId)"
+        >✕</button>
+    </div>
+</template>
 
                 {{-- ================= ENTIDADE ================= --}}
                 <template x-if="!node.data.kind">
@@ -392,14 +392,14 @@
                         <button class="er-add-toggle" @click="open = !open" x-text="open ? '− cancelar' : '+ atributo'"></button>
 
                         <div x-show="open" x-cloak class="er-add-form" @keydown.enter.prevent="
-                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), 'varchar', k); n=''; k=''; open=false; }
+                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }
                         ">
                             <input class="er-add-input" x-model="n" placeholder="nome" @pointerdown.stop>
                             <select class="er-add-select er-add-key" x-model="k" @pointerdown.stop>
                                 <option value="">—</option>
                                 <option value="PK">PK</option>
                             </select>
-                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), 'varchar', k); n=''; k=''; open=false; }">ok</button>
+                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }">ok</button>
                         </div>
                     </div>
                 </div>
@@ -527,23 +527,12 @@
                             <template x-for="attribute in attributes" :key="attribute.id">
                                 <div class="er-ee-attribute">
                                     <span x-text="attribute.name"></span>
-                                    <small x-text="attribute.type || 'varchar'"></small>
                                     <button type="button" @click="renameAttribute(attribute)" title="Renomear atributo">✎</button>
                                     <button type="button" @click="removeAttribute(attribute)" title="Excluir atributo">✕</button>
                                 </div>
                             </template>
                             <form class="er-ee-add-attribute" @submit.prevent="addAttribute()">
                                 <input x-model="attributeName" maxlength="80" placeholder="Nome do atributo" aria-label="Nome do atributo">
-                                <select x-model="attributeType" aria-label="Tipo do atributo">
-                                    <option value="varchar">Texto curto</option>
-                                    <option value="text">Texto longo</option>
-                                    <option value="int">Inteiro</option>
-                                    <option value="bigint">Inteiro grande</option>
-                                    <option value="decimal">Decimal</option>
-                                    <option value="date">Data</option>
-                                    <option value="datetime">Data e hora</option>
-                                    <option value="boolean">Booleano</option>
-                                </select>
                                 <button type="submit">+ Adicionar</button>
                             </form>
                         </div>

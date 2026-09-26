@@ -500,7 +500,6 @@ class SchemaBoard extends Component
                     'relationId' => $relation['id'],
                     'attrId' => $attribute['id'],
                     'name' => $attribute['name'],
-                    'type' => $attribute['type'] ?? 'varchar',
                     'offsetX' => $attribute['offsetX'] ?? $defaultOffsetX,
                     'offsetY' => $attribute['offsetY'] ?? $defaultOffsetY,
                 ],

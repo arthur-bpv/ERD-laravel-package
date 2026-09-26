@@ -316,7 +316,6 @@ document.addEventListener('alpine:init', () => {
         feedback: '',
         tab: 'relationship',
         attributeName: '',
-        attributeType: 'varchar',
 
         // Ver nota em erdCanvas: $flow não tem .on() — os eventos chegam como
         // CustomEvent `flow-<evento>` despachados no elemento `.flow-container`.
@@ -452,7 +451,7 @@ document.addEventListener('alpine:init', () => {
         addAttribute() {
             const name = this.attributeName.trim();
             if (!name || !this.e) return;
-            this.$wire.addRelationAttribute(this.relationId(this.e), name, this.attributeType);
+            this.$wire.addRelationAttribute(this.relationId(this.e), name,);
             this.attributeName = '';
             this.feedback = 'Atributo adicionado.';
         },

@@ -410,33 +410,30 @@ class RelationalBoard extends Component
     public function buildEdges(): array
     {
         $recursiveSlots = [];
-        $parallelSlots = [];
-        $pairTotals = [];
         $tablePositions = collect($this->tables)->mapWithKeys(fn (array $table) => [
             $table['id'] => ['x' => $table['x'], 'y' => $table['y']],
         ])->all();
 
+        $pairTotals = [];
         foreach ($this->foreignKeys as $foreignKey) {
             if ($foreignKey['fromTable'] === $foreignKey['toTable']) {
                 continue;
             }
-
             $pairKey = $foreignKey['fromTable'].'::'.$foreignKey['toTable'];
             $pairTotals[$pairKey] = ($pairTotals[$pairKey] ?? 0) + 1;
         }
 
-        return array_map(function (array $foreignKey) use (&$recursiveSlots, &$parallelSlots, $pairTotals, $tablePositions) {
+        return array_map(function (array $foreignKey) use (&$recursiveSlots, $pairTotals, $tablePositions) {
             $isRecursive = $foreignKey['fromTable'] === $foreignKey['toTable'];
             $cardinality = $foreignKey['cardinality'] ?? 'N:1';
             $relationshipName = trim((string) ($foreignKey['relationshipName'] ?? ''));
             $pairKey = $foreignKey['fromTable'].'::'.$foreignKey['toTable'];
             $isParallel = ! $isRecursive && ($pairTotals[$pairKey] ?? 0) > 1;
+
             $edge = [
                 'id' => $foreignKey['id'],
                 'source' => $foreignKey['fromTable'],
                 'target' => $foreignKey['toTable'],
-                'type' => 'floating',
-                'pathType' => 'smoothstep',
                 'label' => match (true) {
                     $isRecursive && $relationshipName !== '' => $relationshipName.' · '.$cardinality,
                     $isParallel => $foreignKey['fromColumn'].' · '.$cardinality,
@@ -445,37 +442,44 @@ class RelationalBoard extends Component
                 'color' => '#38bdf8',
                 'strokeWidth' => 1.6,
                 'markerEnd' => 'arrowclosed',
-                'class' => 'relational-cardinality',
             ];
-
-            if (! $isRecursive && ! $isParallel) {
-                return $edge;
-            }
 
             if ($isRecursive) {
                 $slot = $recursiveSlots[$foreignKey['fromTable']] ?? 0;
                 $recursiveSlots[$foreignKey['fromTable']] = $slot + 1;
-                [$sourcePosition, $targetPosition] = self::RECURSIVE_HANDLE_PAIRS[
-                    $slot % count(self::RECURSIVE_HANDLE_PAIRS)
-                ];
-            } else {
-                $slot = $parallelSlots[$pairKey] ?? 0;
-                $parallelSlots[$pairKey] = $slot + 1;
-                $from = $tablePositions[$foreignKey['fromTable']] ?? ['x' => 0, 'y' => 0];
-                $to = $tablePositions[$foreignKey['toTable']] ?? ['x' => 0, 'y' => 0];
-                $pairs = abs($to['x'] - $from['x']) >= abs($to['y'] - $from['y'])
-                    ? self::PARALLEL_HORIZONTAL_HANDLE_PAIRS
-                    : self::PARALLEL_VERTICAL_HANDLE_PAIRS;
-                [$sourcePosition, $targetPosition] = $pairs[$slot % count($pairs)];
+                [$sourcePosition, $targetPosition] = self::RECURSIVE_HANDLE_PAIRS[$slot % count(self::RECURSIVE_HANDLE_PAIRS)];
+
+                return array_merge($edge, [
+                    'type' => 'relational-self-loop',
+                    'pathType' => 'smoothstep',
+                    'sourceHandle' => 'relation-source-'.$sourcePosition,
+                    'targetHandle' => 'relation-target-'.$targetPosition,
+                    'class' => 'relational-cardinality relational-self-reference',
+                ]);
             }
 
+            // Ponto a ponto: FK aponta pra linha exata da PK/coluna referenciada.
+            $fromColumnId = $this->columnIdByName($foreignKey['fromTable'], $foreignKey['fromColumn']);
+            $toColumnId = $this->columnIdByName($foreignKey['toTable'], $foreignKey['toColumn']);
+
+            if ($fromColumnId === null || $toColumnId === null) {
+                return array_merge($edge, ['type' => 'floating', 'pathType' => 'smoothstep', 'class' => 'relational-cardinality']);
+            }
+
+            $from = $tablePositions[$foreignKey['fromTable']] ?? ['x' => 0, 'y' => 0];
+            $to = $tablePositions[$foreignKey['toTable']] ?? ['x' => 0, 'y' => 0];
+            $horizontal = abs($to['x'] - $from['x']) >= abs($to['y'] - $from['y']);
+            $side = $horizontal
+                ? ($to['x'] >= $from['x'] ? 'right' : 'left')
+                : ($to['y'] >= $from['y'] ? 'bottom' : 'top');
+            $opposite = ['top' => 'bottom', 'bottom' => 'top', 'left' => 'right', 'right' => 'left'][$side];
+
             return array_merge($edge, [
-                'type' => $isRecursive ? 'relational-self-loop' : 'bezier',
-                'sourceHandle' => 'relation-source-'.$sourcePosition,
-                'targetHandle' => 'relation-target-'.$targetPosition,
-                'class' => 'relational-cardinality '.($isRecursive
-                    ? 'relational-self-reference'
-                    : 'relational-parallel-reference'),
+                'type' => 'smoothstep',
+                'pathType' => 'smoothstep',
+                'sourceHandle' => 'col-'.$fromColumnId.'-'.$side,
+                'targetHandle' => 'col-'.$toColumnId.'-'.$opposite,
+                'class' => 'relational-cardinality'.($isParallel ? ' relational-parallel-reference' : ''),
             ]);
         }, $this->foreignKeys);
     }
@@ -540,4 +544,17 @@ class RelationalBoard extends Component
 
         return $name !== '' && mb_strlen($name) <= 80 ? $name : null;
     }
+    private function columnIdByName(string $tableId, string $columnName): ?string
+{
+    $tableIndex = $this->tableIndex($tableId);
+    if ($tableIndex === null) {
+        return null;
+    }
+    foreach ($this->tables[$tableIndex]['columns'] as $column) {
+        if ($column['name'] === $columnName) {
+            return $column['id'];
+        }
+    }
+    return null;
+}
 }

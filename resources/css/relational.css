@@ -270,6 +270,18 @@ html:not(.dark) .rel-modal-card { border-color: #cbd5e1; background: #fff; }
 html:not(.dark) .rel-modal-card header { border-color: #e2e8f0; }
 html:not(.dark) .rel-modal-card pre { color: #155e75; }
 
+.rel-col-handle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.rel-col-handle-top    { top: 0;    left: 50%; }
+.rel-col-handle-bottom { bottom: 0; left: 50%; }
+.rel-col-handle-left   { left: 0;   top: 50%; }
+.rel-col-handle-right  { right: 0;  top: 50%; }
+
 @media (max-width: 860px) {
     .rel-toolbar-top,
     .rel-toolbar-workflow { flex-wrap: wrap; padding-inline: 12px; }

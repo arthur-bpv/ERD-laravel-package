@@ -158,6 +158,14 @@
                         <div class="rel-columns">
                             <template x-for="column in node.data.columns" :key="column.id">
                                 <div class="rel-column" x-data="{ editing: false, draft: column.name }">
+                                    <div class="rel-col-handle rel-col-handle-top" aria-hidden="true" x-flow-handle:source.top="'col-' + column.id + '-top'"></div>
+                                    <div class="rel-col-handle rel-col-handle-top" aria-hidden="true" x-flow-handle:target.top="'col-' + column.id + '-top'"></div>
+                                    <div class="rel-col-handle rel-col-handle-right" aria-hidden="true" x-flow-handle:source.right="'col-' + column.id + '-right'"></div>
+                                    <div class="rel-col-handle rel-col-handle-right" aria-hidden="true" x-flow-handle:target.right="'col-' + column.id + '-right'"></div>
+                                    <div class="rel-col-handle rel-col-handle-bottom" aria-hidden="true" x-flow-handle:source.bottom="'col-' + column.id + '-bottom'"></div>
+                                    <div class="rel-col-handle rel-col-handle-bottom" aria-hidden="true" x-flow-handle:target.bottom="'col-' + column.id + '-bottom'"></div>
+                                    <div class="rel-col-handle rel-col-handle-left" aria-hidden="true" x-flow-handle:source.left="'col-' + column.id + '-left'"></div>
+                                    <div class="rel-col-handle rel-col-handle-left" aria-hidden="true" x-flow-handle:target.left="'col-' + column.id + '-left'"></div>
                                     <span class="rel-key" :class="{ 'is-pk': column.key.includes('PK'), 'is-fk': column.key.includes('FK') }" x-text="column.key || '—'"></span>
                                     <button x-show="!editing" type="button" class="rel-column-name nodrag" x-text="column.name"
                                         @pointerdown.stop @click.stop="draft = column.name; editing = true; $nextTick(() => $refs.columnName.select())"
@@ -193,14 +201,6 @@
                                         title="Remover coluna do modelo Relacional">✕</button>
                                 </div>
                             </template>
-                        </div>
-                        <div class="rel-node-foot nodrag" x-data="{ open: false, name: '', type: 'varchar' }">
-                            <button type="button" @pointerdown.stop @click.stop="open = !open" x-text="open ? '− cancelar' : '+ coluna'"></button>
-                            <form x-show="open" x-cloak @submit.prevent="if (name.trim()) { $wire.addColumn(node.id, name, type); name = ''; type = 'varchar'; open = false }">
-                                <input x-model="name" maxlength="80" placeholder="nome da coluna" @pointerdown.stop>
-                                <select x-model="type" @pointerdown.stop><option>varchar</option><option>char</option><option>bigint</option><option>integer</option><option>decimal</option><option>numeric</option><option>boolean</option><option>text</option><option>date</option><option>datetime</option><option>timestamp</option><option>json</option></select>
-                                <button type="submit">adicionar</button>
-                            </form>
                         </div>
                     </article>
                 </x-slot:node>

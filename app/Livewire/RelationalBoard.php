@@ -10,15 +10,16 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use App\Support\DataTypeCatalog;
+
 
 #[Layout('layouts.app')]
 class RelationalBoard extends Component
 {
     use WithWireFlow;
 
-    private const EDITABLE_COLUMN_TYPES = [
-        'bigint', 'integer', 'decimal', 'numeric', 'boolean', 'char', 'varchar', 'text', 'date', 'datetime', 'timestamp', 'json',
-    ];
+    public string $dialect = 'mysql';
+
 
     private const RECURSIVE_HANDLE_PAIRS = [
         ['right', 'top'],
@@ -198,7 +199,7 @@ class RelationalBoard extends Component
     {
         $name = $this->normalizedName($name);
         $tableIndex = $this->tableIndex($tableId);
-        $type = in_array($type, self::EDITABLE_COLUMN_TYPES, true) ? $type : 'varchar';
+        $type = $this->isValidType($type) ? $type : 'varchar';
 
         if ($name === null || $tableIndex === null) {
             return;
@@ -226,73 +227,58 @@ class RelationalBoard extends Component
             'nullable' => false,
             'references' => null,
             'source' => 'manual',
-            'length' => in_array($type, ['char', 'varchar'], true) ? ($type === 'char' ? 1 : 255) : null,
-            'precision' => in_array($type, ['decimal', 'numeric'], true) ? 10 : null,
-            'scale' => in_array($type, ['decimal', 'numeric'], true) ? 2 : null,
         ];
 
         $this->commitLogicalEdit();
     }
 
     public function updateColumnType(string $tableId, string $columnId, string $type): void
-    {
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
+{
+    $tableIndex = $this->tableIndex($tableId);
+    $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
 
-        if ($columnIndex === null || ! in_array($type, self::EDITABLE_COLUMN_TYPES, true)) {
-            return;
-        }
-
-        $this->tables[$tableIndex]['columns'][$columnIndex]['type'] = $type;
-        $column = &$this->tables[$tableIndex]['columns'][$columnIndex];
-        $column['length'] = in_array($type, ['char', 'varchar'], true)
-            ? (int) ($column['length'] ?? ($type === 'char' ? 1 : 255))
-            : null;
-        $column['precision'] = in_array($type, ['decimal', 'numeric'], true)
-            ? (int) ($column['precision'] ?? 10)
-            : null;
-        $column['scale'] = in_array($type, ['decimal', 'numeric'], true)
-            ? min((int) ($column['scale'] ?? 2), $column['precision'])
-            : null;
-        unset($column);
-        $this->commitLogicalEdit();
+    if ($columnIndex === null || ! in_array($type, DataTypeCatalog::canonicalFor($this->dialect), true)) {
+        return;
     }
+
+    $column = $this->tables[$tableIndex]['columns'][$columnIndex];
+    $column['type'] = $type;
+    $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
+
+    $this->commitLogicalEdit();
+}
 
     public function updateColumnSize(
-        string $tableId,
-        string $columnId,
-        int|string|null $size,
-        int|string|null $scale = null,
-    ): void {
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
+    string $tableId,
+    string $columnId,
+    int|string|null $size,
+    int|string|null $scale = null,
+): void {
+    $tableIndex = $this->tableIndex($tableId);
+    $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
 
-        if ($columnIndex === null || ! is_numeric($size)) {
-            return;
-        }
-
-        $column = &$this->tables[$tableIndex]['columns'][$columnIndex];
-        $type = $column['type'] ?? '';
-
-        if (in_array($type, ['char', 'varchar'], true)) {
-            $column['length'] = max(1, min($type === 'char' ? 255 : 65535, (int) $size));
-            $column['precision'] = null;
-            $column['scale'] = null;
-        } elseif (in_array($type, ['decimal', 'numeric'], true)) {
-            $column['precision'] = max(1, min(65, (int) $size));
-            $requestedScale = is_numeric($scale) ? (int) $scale : (int) ($column['scale'] ?? 0);
-            $column['scale'] = max(0, min(30, $column['precision'], $requestedScale));
-            $column['length'] = null;
-        } else {
-            unset($column);
-
-            return;
-        }
-        unset($column);
-
-        $this->commitLogicalEdit();
+    if ($columnIndex === null || ! is_numeric($size)) {
+        return;
     }
 
+    $column = $this->tables[$tableIndex]['columns'][$columnIndex];
+
+    match (DataTypeCatalog::kind($column['type'] ?? '')) {
+        'length' => $column['length'] = (int) $size,
+        'decimal' => [
+            $column['precision'] = (int) $size,
+            $column['scale'] = is_numeric($scale) ? (int) $scale : (int) ($column['scale'] ?? 0),
+        ],
+        default => null,
+    };
+
+    if (DataTypeCatalog::kind($column['type'] ?? '') === null) {
+        return;
+    }
+
+    $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
+    $this->commitLogicalEdit();
+}
     public function toggleColumnNullable(string $tableId, string $columnId): void
     {
         $tableIndex = $this->tableIndex($tableId);
@@ -498,6 +484,7 @@ class RelationalBoard extends Component
         $this->foreignKeys = array_values($data['foreignKeys'] ?? []);
         $this->warnings = array_values($data['warnings'] ?? []);
         $this->isCustomized = (bool) ($data['customized'] ?? false);
+        $this->dialect = DataTypeCatalog::has($data['dialect'] ?? '') ? $data['dialect'] : 'mysql';
     }
 
     private function persistCurrentData(bool $markCustomized = false): void
@@ -509,6 +496,7 @@ class RelationalBoard extends Component
             ->firstOrFail();
 
         $data = $diagram->data ?? [];
+        $data['dialect'] = $this->dialect;
         $data['tables'] = $this->tables;
         $data['foreignKeys'] = $this->foreignKeys;
         $data['warnings'] = $this->warnings;
@@ -557,4 +545,21 @@ class RelationalBoard extends Component
     }
     return null;
 }
+    public function setDialect(string $dialect): void
+    {
+        if (! DataTypeCatalog::has($dialect) || $dialect === $this->dialect) {
+            return;
+        }
+
+        $this->dialect = $dialect;
+
+        foreach ($this->tables as $t => $table) {
+            foreach ($table['columns'] as $c => $column) {
+                $column['type'] = DataTypeCatalog::resolve($dialect, $column['type'] ?? 'varchar');
+                $this->tables[$t]['columns'][$c] = DataTypeCatalog::normalize($dialect, $column);
+            }
+        }
+
+        $this->commitLogicalEdit();
+    }
 }

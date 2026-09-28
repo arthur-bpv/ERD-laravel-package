@@ -183,6 +183,48 @@
 
 .rel-column-definition { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 4px; }
 .rel-column-type { width: 74px; min-width: 0; border: 0; background: transparent; outline: none; }
+.rel-column-type {
+    color-scheme: light;
+    min-width: 7.5rem;
+    padding: .25rem .5rem;
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    color: #0f172a;
+    background: #fff;
+    border: 1px solid rgb(148 163 184 / .4);
+    border-radius: .4rem;
+    cursor: pointer;
+}
+
+/* tema escuro: o popup passa a ser escuro também */
+:root.dark .rel-column-type {
+    color-scheme: dark;
+    color: #e2e8f0;
+    background: #0f172a;
+    border-color: rgb(148 163 184 / .25);
+}
+:root.dark .rel-column-type:hover,
+:root.dark .rel-column-type:focus {
+    border-color: #38bdf8;
+    outline: none;
+}
+
+:root.dark .rel-column-type option {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: .35rem .5rem;
+}
+:root.dark .rel-column-type option:checked {
+    background: #0e7490;
+    color: #fff;
+}
+:root.dark .rel-column-type optgroup {
+    background: #0b1220;
+    color: #38bdf8;
+    font-style: normal;
+    font-weight: 700;
+}
 .rel-column-type:hover { color: #cbd5e1; }
 .rel-column-definition > input,
 .rel-decimal-size input {
@@ -204,6 +246,13 @@
 .rel-node-foot form button { border: 0; border-radius: 6px; background: #0e7490; color: #fff; padding: 5px 7px; font-size: 9px; font-weight: 700; }
 
 .rel-null { color: #a78bfa; }
+
+.rel-dialect { display: inline-flex; align-items: center; gap: .4rem; font-size: .75rem; color: #94a3b8; }
+.rel-dialect select {
+    background: rgb(15 23 42); color: inherit;
+    border: 1px solid rgb(148 163 184 / .25); border-radius: .5rem;
+    padding: .3rem .5rem;
+}
 
 .relational-board .flow-edge-label:not(.flow-edge-label-start):not(.flow-edge-label-end) {
     border: 1px solid rgb(56 189 248 / 28%);

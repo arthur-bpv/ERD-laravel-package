@@ -89,6 +89,7 @@ class RelationalBoard extends Component
 
     public function regenerate(ErToRelationalTransformer $transformer): void
     {
+        $oldTableIds = array_column($this->tables, 'id');
         $source = Diagram::query()
             ->whereKey($this->sourceDiagramId)
             ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
@@ -106,8 +107,11 @@ class RelationalBoard extends Component
         });
 
         $this->fillFromData($data);
+        if ($oldTableIds !== [] && $this->tables !== []) {
+            $this->syncCanvas($oldTableIds);
+            $this->flowFitView();
+        }
         $this->dispatch('relational-regenerated');
-        $this->redirectRoute('boards.relational', ['diagram' => $this->diagramId], navigate: true);
     }
 
     public function onNodeDragEnd(string $nodeId, array $position): void
@@ -128,7 +132,7 @@ class RelationalBoard extends Component
         unset($table);
 
         $this->persistCurrentData();
-        $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
+        $this->syncCanvas();
     }
 
     public function renameTable(string $tableId, string $name): void
@@ -447,7 +451,7 @@ class RelationalBoard extends Component
         unset($table);
 
         $this->persistCurrentData();
-        $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
+        $this->syncCanvas();
         $this->flowFitView();
     }
 
@@ -590,8 +594,42 @@ class RelationalBoard extends Component
     private function commitLogicalEdit(): void
     {
         $this->persistCurrentData(markCustomized: true);
-        $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
+        $this->syncCanvas();
         $this->dispatch('relational-saved');
+    }
+
+    private function syncCanvas(?array $previousTableIds = null): void
+    {
+        // fromObject substitui os nós e o template x-for mantém a referência
+        // antiga para IDs iguais. Atualizar cada nó preserva a reatividade dos
+        // controles dentro dele, incluindo NULL, nome, tipo e tamanho.
+        $nodes = $this->buildNodes();
+        $previousTableIds ??= array_column($this->tables, 'id');
+        $currentTableIds = array_column($nodes, 'id');
+        $removed = array_values(array_diff($previousTableIds, $currentTableIds));
+        if ($removed !== []) {
+            $this->flowRemoveNodes($removed);
+        }
+
+        $added = array_values(array_filter($nodes, fn (array $node): bool => ! in_array($node['id'], $previousTableIds, true)));
+        if ($added !== []) {
+            $this->flowAddNodes($added);
+        }
+
+        foreach ($nodes as $node) {
+            if (! in_array($node['id'], $previousTableIds, true)) {
+                continue;
+            }
+            $this->flowUpdateNode($node['id'], [
+                'position' => $node['position'],
+                'dimensions' => $node['dimensions'],
+                'data' => $node['data'],
+            ]);
+        }
+
+        // As arestas podem mudar de handle ou desaparecer quando uma coluna
+        // é renomeada/removida; restaurá-las sem `nodes` preserva os nós vivos.
+        $this->flowFromObject(['edges' => $this->buildEdges()]);
     }
 
     private function tableIndex(string $tableId): ?int

@@ -163,6 +163,7 @@ class RelationalBoardTest extends TestCase
 
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->call('onNodeDragEnd', 'clients', ['x' => 40, 'y' => 600])
+            ->assertDispatched('flow:updateNode')
             ->assertDispatched('flow:fromObject');
 
         $client = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'clients');
@@ -179,9 +180,10 @@ class RelationalBoardTest extends TestCase
         $diagram = $this->relationalDiagram();
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->call('organizeBoard')
+            ->assertDispatched('flow:updateNode')
             ->assertDispatched('flow:fromObject')
             ->assertDispatched('flow:fitView')
-            ->assertSee('Organizar quadro');
+            ->assertSee('Organizar');
 
         $tables = collect($component->get('tables'))->keyBy('id');
 
@@ -213,6 +215,18 @@ class RelationalBoardTest extends TestCase
         $this->assertTrue($manual['nullable']);
         $this->assertTrue($data['customized']);
         $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
+    }
+
+    public function test_nullable_edit_updates_the_existing_canvas_node_without_replacing_it(): void
+    {
+        Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
+            ->call('addColumn', 'staff', 'note')
+            ->call('toggleColumnNullable', 'staff', 'staff.manual_1')
+            ->assertDispatched('flow:updateNode', fn (string $event, array $params): bool => $params['id'] === 'staff'
+                && collect($params['changes']['data']['columns'])->firstWhere('id', 'staff.manual_1')['nullable'] === true,
+            )
+            ->assertDispatched('flow:fromObject', fn (string $event, array $params): bool => ! array_key_exists('nodes', $params['data']) && array_key_exists('edges', $params['data']),
+            );
     }
 
     public function test_relational_editor_removes_derived_columns_and_cascades_invalid_foreign_keys(): void
@@ -301,9 +315,9 @@ class RelationalBoardTest extends TestCase
     public function test_header_links_both_independent_models_and_explains_regeneration(): void
     {
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
-            ->assertSee('Modelo ER')
+            ->assertSee('aria-label="Modelos do projeto"', escape: false)
             ->assertSee('Modelo Relacional')
-            ->assertSee('Edição independente')
+            ->assertSee('Mais')
             ->assertSee('Regenerar do ER');
     }
 
@@ -312,7 +326,7 @@ class RelationalBoardTest extends TestCase
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
             ->assertSee('window.setErdTheme', escape: false)
             ->assertSee('Ativar tema escuro')
-            ->assertSee('Escuro');
+            ->assertSee('Tema escuro');
     }
 
     public function test_relational_model_has_an_explicit_save_action(): void
@@ -365,10 +379,34 @@ class RelationalBoardTest extends TestCase
 
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->call('regenerate')
-            ->assertRedirect();
+            ->assertDispatched('flow:updateNode')
+            ->assertDispatched('flow:fitView')
+            ->assertDispatched('relational-regenerated');
 
         $staff = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'staff');
         $this->assertContains('email', array_column($staff['columns'], 'name'));
+    }
+
+    public function test_regeneration_replaces_canvas_tables_without_navigation(): void
+    {
+        $diagram = $this->relationalDiagram();
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram]);
+        $source = $diagram->sourceDiagram;
+        $data = $source->data;
+        $data['entities'] = [$data['entities'][0], [
+            'id' => 'departments', 'name' => 'Departments', 'x' => 500, 'y' => 100,
+            'attributes' => [['id' => 'departments.id', 'name' => 'id', 'type' => 'bigint', 'key' => 'PK']],
+        ]];
+        $data['relations'] = [];
+        $source->update(['data' => $data]);
+
+        $component->call('regenerate')
+            ->assertDispatched('flow:removeNodes', ids: ['clients'])
+            ->assertDispatched('flow:addNodes', fn (string $event, array $params): bool => collect($params['nodes'])->contains('id', 'departments'),
+            )
+            ->assertDispatched('relational-regenerated');
+
+        $this->assertSame(['staff', 'departments'], array_column($component->get('tables'), 'id'));
     }
 
     public function test_er_diagram_cannot_be_opened_as_a_relational_board(): void

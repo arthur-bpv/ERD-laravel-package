@@ -191,6 +191,39 @@ class RelationalBoardTest extends TestCase
         $this->assertSame($tables->values()->all(), $diagram->fresh()->data['tables']);
     }
 
+    public function test_organizing_a_triangle_keeps_the_outer_relationship_clear_of_the_center_table(): void
+    {
+        $diagram = $this->relationalDiagram();
+        $tables = array_map(fn (string $id): array => [
+            'id' => $id,
+            'name' => $id,
+            'kind' => 'entity',
+            'x' => 0,
+            'y' => 0,
+            'columns' => [],
+            'primaryKey' => [],
+        ], ['middle', 'left', 'right']);
+        $foreignKeys = array_map(fn (array $pair, int $index): array => [
+            'id' => 'fk-'.$index,
+            'fromTable' => $pair[0],
+            'toTable' => $pair[1],
+            'fromColumn' => 'id',
+            'toColumn' => 'id',
+        ], [['middle', 'left'], ['middle', 'right'], ['left', 'right']], [0, 1, 2]);
+        $diagram->update(['data' => ['tables' => $tables, 'foreignKeys' => $foreignKeys]]);
+
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('organizeBoard');
+        $organized = collect($component->get('tables'))->keyBy('id');
+
+        $this->assertSame($organized['left']['y'], $organized['right']['y']);
+        $this->assertGreaterThanOrEqual(
+            $organized['left']['y'] + 62 + 140,
+            $organized['middle']['y'],
+        );
+        $this->assertSame($organized->values()->all(), $diagram->fresh()->data['tables']);
+    }
+
     public function test_relational_edits_are_persisted_without_changing_the_er_source(): void
     {
         $diagram = $this->relationalDiagram();

@@ -25,70 +25,10 @@
     @relational-saved.window="showNotice('Alteração salva apenas no modelo Relacional.')"
     @relational-regenerated.window="showNotice('Modelo Relacional regenerado a partir do ER.')"
     @relational-edit-rejected.window="showNotice($event.detail.message, 'warning')">
-    <header class="rel-toolbar">
-        <div class="rel-toolbar-top">
-            <div class="rel-toolbar-brand">
-                <span class="rel-toolbar-logo" aria-hidden="true">RE</span>
-                <div>
-                    <h1>Modelo Relacional</h1>
-                    <p>{{ $diagramName }}</p>
-                </div>
-            </div>
-
-            <nav class="rel-model-tabs" aria-label="Modelos do projeto">
-                <a wire:navigate href="{{ route('boards.er', $sourceDiagramId) }}">ER</a>
-                <a class="is-active" aria-current="page">Relacional</a>
-            </nav>
-
-            <div class="rel-toolbar-actions">
-                <label class="rel-dialect">
-                    <span>Banco</span>
-                    <select x-model="dialect" @change="$wire.setDialect($event.target.value)" aria-label="Banco de dados de destino">
-                        <template x-for="(info, key) in catalog" :key="key">
-                            <option :value="key" x-text="info.label"></option>
-                        </template>
-                    </select>
-                </label>
-                <button type="button" wire:click="organizeBoard" wire:loading.attr="disabled" wire:target="organizeBoard">
-                    <span wire:loading.remove wire:target="organizeBoard">Organizar</span>
-                    <span wire:loading wire:target="organizeBoard">Organizando…</span>
-                </button>
-                <button type="button" wire:click="openSqlPreview" wire:loading.attr="disabled" wire:target="openSqlPreview">
-                    <span wire:loading.remove wire:target="openSqlPreview">Gerar SQL</span>
-                    <span wire:loading wire:target="openSqlPreview">Gerando…</span>
-                </button>
-                <button type="button" class="rel-toolbar-save" wire:click="save" wire:loading.attr="disabled" wire:target="save">
-                    <span wire:loading.remove wire:target="save">Salvar</span>
-                    <span wire:loading wire:target="save">Salvando…</span>
-                </button>
-                <details class="rel-toolbar-menu" @click.outside="$el.open = false">
-                    <summary>Mais <span aria-hidden="true">⋯</span></summary>
-                    <div class="rel-menu-panel">
-                        <div class="rel-menu-context">
-                            <strong>{{ $sourceDiagramName }}</strong>
-                            <span>{{ count($tables) }} tabelas · {{ collect($tables)->sum(fn (array $table) => count($table['columns'])) }} colunas · {{ count($foreignKeys) }} FKs</span>
-                        </div>
-                        <button type="button" @click="guideOpen = !guideOpen; $el.closest('details').open = false">Guia do modelo</button>
-                        <button type="button" wire:click="toggleJson" @click="$el.closest('details').open = false">Ver JSON</button>
-                        <button type="button" class="rel-theme-toggle"
-                            x-data="{ dark: document.documentElement.classList.contains('dark') }"
-                            @erd-theme-changed.window="dark = $event.detail.theme === 'dark'"
-                            @click="dark = !dark; window.setErdTheme(dark ? 'dark' : 'light'); $el.closest('details').open = false"
-                            :aria-pressed="dark.toString()"
-                            :aria-label="dark ? 'Ativar tema claro' : 'Ativar tema escuro'">
-                            <span x-text="dark ? 'Tema claro' : 'Tema escuro'"></span>
-                        </button>
-                        <button type="button" class="rel-regenerate" wire:click="regenerate"
-                            wire:confirm="Regenerar substitui todas as edições manuais deste modelo Relacional pelos dados atuais do ER. Continuar?"
-                            wire:loading.attr="disabled" wire:target="regenerate">
-                            Regenerar do ER
-                        </button>
-                        <a wire:navigate href="{{ route('dashboard') }}">Voltar aos projetos</a>
-                    </div>
-                </details>
-            </div>
-        </div>
-    </header>
+    <x-board-header mode="relational" :diagram-name="$diagramName" :source-diagram-id="$sourceDiagramId"
+        :source-diagram-name="$sourceDiagramName" :tables-count="count($tables)"
+        :columns-count="collect($tables)->sum(fn (array $table) => count($table['columns']))"
+        :foreign-keys-count="count($foreignKeys)" />
 
     <div x-show="guideOpen" x-cloak class="rel-guide" @keydown.escape.window="guideOpen = false">
         <div>
@@ -147,7 +87,7 @@
         </aside>
     @endif
 
-    <section class="relative flex-1 overflow-hidden">
+    <section class="relative min-h-0 flex-1 overflow-hidden">
         @if ($tables)
             <x-flow wire:ignore :nodes="$nodes" :edges="$edges" :controls="true" :minimap="true"
                 background="dots" default-edge-type="floating"
@@ -198,8 +138,8 @@
                                     <div class="rel-column-definition nodrag">
                                         <select class="rel-column-type"
                                             @pointerdown.stop @click.stop
-                                            @change="$wire.updateColumnType(node.id, column.id, $event.target.value)"
-                                            title="Tipo da coluna">
+                                            @change="column.type = $event.target.value; if (typeKind(column.type) === 'length') column.length ??= (['char', 'nchar', 'binary'].includes(column.type) ? 1 : 255); if (typeKind(column.type) === 'decimal') { column.precision ??= 10; column.scale ??= 2; } $wire.updateColumnType(node.id, column.id, column.type)"
+                                            :title="catalog[dialect].types[column.type]" aria-label="Tipo da coluna">
                                             <template x-for="group in typeGroups" :key="dialect + group.label">
                                                 <optgroup :label="group.label" x-show="group.types.some(type => type in catalog[dialect].types)">
                                                     <template x-for="type in group.types.filter(type => type in catalog[dialect].types)" :key="dialect + type">
@@ -209,18 +149,18 @@
                                             </template>
                                         </select>
 
-                                        <input x-show="typeKind(column.type) === 'length'" type="number" min="1"
+                                        <input x-show="typeKind(column.type) === 'length'" class="rel-size-input" type="number" min="1" step="1" inputmode="numeric"
                                             :max="catalog[dialect].limits[column.type]"
-                                            :value="column.length ?? (['char', 'nchar', 'binary'].includes(column.type) ? 1 : 255)"
-                                            @pointerdown.stop @click.stop @change="$wire.updateColumnSize(node.id, column.id, $event.target.value)"
+                                            x-model.number="column.length"
+                                            @pointerdown.stop @click.stop @change="if ($event.target.validity.valid) $wire.updateColumnSize(node.id, column.id, $event.target.value)"
                                             aria-label="Limite de caracteres" title="Limite de caracteres">
 
                                         <div x-show="typeKind(column.type) === 'decimal'" class="rel-decimal-size" title="Precisão e escala">
-                                            <input type="number" min="1" :max="catalog[dialect].precision" :value="column.precision ?? 10"
-                                                @pointerdown.stop @click.stop @change="$wire.updateColumnSize(node.id, column.id, $event.target.value, column.scale ?? 2)" aria-label="Precisão">
+                                            <input type="number" min="1" step="1" inputmode="numeric" :max="catalog[dialect].precision" x-model.number="column.precision"
+                                                @pointerdown.stop @click.stop @change="if ($event.target.validity.valid) $wire.updateColumnSize(node.id, column.id, $event.target.value, column.scale ?? 2)" aria-label="Precisão" title="Precisão">
                                             <span>,</span>
-                                            <input type="number" min="0" max="30" :value="column.scale ?? 2"
-                                                @pointerdown.stop @click.stop @change="$wire.updateColumnSize(node.id, column.id, column.precision ?? 10, $event.target.value)" aria-label="Escala">
+                                            <input type="number" min="0" step="1" inputmode="numeric" :max="Math.min(column.precision ?? 10, 30)" x-model.number="column.scale"
+                                                @pointerdown.stop @click.stop @change="if ($event.target.validity.valid) $wire.updateColumnSize(node.id, column.id, column.precision ?? 10, $event.target.value)" aria-label="Escala" title="Escala">
                                         </div>
                                     </div>
                                     <button type="button" class="rel-null nodrag" :class="{ 'is-active': column.nullable }"

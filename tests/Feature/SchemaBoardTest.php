@@ -554,7 +554,7 @@ class SchemaBoardTest extends TestCase
             ->assertDontSeeHtml('position="bottom-right" class="er-legend"');
 
         $html = $component->html();
-        $this->assertLessThan(strpos($html, 'class="relative flex-1 overflow-hidden"'), strpos($html, 'class="er-guide"'));
+        $this->assertLessThan(strpos($html, 'class="relative min-h-0 flex-1 overflow-hidden"'), strpos($html, 'class="er-guide"'));
     }
 
     public function test_opening_an_existing_relational_model_does_not_regenerate_its_manual_edits(): void

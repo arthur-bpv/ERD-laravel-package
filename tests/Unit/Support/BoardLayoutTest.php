@@ -62,4 +62,36 @@ class BoardLayoutTest extends TestCase
         $this->assertSame($positions['right'], $result['right']);
         $this->assertGreaterThan(100, $result['middle']['y']);
     }
+
+    public function test_triangle_layout_opens_a_corridor_between_the_outer_nodes_with_row_spacing(): void
+    {
+        $nodes = [
+            ['id' => 'middle', 'height' => 100],
+            ['id' => 'left', 'height' => 100],
+            ['id' => 'right', 'height' => 100],
+        ];
+        $links = [
+            ['source' => 'middle', 'target' => 'left'],
+            ['source' => 'middle', 'target' => 'right'],
+            ['source' => 'left', 'target' => 'right'],
+        ];
+        $centered = BoardLayout::centered($nodes, $links, fn (array $node): int => $node['height'], 380, 180, 140);
+        $result = BoardLayout::clearLinkCorridors(
+            $nodes, $links, $centered, fn (array $node): int => $node['height'], 380, 140, 24,
+        );
+
+        $this->assertSame($centered['left'], $result['left']);
+        $this->assertSame($centered['right'], $result['right']);
+        $this->assertSame($centered['left']['y'], $centered['middle']['y']);
+        $this->assertGreaterThanOrEqual(
+            $result['left']['y'] + 100 + 140,
+            $result['middle']['y'],
+        );
+
+        $withoutOuterLink = BoardLayout::clearLinkCorridors(
+            $nodes, array_slice($links, 0, 2), $centered,
+            fn (array $node): int => $node['height'], 380, 140, 24,
+        );
+        $this->assertSame($centered, $withoutOuterLink);
+    }
 }

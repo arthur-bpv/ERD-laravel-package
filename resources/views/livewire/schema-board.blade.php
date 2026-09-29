@@ -1,99 +1,13 @@
-<div class="er-board flex h-screen flex-col bg-slate-100 font-sans text-slate-800" x-data="{ guideOpen: false }">
+<div class="er-board flex h-screen min-h-0 flex-col overflow-hidden bg-slate-100 font-sans text-slate-800" x-data="{ guideOpen: false }">
 
-    {{-- ===================== HEADER ===================== --}}
-    <header class="er-toolbar">
-        <div class="er-toolbar-top">
-            <div class="er-toolbar-brand">
-                <span class="er-toolbar-logo" aria-hidden="true">ER</span>
-                <div>
-                    <h1>Modelador ER</h1>
-                    <p>{{ $diagramName }}</p>
-                </div>
-            </div>
-            <a wire:navigate href="{{ route('dashboard') }}" class="er-toolbar-back">← Projetos</a>
+    <x-board-header mode="er" :diagram-name="$diagramName" :relational-diagram-id="$relationalDiagramId"
+        :entities-count="count($entities)" :relations-count="count($relations)" />
 
-            <div class="er-toolbar-actions">
-                <button
-                    type="button"
-                    x-data="{ dark: document.documentElement.classList.contains('dark') }"
-                    @erd-theme-changed.window="dark = $event.detail.theme === 'dark'"
-                    @click="dark = !dark; window.setErdTheme(dark ? 'dark' : 'light')"
-                    :aria-pressed="dark.toString()"
-                    :aria-label="dark ? 'Ativar tema claro' : 'Ativar tema escuro'"
-                    :title="dark ? 'Ativar tema claro' : 'Ativar tema escuro'"
-                    class="er-theme-toggle"
-                >
-                    <span aria-hidden="true" x-text="dark ? '☀' : '☾'"></span>
-                    <span x-text="dark ? 'Claro' : 'Escuro'"></span>
-                </button>
-                <button
-                    type="button"
-                    wire:click="organizeBoard"
-                    wire:loading.attr="disabled"
-                    wire:target="organizeBoard"
-                    class="er-toolbar-secondary"
-                >
-                    <span wire:loading.remove wire:target="organizeBoard">⌘ Organizar quadro</span>
-                    <span wire:loading wire:target="organizeBoard">Organizando…</span>
-                </button>
-                <button type="button" class="er-toolbar-secondary" @click="guideOpen = !guideOpen">? Guia</button>
-                <button wire:click="toggleJson" class="er-toolbar-secondary">{ } JSON</button>
-                <button
-                    wire:click="save"
-                    @saved.window="window.alert('✅ Diagrama salvo com sucesso!')"
-                    class="er-toolbar-save"
-                >💾 Salvar</button>
-            </div>
+    @if ($diagramName === 'Análise de alternativas ER → relacional')
+        <div class="er-analysis-guide">
+            <strong>Casos R01–R32:</strong> A e B mostram as cardinalidades de cada ponta; números ímpares não têm atributo e pares com “+” têm um balão. Os casos N:N exibem o retângulo associativo. Abaixo da matriz estão os casos recursivos, chave composta, UQ, entidade fraca, atributo multivalorado e relacionamento ternário.
         </div>
-
-        <nav class="er-model-tabs" aria-label="Modelos do projeto">
-            <a class="is-active" aria-current="page">Modelo ER</a>
-            @if ($relationalDiagramId)
-                <a wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}">Modelo Relacional</a>
-            @else
-                <button wire:click="convertToRelational">Modelo Relacional <small>gerar</small></button>
-            @endif
-        </nav>
-
-        <div class="er-toolbar-workflow">
-            <form wire:submit.prevent="createEntity" class="er-create-form">
-                <label for="new-entity-name">Nova entidade</label>
-                <input id="new-entity-name" type="text" wire:model="newEntityName" placeholder="Ex.: pedido">
-                <button type="submit"><span aria-hidden="true">＋</span> Adicionar</button>
-            </form>
-
-            <div class="er-toolbar-divider" aria-hidden="true"></div>
-
-            <div class="er-model-summary" aria-label="Resumo do modelo">
-                <strong>{{ count($entities) }}</strong> entidades
-                <span>•</span>
-                <strong>{{ count($relations) }}</strong> relacionamentos
-            </div>
-
-            <div class="er-toolbar-divider" aria-hidden="true"></div>
-
-            <div class="er-convert-group">
-                <span>Etapa 2</span>
-                @if ($relationalDiagramId)
-                    <a wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}">Abrir modelo relacional →</a>
-                @else
-                    <button
-                        wire:click="convertToRelational"
-                        wire:loading.attr="disabled"
-                        wire:target="convertToRelational"
-                    >
-                        <span wire:loading.remove wire:target="convertToRelational">Converter para relacional →</span>
-                        <span wire:loading wire:target="convertToRelational">Convertendo…</span>
-                    </button>
-                @endif
-            </div>
-        </div>
-        @if ($diagramName === 'Análise de alternativas ER → relacional')
-            <div class="er-analysis-guide">
-                <strong>Casos R01–R32:</strong> A e B mostram as cardinalidades de cada ponta; números ímpares não têm atributo e pares com “+” têm um balão. Os casos N:N exibem o retângulo associativo. Abaixo da matriz estão os casos recursivos, chave composta, UQ, entidade fraca, atributo multivalorado e relacionamento ternário.
-            </div>
-        @endif
-    </header>
+    @endif
 
     <div x-show="guideOpen" x-cloak class="er-guide" @keydown.escape.window="guideOpen = false">
         <div class="er-guide-intro">
@@ -140,7 +54,7 @@
 </div>
 
     {{-- ===================== CANVAS ===================== --}}
-    <div class="relative flex-1 overflow-hidden">
+    <div class="relative min-h-0 flex-1 overflow-hidden">
 
         {{-- wire:ignore: o morph do Livewire não pode destruir o DOM do AlpineFlow.
              Sem :sync — o estado é do servidor e as mudanças chegam por comandos WireFlow. --}}

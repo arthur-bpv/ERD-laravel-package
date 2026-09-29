@@ -441,6 +441,15 @@ class RelationalBoard extends Component
             self::LAYOUT_COLUMN_GAP,
             self::LAYOUT_ROW_GAP,
         );
+        $positions = BoardLayout::clearLinkCorridors(
+            $this->tables,
+            $links,
+            $positions,
+            fn (array $table): int => 62 + (count($table['columns'] ?? []) * 44),
+            self::TABLE_WIDTH,
+            self::LAYOUT_ROW_GAP,
+            24,
+        );
 
         foreach ($this->tables as &$table) {
             if (isset($positions[$table['id']])) {

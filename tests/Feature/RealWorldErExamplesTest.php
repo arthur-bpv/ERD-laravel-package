@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalSqlGenerator;
 use App\Support\ErDiagramImport;
 use Tests\TestCase;
 
@@ -53,6 +54,18 @@ class RealWorldErExamplesTest extends TestCase
                     "{$filename}: colunas esperadas ausentes em {$tableId}.",
                 );
             }
+        }
+    }
+
+    public function test_curated_relational_models_can_be_exported_as_sql(): void
+    {
+        foreach (['marketplace-er.json', 'clinic-er.json'] as $filename) {
+            $er = ErDiagramImport::parse(file_get_contents(public_path("examples/{$filename}")));
+            $relational = (new ErToRelationalTransformer)->transform($er);
+            $sql = (new RelationalSqlGenerator)->generate($relational);
+
+            $this->assertSame(count($relational['tables']), substr_count($sql, 'CREATE TABLE '), $filename);
+            $this->assertSame(count($relational['foreignKeys']), substr_count($sql, 'ADD FOREIGN KEY '), $filename);
         }
     }
 

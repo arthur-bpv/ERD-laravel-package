@@ -4,14 +4,17 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalSqlGenerator;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 #[Layout('layouts.app')]
 class RelationalBoard extends Component
@@ -54,6 +57,14 @@ class RelationalBoard extends Component
     public bool $isCustomized = false;
 
     public bool $showJson = false;
+
+    public bool $showSql = false;
+
+    #[Locked]
+    public string $sqlPreview = '';
+
+    #[Locked]
+    public ?string $sqlError = null;
 
     public function mount(Diagram $diagram, ErToRelationalTransformer $transformer): void
     {
@@ -369,6 +380,41 @@ class RelationalBoard extends Component
     public function toggleJson(): void
     {
         $this->showJson = ! $this->showJson;
+    }
+
+    public function openSqlPreview(RelationalSqlGenerator $generator): void
+    {
+        $this->showSql = true;
+        $this->sqlError = null;
+        $this->sqlPreview = '';
+
+        try {
+            $this->sqlPreview = $generator->generate($this->sqlData());
+        } catch (InvalidArgumentException $exception) {
+            $this->sqlError = $exception->getMessage();
+        }
+    }
+
+    public function downloadSql(RelationalSqlGenerator $generator): StreamedResponse
+    {
+        $sql = $generator->generate($this->sqlData());
+
+        return response()->streamDownload(
+            static function () use ($sql): void {
+                echo $sql;
+            },
+            'modelo-relacional-'.$this->dialect.'.sql',
+            ['Content-Type' => 'application/sql; charset=UTF-8'],
+        );
+    }
+
+    private function sqlData(): array
+    {
+        return [
+            'dialect' => $this->dialect,
+            'tables' => $this->tables,
+            'foreignKeys' => $this->foreignKeys,
+        ];
     }
 
     public function save(): void

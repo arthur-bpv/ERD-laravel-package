@@ -323,6 +323,33 @@ class RelationalBoardTest extends TestCase
             ->assertDispatched('relational-saved');
     }
 
+    public function test_sql_preview_uses_the_saved_relational_edits_and_current_dialect(): void
+    {
+        $diagram = $this->relationalDiagram();
+        $sourceBefore = $diagram->sourceDiagram->data;
+
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('renameTable', 'staff', 'Equipe')
+            ->call('renameColumn', 'staff', 'staff.id', 'employee_id')
+            ->call('addColumn', 'staff', 'salary', 'decimal')
+            ->call('updateColumnSize', 'staff', 'staff.manual_1', 12, 2)
+            ->call('setDialect', 'pgsql')
+            ->call('openSqlPreview')
+            ->assertSet('showSql', true)
+            ->assertSet('sqlError', null)
+            ->assertSee('Baixar .sql');
+
+        $sql = $component->get('sqlPreview');
+        $this->assertStringContainsString('CREATE TABLE "Equipe"', $sql);
+        $this->assertStringContainsString('"employee_id" BIGINT NOT NULL', $sql);
+        $this->assertStringContainsString('"salary" NUMERIC(12, 2) NOT NULL', $sql);
+        $this->assertStringContainsString('REFERENCES "Equipe" ("employee_id")', $sql);
+        $this->assertSame('pgsql', $diagram->fresh()->data['dialect']);
+        $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
+
+        $component->call('downloadSql')->assertFileDownloaded('modelo-relacional-pgsql.sql');
+    }
+
     public function test_regeneration_explicitly_replaces_the_logical_copy_from_er(): void
     {
         $diagram = $this->relationalDiagram();

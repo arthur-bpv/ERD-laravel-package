@@ -59,6 +59,10 @@
                 </button>
                 <button type="button" @click="guideOpen = !guideOpen">? Guia</button>
                 <button type="button" wire:click="toggleJson">{ } JSON</button>
+                <button type="button" wire:click="openSqlPreview" wire:loading.attr="disabled" wire:target="openSqlPreview">
+                    <span wire:loading.remove wire:target="openSqlPreview">SQL</span>
+                    <span wire:loading wire:target="openSqlPreview">Gerando…</span>
+                </button>
                 <button type="button" wire:click="organizeBoard" wire:loading.attr="disabled" wire:target="organizeBoard">
                     <span wire:loading.remove wire:target="organizeBoard">⌘ Organizar quadro</span>
                     <span wire:loading wire:target="organizeBoard">Organizando…</span>
@@ -117,6 +121,24 @@
         <div class="rel-modal-card">
             <header><strong>JSON do modelo Relacional</strong><button wire:click="toggleJson">✕</button></header>
             <pre>{{ $this->jsonPreview }}</pre>
+        </div>
+    </div>
+
+    <div x-show="$wire.showSql" x-cloak class="rel-modal" @click.self="$wire.showSql = false" @keydown.escape.window="$wire.showSql = false">
+        <div class="rel-modal-card">
+            <header>
+                <strong>SQL do modelo Relacional · {{ \App\Support\DataTypeCatalog::DIALECTS[$dialect]['label'] }}</strong>
+                <button type="button" @click="$wire.showSql = false" aria-label="Fechar SQL">✕</button>
+            </header>
+            @if ($sqlError)
+                <p role="alert" class="p-4 text-amber-300">{{ $sqlError }}</p>
+            @else
+                <pre>{{ $sqlPreview }}</pre>
+                <div class="flex justify-end gap-3 border-t border-slate-700 p-3">
+                    <button type="button" @click="navigator.clipboard.writeText($wire.sqlPreview); showNotice('SQL copiado.')">Copiar</button>
+                    <button type="button" wire:click="downloadSql" wire:loading.attr="disabled" wire:target="downloadSql">Baixar .sql</button>
+                </div>
+            @endif
         </div>
     </div>
 

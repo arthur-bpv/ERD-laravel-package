@@ -93,6 +93,12 @@ O banco é um **arquivo SQLite** (`database/database.sqlite`). Não existe conta
 | `/flow-check` | Página de diagnóstico da stack |
 | `/health` | Responde `{"status":"ok"}` — serve pra testar se o servidor está de pé |
 
+### Gerar SQL do modelo relacional
+
+No board relacional, escolha MySQL, PostgreSQL, Oracle ou SQL Server em **Banco** e clique em **SQL**. A janela mostra o DDL gerado do estado atual do modelo, com opção de copiar ou baixar um arquivo `.sql`. Renomeações, tipos, tamanhos, nulabilidade, PKs, unicidade e FKs são lidos do modelo relacional; a geração não modifica o modelo ER. Todas as tabelas são criadas antes das FKs, permitindo autorrelacionamentos e ciclos.
+
+O gerador avisa quando o modelo não pode produzir uma FK válida, como uma referência a coluna ausente ou sem PK/UQ. O arquivo é um esquema de criação de tabelas, não uma migração incremental de um banco já existente.
+
 ### Se o Docker roda em OUTRO computador
 
 Se você abre o navegador na sua máquina mas o `docker compose` roda num servidor/VM,

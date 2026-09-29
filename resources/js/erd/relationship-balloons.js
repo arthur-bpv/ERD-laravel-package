@@ -27,6 +27,7 @@ export function installRelationshipBalloons(container, getFlow, wire) {
             if (label && label.classList.contains('er-associative-label') !== Boolean(edge.data.associative)) {
                 label.classList.toggle('er-associative-label', Boolean(edge.data.associative));
             }
+            if (label) label.classList.toggle('er-self-role-label', Boolean(edge.data.isSelf));
 
             const anchor = flow.getNode(`relation-${relationId}-attribute-anchor`);
             if (!anchor || !label) continue;

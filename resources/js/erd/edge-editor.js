@@ -331,7 +331,7 @@ document.addEventListener('alpine:init', () => {
                 this.activeEdgeId = selectedEdge.id;
                 this.activeRelationId = this.relationId(edge);
                 this.activeRelationship = null;
-                this.relationName = selectedEdge.label || selectedEdge.data?.relationName || '';
+                this.relationName = selectedEdge.data?.relationName || selectedEdge.label || '';
                 this.fromRole = selectedEdge.data?.fromRole || '';
                 this.toRole = selectedEdge.data?.toRole || '';
                 this.feedback = '';
@@ -447,6 +447,12 @@ document.addEventListener('alpine:init', () => {
             return Boolean(this.e?.data?.isSelf);
         },
 
+        roleLabel(role, fallback) {
+            if (role === 'papel_origem') return 'Origem';
+            if (role === 'papel_destino') return 'Destino';
+            return role || fallback;
+        },
+
         get attributes() {
             return this.e?.data?.attributes || [];
         },
@@ -507,7 +513,7 @@ document.addEventListener('alpine:init', () => {
                 this.activeRelationship.relationName = nome;
             }
             if (edge.data) edge.data.relationName = nome;
-            if ('label' in edge) edge.label = nome;
+            if (!edge.data?.isSelf && 'label' in edge) edge.label = nome;
             this.$wire.renameRelation(relationId, nome);
             this.feedback = 'Nome atualizado.';
         },
@@ -549,7 +555,7 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.$wire.swapRelation(this.relationId(edge));
-            this.feedback = edge.source === edge.target
+            this.feedback = this.isSelf
                 ? 'Papéis do autorrelacionamento trocados.'
                 : 'Origem e destino invertidos.';
         },

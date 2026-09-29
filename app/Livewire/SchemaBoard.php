@@ -450,6 +450,7 @@ class SchemaBoard extends Component
                 'id' => $relation['id'].':out',
                 'source' => $isSelfRelationship ? $selfPorts['entityOut'] : $relation['from'],
                 'target' => $isSelfRelationship ? $selfPorts['diamondOut'] : $diamondId,
+                ...($isSelfRelationship ? ['label' => $this->selfRoleLabel($relation['fromRole'] ?? null, 'Origem')] : []),
                 'labelStart' => $this->nomeCurto($relation['fromAttr']),
                 'markerStart' => $this->marker($relation['childCard']),
             ];
@@ -459,12 +460,23 @@ class SchemaBoard extends Component
                 'id' => $relation['id'].':in',
                 'source' => $isSelfRelationship ? $selfPorts['diamondIn'] : $diamondId,
                 'target' => $isSelfRelationship ? $selfPorts['entityIn'] : $relation['to'],
+                ...($isSelfRelationship ? ['label' => $this->selfRoleLabel($relation['toRole'] ?? null, 'Destino')] : []),
                 'labelEnd' => $this->nomeCurto($relation['toAttr']),
                 'markerEnd' => $this->marker($relation['parentCard']),
             ];
         }
 
         return $edges;
+    }
+
+    private function selfRoleLabel(?string $role, string $fallback): string
+    {
+        return match ($role) {
+            null, '' => $fallback,
+            'papel_origem' => 'Origem',
+            'papel_destino' => 'Destino',
+            default => $role,
+        };
     }
 
     private function completedRelationshipEdgeFor(array $relation): array

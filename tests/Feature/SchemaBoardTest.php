@@ -256,6 +256,8 @@ class SchemaBoardTest extends TestCase
         $relation = $this->relacao($component->get('relations'), 'r4');
         $this->assertSame('subordinado', $relation['fromRole']);
         $this->assertSame('supervisor', $relation['toRole']);
+        $roleEdges = collect($component->instance()->buildEdges())->where('data.relationId', 'r4')->values();
+        $this->assertSame(['subordinado', 'supervisor'], $roleEdges->pluck('label')->all());
 
         $component->call('renameSelfRelationRoles', 'r4', ' ', 'supervisor');
         $this->assertSame('subordinado', $this->relacao($component->get('relations'), 'r4')['fromRole']);
@@ -353,12 +355,11 @@ class SchemaBoardTest extends TestCase
         );
         $this->assertSame('straight', $edges[0]['type']);
         $this->assertSame('straight', $edges[1]['type']);
+        $this->assertSame(['Origem', 'Destino'], $edges->pluck('label')->all());
         $this->assertArrayNotHasKey('sourceHandle', $edges[0]);
         $this->assertArrayNotHasKey('targetHandle', $edges[0]);
         $this->assertArrayNotHasKey('sourceHandle', $edges[1]);
         $this->assertArrayNotHasKey('targetHandle', $edges[1]);
-        $this->assertArrayNotHasKey('label', $edges[0]);
-        $this->assertArrayNotHasKey('label', $edges[1]);
     }
 
     /** Sem PK nem UQ no destino, não há o que referenciar — a conexão é recusada. */
@@ -497,6 +498,8 @@ class SchemaBoardTest extends TestCase
         $this->assertSame($before['fromRole'], $after['toRole']);
         $this->assertSame($before['parentCard'], $after['childCard']);
         $this->assertSame($before['childCard'], $after['parentCard']);
+        $labels = collect($component->instance()->buildEdges())->where('data.relationId', 'r4')->pluck('label')->all();
+        $this->assertSame(['Destino', 'Origem'], $labels);
     }
 
     /** Renomear o relacionamento troca o texto do losango via patch, sem recriar a linha. */

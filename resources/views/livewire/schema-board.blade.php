@@ -102,7 +102,7 @@
                      cada papel ocupa uma linha independente e nenhuma curva
                      atravessa o conteúdo da tabela. --}}
                 <template x-if="node.data.kind === 'relationship'">
-                    <div class="er-relationship" :class="{ 'is-associative': node.data.associative }" :data-id="node.id">
+                    <div class="er-relationship" :class="{ 'is-associative': node.data.associative, 'is-self': node.data.isSelf }" :data-id="node.id">
                         <div
                             class="er-diamond"
                             :class="{ 'is-incomplete': !node.data.complete }"
@@ -371,7 +371,7 @@
 
                         {{-- nome que aparece dentro do losango --}}
                         <button class="er-ee-name nodrag" @click="$refs.relationName.focus(); $refs.relationName.select()" title="Editar nome">
-                            <span class="er-ee-diamond" x-text="e.label || e.data?.relationName || 'sem nome'"></span>
+                            <span class="er-ee-diamond" x-text="e.data?.relationName || e.label || 'sem nome'"></span>
                         </button>
                         <form class="er-ee-rename" @submit.prevent="rename()">
                             <label for="relation-name-editor">Nome</label>
@@ -388,11 +388,11 @@
                         <form x-show="isSelf" x-cloak class="er-ee-roles" @submit.prevent="updateRoles()">
                             <div class="er-ee-roles-title">Papéis do auto-relacionamento</div>
                             <label>
-                                <span>Papel A</span>
+                                <span>Papel de origem</span>
                                 <input x-model="fromRole" maxlength="80" placeholder="Ex.: subordinado">
                             </label>
                             <label>
-                                <span>Papel B</span>
+                                <span>Papel de destino</span>
                                 <input x-model="toRole" maxlength="80" placeholder="Ex.: supervisor">
                             </label>
                             <button type="submit">Aplicar papéis</button>
@@ -401,7 +401,7 @@
 
                         {{-- ponta ORIGEM (filho / FK) = markerStart --}}
                         <div class="er-ee-end">
-                            <div class="er-ee-label" x-text="(e.data?.sourceName || e.source)">
+                            <div class="er-ee-label" x-text="isSelf ? roleLabel(e.data?.fromRole, 'Origem') : (e.data?.sourceName || e.source)">
                             </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'s'+o.m">
@@ -418,7 +418,7 @@
 
                         {{-- ponta DESTINO (pai / PK) = markerEnd --}}
                         <div class="er-ee-end">
-                            <div class="er-ee-label" x-text="(e.data?.targetName || e.target)">
+                            <div class="er-ee-label" x-text="isSelf ? roleLabel(e.data?.toRole, 'Destino') : (e.data?.targetName || e.target)">
                             </div>
                             <div class="er-ee-opts">
                                 <template x-for="o in options" :key="'t'+o.m">
@@ -437,7 +437,7 @@
                             <button
                                 class="er-ee-btn"
                                 @click="swap()"
-                                x-text="e.source === e.target ? '⇄ Trocar papéis' : '⇄ Inverter direção'"
+                                x-text="isSelf ? '⇄ Trocar papéis' : '⇄ Inverter direção'"
                             ></button>
                             <button class="er-ee-btn er-ee-danger" @click="remove()">🗑 Excluir</button>
                         </div>

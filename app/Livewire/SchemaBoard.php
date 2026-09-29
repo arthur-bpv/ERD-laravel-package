@@ -72,6 +72,61 @@ class SchemaBoard extends Component
     private const ENTITY_ROW_HEIGHT = 24.5;
 
     /**
+     * Tamanho do balão de atributo de relacionamento (`.er-relation-attr` no
+     * CSS). O servidor precisa conhecê-lo para escolher um ponto que não caia
+     * por cima de uma entidade quando o quadro é organizado — e para declarar
+     * as dimensões do nó, senão o `fitView` do canvas desiste de reenquadrar
+     * (ver a nota de `dimensions` em `relationshipNodeFor`).
+     */
+    private const RELATION_ATTRIBUTE_WIDTH = 136.0;
+
+    private const RELATION_ATTRIBUTE_HEIGHT = 58.0;
+
+    /** Tamanho do losango de relacionamento (`.er-relationship` no CSS). */
+    private const RELATIONSHIP_WIDTH = 120.0;
+
+    private const RELATIONSHIP_HEIGHT = 44.0;
+
+    /**
+     * Tamanho dos nós invisíveis: âncora de atributos e portas do
+     * autorrelacionamento. Não aparecem, mas também precisam de `dimensions`.
+     */
+    private const RELATION_ANCHOR_SIZE = 2.0;
+
+    /**
+     * Folga entre o balão e o que ele não pode cobrir: entidades e outros
+     * balões. Também é o respiro entre dois balões vizinhos, e por isso que
+     * os passos da grade têm de respeitar largura/altura + 2*folga.
+     */
+    private const RELATION_ATTRIBUTE_PADDING = 28.0;
+
+    /**
+     * Passos horizontais tentados ao redor da âncora, em px.
+     *
+     * Precisam ser >= largura + 2*folga (136 + 56 = 192). Com um passo menor,
+     * dois balões vizinhos se bloqueavam sozinhos e a busca pulava direto para
+     * o anel de fora, espalhando o grupo pelo quadro.
+     */
+    private const RELATION_ATTRIBUTE_COLUMNS = [0, 200, -200, 400, -400, 600, -600];
+
+    /**
+     * Passos verticais tentados ao redor da âncora, em px.
+     *
+     * Mesma conta: altura + 2*folga = 58 + 56 = 114.
+     */
+    private const RELATION_ATTRIBUTE_ROWS = [0, 120, -120, 240, -240, 360, -360];
+
+    /**
+     * Folga reservada acima de uma entidade que tem losango.
+     *
+     * O losango de uma autorrelação é desenhado 104px acima da entidade e o
+     * balão mais próximo ainda precisa de ~115px. Com a entidade encostada no
+     * topo do quadro o losango é travado em y=30, não sobra ponto livre ao
+     * redor dele e o balão é mandado para o lado oposto do quadro.
+     */
+    private const RELATION_NODE_HEADROOM = 220.0;
+
+    /**
      * Estrutura que guarda as entidades (tabelas) no servidor.
      *
      * @var array<int, array{id:string,name:string,x:int,y:int,attributes:array}>
@@ -222,6 +277,12 @@ class SchemaBoard extends Component
     /**
      * Monta um node completo, já com os metadados semânticos que o Blade usa
      * para liberar ou bloquear conexões.
+     *
+     * `dimensions` é obrigatório em TODO node publicado, não só nas entidades:
+     * o `fitView` do AlpineFlow aborta (e só aborta, sem erro) se encontrar
+     * um único node sem dimensão. Sem isso, o "Organizar quadro" redesenha o
+     * arranjo e nunca reenquadra — os balões ficavam fora da vista e era
+     * preciso dar F5 para o quadro voltar a aparecer inteiro.
      */
     private function nodeFor(array $e): array
     {
@@ -325,6 +386,10 @@ class SchemaBoard extends Component
             'position' => [
                 'x' => $relation['diamondX'] ?? $defaultX,
                 'y' => $relation['diamondY'] ?? $defaultY,
+            ],
+            'dimensions' => [
+                'width' => self::RELATIONSHIP_WIDTH,
+                'height' => self::RELATIONSHIP_HEIGHT,
             ],
             'data' => [
                 'kind' => 'relationship',
@@ -462,17 +527,56 @@ class SchemaBoard extends Component
 
     private function relationshipAttributeAnchorFor(array $relation): array
     {
-        $from = $this->findEntity($relation['from']);
-        $to = $this->findEntity($relation['to']);
-
         return [
             'id' => $this->relationshipAttributeAnchorId($relation['id']),
-            'position' => [
-                'x' => (int) round(($from['x'] + $to['x'] + self::ENTITY_WIDTH) / 2),
-                'y' => (int) round(($from['y'] + $to['y'] + self::ENTITY_BASE_HEIGHT) / 2),
+            'position' => $this->relationshipAttributeAnchorPosition($relation),
+            'dimensions' => [
+                'width' => self::RELATION_ANCHOR_SIZE,
+                'height' => self::RELATION_ANCHOR_SIZE,
             ],
             'data' => ['kind' => 'relationship-attribute-anchor', 'relationId' => $relation['id']],
         ];
+    }
+
+    /**
+     * Ponto de onde os balões de atributo desse relacionamento pendem.
+     *
+     * É a única fonte de verdade do vínculo entre o relacionamento e seus
+     * atributos, e vale exatamente para os dois lados do modelo: o PHP grava
+     * `position` do nó de âncora, e o `relationship-balloons.js` reancora o
+     * mesmo nó no rótulo desenhado da aresta a cada quadro de animação. Como
+     * o balão é sempre `âncora + offset`, ele continua grudado no
+     * relacionamento mesmo quando as entidades se movem — inclusive depois de
+     * "Organizar quadro", que só muda as coordenadas das entidades.
+     *
+     * Relações completas e não autorrelacionadas usam o nó de âncora (o
+     *urringo no meio da aresta); as demais pendem do losango.
+     *
+     * @return array{x:int,y:int}
+     */
+    private function relationshipAttributeAnchorPosition(array $relation): array
+    {
+        if ($this->usesAttributeAnchor($relation)) {
+            $from = $this->findEntity($relation['from']);
+            $to = $this->findEntity($relation['to']);
+            $fromHeight = $this->entityDimensions($from)['height'];
+            $toHeight = $this->entityDimensions($to)['height'];
+
+            // O cliente ancora no rótulo, que é o meio do TRECHO VISÍVEL da
+            // linha: da borda direita de uma entidade à borda esquerda da
+            // outra, na altura do centro de cada uma. Somar a altura-base
+            // fixa em vez da altura real de cada entidade errava a âncora em
+            // dezenas de pixels, e como a escolha do ponto do balão é feita
+            // aqui, a validação olhava para um lugar que ninguém veria.
+            return [
+                'x' => (int) round((($from['x'] ?? 0) + ($to['x'] ?? 0) + self::ENTITY_WIDTH) / 2),
+                'y' => (int) round(
+                    (($from['y'] ?? 0) + ($fromHeight / 2) + ($to['y'] ?? 0) + ($toHeight / 2)) / 2,
+                ),
+            ];
+        }
+
+        return $this->relationshipNodeFor($relation)['position'];
     }
 
     private function relationshipAttributeNodeId(string $relationId, string $attributeId): string
@@ -482,32 +586,257 @@ class SchemaBoard extends Component
 
     private function relationshipAttributeNodesFor(array $relation): array
     {
-        $diamond = $this->usesAttributeAnchor($relation)
-            ? $this->relationshipAttributeAnchorFor($relation)['position']
-            : $this->relationshipNodeFor($relation)['position'];
+        $anchor = $this->relationshipAttributeAnchorPosition($relation);
         $nodes = [];
         foreach (array_values($relation['attributes'] ?? []) as $index => $attribute) {
-            $defaultOffsetX = 150 + (intdiv($index, 4) * 164);
-            $defaultOffsetY = -108 + (($index % 4) * 72);
+            $default = $this->defaultRelationshipAttributeOffset($index);
+            $offsetX = $attribute['offsetX'] ?? $default['x'];
+            $offsetY = $attribute['offsetY'] ?? $default['y'];
 
             $nodes[] = [
                 'id' => $this->relationshipAttributeNodeId($relation['id'], $attribute['id']),
                 'position' => [
-                    'x' => $diamond['x'] + ($attribute['offsetX'] ?? $defaultOffsetX),
-                    'y' => $diamond['y'] + ($attribute['offsetY'] ?? $defaultOffsetY),
+                    'x' => $anchor['x'] + $offsetX,
+                    'y' => $anchor['y'] + $offsetY,
+                ],
+                'dimensions' => [
+                    'width' => self::RELATION_ATTRIBUTE_WIDTH,
+                    'height' => self::RELATION_ATTRIBUTE_HEIGHT,
                 ],
                 'data' => [
                     'kind' => 'relationship-attribute',
                     'relationId' => $relation['id'],
                     'attrId' => $attribute['id'],
                     'name' => $attribute['name'],
-                    'offsetX' => $attribute['offsetX'] ?? $defaultOffsetX,
-                    'offsetY' => $attribute['offsetY'] ?? $defaultOffsetY,
+                    'offsetX' => $offsetX,
+                    'offsetY' => $offsetY,
                 ],
             ];
         }
 
         return $nodes;
+    }
+
+    /**
+     * Ponto de partida do balão ainda não posicionado pelo usuário.
+     *
+     * O candidato é o canto superior esquerdo do balão; a âncora é o centro do
+     * balão desejado, então o meio é descontado. A primeira opção fica abaixo
+     * da linha — o corredor entre duas entidades é horizontal, e é o único
+     * lugar livre que sobra quando o quadro é organizado.
+     *
+     * @return array{x:int,y:int}
+     */
+    private function defaultRelationshipAttributeOffset(int $index): array
+    {
+        $candidates = $this->relationshipAttributeOffsetCandidates();
+        $candidate = $candidates[min($index, count($candidates) - 1)];
+
+        return [
+            'x' => (int) round($candidate['x'] - (self::RELATION_ATTRIBUTE_WIDTH / 2)),
+            'y' => (int) round($candidate['y'] - (self::RELATION_ATTRIBUTE_HEIGHT / 2)),
+        ];
+    }
+
+    /**
+     * Candidatos de posição do balão, do mais para o menos desejável.
+     *
+     * A ordem é a parte que importa, e ela é por DISTÂNCIA à âncora — não por
+     * faixa. Ordenar por faixa (esvaziar toda a linha de baixo, depois a de
+     * cima, depois as laterais) fazia o balão aceitar um ponto a 450px de lado
+     * antes mesmo de testar o ponto logo acima da linha, que estava livre: o
+     * balão acabava do outro lado do quadro e a linha de ligação apontava
+     * para lugar nenhum. Aqui o mais próximo sempre vem antes, então o
+     * vinculo com o relacionamento é o mais curto possível.
+     *
+     * O desempate prefere a faixa de baixo (a que sobra livre num corredor
+     * horizontal) e, dentro dela, o menor deslocamento lateral.
+     *
+     * @return array<int, array{x:int,y:int}> candidatos relativos ao centro da âncora
+     */
+    private function relationshipAttributeOffsetCandidates(): array
+    {
+        static $candidates = null;
+
+        if ($candidates !== null) {
+            return $candidates;
+        }
+
+        $candidates = [];
+        foreach (self::RELATION_ATTRIBUTE_ROWS as $row) {
+            foreach (self::RELATION_ATTRIBUTE_COLUMNS as $column) {
+                if ($row === 0 && $column === 0) {
+                    continue;
+                }
+
+                $candidates[] = ['x' => $column, 'y' => $row];
+            }
+        }
+
+        usort($candidates, fn (array $left, array $right): int => [
+            ($left['x'] ** 2) + ($left['y'] ** 2),
+            $left['y'] < 0 ? 1 : 0,
+            abs($left['x']),
+        ] <=> [
+            ($right['x'] ** 2) + ($right['y'] ** 2),
+            $right['y'] < 0 ? 1 : 0,
+            abs($right['x']),
+        ]);
+
+        return $candidates;
+    }
+
+    /**
+     * Empurra o arranjo para baixo quando algum losango encostaria no topo.
+     *
+     * Desloca o arranjo INTEIRO em vez de mexer só na entidade que tem
+     * losango: a translação preserva as distâncias entre todas elas, então não
+     * cria sobreposição nova. `fitView` em seguida reenquadra o quadro, então a
+     * descida não aparece para o usuário.
+     *
+     * @param  array<string, array{x:int,y:int}>  $positions
+     * @return array<string, array{x:int,y:int}>
+     */
+    private function reserveRelationshipNodeHeadroom(array $positions): array
+    {
+        $shift = 0.0;
+
+        foreach ($this->relations as $relation) {
+            if (! $this->usesRelationshipNode($relation)) {
+                continue;
+            }
+
+            $entityId = $relation['from'] ?: $relation['to'];
+            if (! $entityId || ! isset($positions[$entityId])) {
+                continue;
+            }
+
+            $shift = max($shift, self::RELATION_NODE_HEADROOM - $positions[$entityId]['y']);
+        }
+
+        if ($shift <= 0) {
+            return $positions;
+        }
+
+        $shift = (int) ceil($shift);
+        foreach ($positions as $id => $position) {
+            $positions[$id]['y'] += $shift;
+        }
+
+        return $positions;
+    }
+
+    /**
+     * Recoloca os balões de atributo depois que as entidades mudaram de lugar.
+     *
+     * Só o offset é reescrito — ele continua medido a partir da âncora do
+     * próprio relacionamento, então o balão não "desgruda": ele só troca o
+     * ponto do offset que não está mais livre. Gravar o offset (e não a
+     * posição absoluta) é o que faz o arranjo sobreviver a um reload e a
+     * arrastar a entidade de novo.
+     */
+    private function placeRelationshipAttributes(): void
+    {
+        $occupied = [];
+        foreach ($this->entities as $entity) {
+            $dimensions = $this->entityDimensions($entity);
+            $occupied[] = $this->paddedRectangle(
+                $entity['x'],
+                $entity['y'],
+                $dimensions['width'],
+                $dimensions['height'],
+            );
+        }
+
+        $candidates = $this->relationshipAttributeOffsetCandidates();
+
+        foreach ($this->relations as $relationIndex => $relation) {
+            $anchor = $this->relationshipAttributeAnchorPosition($relation);
+            $candidatesLeft = $candidates;
+
+            foreach ($relation['attributes'] ?? [] as $index => $attribute) {
+                $offset = $this->firstFreeRelationshipAttributeOffset(
+                    $anchor,
+                    $candidatesLeft,
+                    $occupied,
+                );
+
+                // O candidato escolhido não pode ser reaproveitado por outro
+                // balão: sai da lista e entra como área ocupada.
+                $candidatesLeft = array_values(array_filter(
+                    $candidatesLeft,
+                    fn (array $candidate): bool => $candidate !== $offset,
+                ));
+                $occupied[] = $this->paddedRectangle(
+                    $anchor['x'] + $offset['x'],
+                    $anchor['y'] + $offset['y'],
+                    self::RELATION_ATTRIBUTE_WIDTH,
+                    self::RELATION_ATTRIBUTE_HEIGHT,
+                );
+
+                $this->relations[$relationIndex]['attributes'][$index]['offsetX'] = $offset['x'];
+                $this->relations[$relationIndex]['attributes'][$index]['offsetY'] = $offset['y'];
+            }
+        }
+    }
+
+    /**
+     * @param  array<int, array{x:int,y:int}>  $candidates  offsets candidatos, em coordenadas de canto superior esquerdo
+     * @param  array<int, array{left:float,right:float,top:float,bottom:float}>  $occupied
+     * @return array{x:int,y:int}
+     */
+    private function firstFreeRelationshipAttributeOffset(array $anchor, array $candidates, array $occupied): array
+    {
+        foreach ($candidates as $candidate) {
+            $rectangle = $this->paddedRectangle(
+                $anchor['x'] + $candidate['x'],
+                $anchor['y'] + $candidate['y'],
+                self::RELATION_ATTRIBUTE_WIDTH,
+                self::RELATION_ATTRIBUTE_HEIGHT,
+            );
+
+            if (! $this->overlapsAny($rectangle, $occupied)) {
+                return $candidate;
+            }
+        }
+
+        // Nenhum ponto livre: mantém o último candidato em vez de devolver
+        // zero, que esconderia o balão exatamente em cima da âncora.
+        return $candidates === [] ? ['x' => 0, 'y' => 120] : end($candidates);
+    }
+
+    /**
+     * @param  array<int, array{left:float,right:float,top:float,bottom:float}>  $rectangles
+     * @return array{left:float,right:float,top:float,bottom:float}
+     */
+    private function paddedRectangle(float $x, float $y, float $width, float $height): array
+    {
+        $padding = self::RELATION_ATTRIBUTE_PADDING;
+
+        return [
+            'left' => $x - $padding,
+            'right' => $x + $width + $padding,
+            'top' => $y - $padding,
+            'bottom' => $y + $height + $padding,
+        ];
+    }
+
+    /**
+     * @param  array{left:float,right:float,top:float,bottom:float}  $rectangle
+     * @param  array<int, array{left:float,right:float,top:float,bottom:float}>  $rectangles
+     */
+    private function overlapsAny(array $rectangle, array $rectangles): bool
+    {
+        foreach ($rectangles as $other) {
+            if ($rectangle['left'] < $other['right']
+                && $rectangle['right'] > $other['left']
+                && $rectangle['top'] < $other['bottom']
+                && $rectangle['bottom'] > $other['top']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function relationshipAttributeEdgesFor(array $relation): array
@@ -1443,6 +1772,10 @@ class SchemaBoard extends Component
                     'x' => (int) round($points[$role]['x']) - 1,
                     'y' => (int) round($points[$role]['y']) - 1,
                 ],
+                'dimensions' => [
+                    'width' => self::RELATION_ANCHOR_SIZE,
+                    'height' => self::RELATION_ANCHOR_SIZE,
+                ],
                 'data' => [
                     'kind' => 'relationship-port',
                     'relationId' => $relation['id'],
@@ -1522,8 +1855,15 @@ class SchemaBoard extends Component
     }
 
     /**
-     * Reorganiza somente as entidades. As relações completas continuam sendo
-     * as arestas clássicas floating/smoothstep e se recalculam pelo canvas.
+     * Reorganiza o quadro: entidades, losangos e balões de atributo.
+     *
+     * As relações completas continuam sendo as arestas clássicas
+     * floating/smoothstep e se recalculam pelo canvas.
+     *
+     * O arranjo é gravado sozinho. Reorganizar sem persistir deixaria a
+     * posição na tela divergindo do diagrama salvo, e o próximo re-render do
+     * Livewire devolveria o quadro inteiro — entidades e balões — ao layout
+     * antigo.
      */
     public function organizeBoard(): void
     {
@@ -1542,6 +1882,7 @@ class SchemaBoard extends Component
             300,
             160,
         );
+        $positions = $this->reserveRelationshipNodeHeadroom($positions);
         $positions = BoardLayout::clearLinkCorridors(
             $this->entities,
             $links,
@@ -1569,19 +1910,26 @@ class SchemaBoard extends Component
             }
 
             $entityId = $relation['from'] ?: $relation['to'];
+
+            // Sem losango fixado, a posição é derivada da entidade e já mudou
+            // com o arranjo. Guardá-la aqui congelaria o losango (e os
+            // atributos que pendem dele) na coordenada antiga.
+            if (! isset($relation['diamondX'], $relation['diamondY'])) {
+                continue;
+            }
+
             if (! $entityId || ! isset($oldPositions[$entityId], $positions[$entityId])) {
                 continue;
             }
 
-            if (isset($relation['diamondX'])) {
-                $relation['diamondX'] += $positions[$entityId]['x'] - $oldPositions[$entityId]['x'];
-            }
-            if (isset($relation['diamondY'])) {
-                $relation['diamondY'] += $positions[$entityId]['y'] - $oldPositions[$entityId]['y'];
-            }
+            $relation['diamondX'] += $positions[$entityId]['x'] - $oldPositions[$entityId]['x'];
+            $relation['diamondY'] += $positions[$entityId]['y'] - $oldPositions[$entityId]['y'];
         }
         unset($relation);
 
+        $this->placeRelationshipAttributes();
+
+        $this->persistDiagram();
         $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
         $this->flowFitView();
     }

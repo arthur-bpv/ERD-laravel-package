@@ -584,6 +584,45 @@ class SchemaBoardTest extends TestCase
         $this->assertTrue($relational->fresh()->data['customized']);
     }
 
+    /**
+     * O `fitView` do AlpineFlow aborta em silêncio quando UM único node
+     * publicado vem sem `dimensions`: ele tenta 10 quadros de animação e
+     * simplesmente não reenquadra. O sintoma era o "Organizar quadro" redesenhar
+     * o arranjo e deixar parte dos balões fora da vista, parecendo que só o F5
+     * consertava. Como a falha não gera erro nem aviso, o único jeito de não
+     * reintroduzi-la é garantir a invariante aqui.
+     *
+     * O cenário monta de propósito todos os tipos de node: entidade, losango de
+     * relação comum, losango de autorrelação com as duas portas, âncora e
+     * balão de atributo de relacionamento.
+     */
+    public function test_every_published_node_declares_its_dimensions(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('addRelationAttribute', 'r1', 'published_at', 'date')
+            ->call('createSelfRelation', 'comments')
+            ->call('addRelationAttribute', 'r4', 'approved_by', 'string');
+
+        // Entidade é o único node sem `kind` no payload (o JS usa essa ausência
+        // para identificá-lo). Rótulos de papel, não ids: o objetivo é garantir
+        // que todo tipo de node passou pela função que declara as dimensões.
+        $kinds = collect($component->instance()->buildNodes())
+            ->map(fn (array $node) => $node['data']['kind'] ?? 'entity');
+
+        // Guarda contra o cenário deixar de cobrir algum tipo de node.
+        $this->assertEqualsCanonicalizing(
+            ['entity', 'relationship', 'relationship-attribute', 'relationship-attribute-anchor', 'relationship-port'],
+            $kinds->unique()->sort()->values()->all(),
+        );
+
+        foreach ($component->instance()->buildNodes() as $node) {
+            $this->assertArrayHasKey('width', $node['dimensions'] ?? [], "O node {$node['id']} não declarou a largura.");
+            $this->assertArrayHasKey('height', $node['dimensions'] ?? [], "O node {$node['id']} não declarou a altura.");
+            $this->assertGreaterThan(0, $node['dimensions']['width'], "O node {$node['id']} tem largura inválida.");
+            $this->assertGreaterThan(0, $node['dimensions']['height'], "O node {$node['id']} tem altura inválida.");
+        }
+    }
+
     public function test_json_preview_remains_the_er_source_model(): void
     {
         $json = json_decode(

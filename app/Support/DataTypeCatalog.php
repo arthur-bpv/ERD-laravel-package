@@ -6,6 +6,7 @@ class DataTypeCatalog
 {
     /** Tipos com tamanho (char/varchar/binário) e com precisão/escala. */
     public const LENGTH_TYPES = ['char', 'varchar', 'nchar', 'nvarchar', 'binary', 'varbinary'];
+
     public const DECIMAL_TYPES = ['decimal', 'numeric'];
 
     /**
@@ -76,27 +77,27 @@ class DataTypeCatalog
 
     /** Se o banco não tem o tipo, tenta estes na ordem. */
     private const FALLBACKS = [
-        'tinyint'    => ['smallint', 'integer'],
-        'smallint'   => ['integer'],
-        'bigint'     => ['integer', 'decimal'],
-        'numeric'    => ['decimal'],
-        'money'      => ['decimal'],
-        'float'      => ['double', 'decimal'],
-        'double'     => ['float', 'decimal'],
-        'boolean'    => ['tinyint', 'smallint', 'integer'],
-        'nchar'      => ['char'],
-        'nvarchar'   => ['varchar'],
+        'tinyint' => ['smallint', 'integer'],
+        'smallint' => ['integer'],
+        'bigint' => ['integer', 'decimal'],
+        'numeric' => ['decimal'],
+        'money' => ['decimal'],
+        'float' => ['double', 'decimal'],
+        'double' => ['float', 'decimal'],
+        'boolean' => ['tinyint', 'smallint', 'integer'],
+        'nchar' => ['char'],
+        'nvarchar' => ['varchar'],
         'mediumtext' => ['text'],
-        'longtext'   => ['text'],
-        'time'       => ['datetime', 'varchar'],
-        'datetime'   => ['timestamp'],
-        'timestamp'  => ['datetime'],
-        'binary'     => ['varbinary', 'blob'],
-        'varbinary'  => ['blob'],
-        'blob'       => ['text'],
-        'uuid'       => ['char'],
-        'json'       => ['text'],
-        'xml'        => ['text'],
+        'longtext' => ['text'],
+        'time' => ['datetime', 'varchar'],
+        'datetime' => ['timestamp'],
+        'timestamp' => ['datetime'],
+        'binary' => ['varbinary', 'blob'],
+        'varbinary' => ['blob'],
+        'blob' => ['text'],
+        'uuid' => ['char'],
+        'json' => ['text'],
+        'xml' => ['text'],
     ];
 
     public static function has(string $dialect): bool

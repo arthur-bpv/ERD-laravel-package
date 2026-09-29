@@ -30,9 +30,17 @@ class RelationalBoardTest extends TestCase
         $this->assertSame('N:1', $edge['label']);
         $this->assertArrayNotHasKey('markerStart', $edge);
         $this->assertSame('arrowclosed', $edge['markerEnd']);
-        $this->assertSame('floating', $edge['type']);
+        $this->assertSame('smoothstep', $edge['type']);
+        $this->assertSame('smoothstep', $edge['pathType']);
         $this->assertSame('relational-cardinality', $edge['class']);
+        $this->assertSame('col-clients.staff_no-left', $edge['sourceHandle']);
+        $this->assertSame('col-staff.id-right', $edge['targetHandle']);
         $this->assertStringNotContainsString('→', $edge['label']);
+
+        $foreignKey = $component->get('foreignKeys')[0];
+        $this->assertSame('clients.staff_no', $foreignKey['fromColumnId']);
+        $this->assertSame('staff.id', $foreignKey['toColumnId']);
+        $component->assertSeeHtml('class="rel-column relative"');
     }
 
     public function test_recursive_foreign_key_is_a_visible_loop_instead_of_a_collapsed_dot(): void
@@ -80,13 +88,13 @@ class RelationalBoardTest extends TestCase
         $this->assertSame('employees', $edge['source']);
         $this->assertSame('employees', $edge['target']);
         $this->assertSame('relational-self-loop', $edge['type']);
-        $this->assertSame('relation-source-right', $edge['sourceHandle']);
-        $this->assertSame('relation-target-top', $edge['targetHandle']);
+        $this->assertSame('col-employees.supervisor_matricula-right', $edge['sourceHandle']);
+        $this->assertSame('col-employees.id-right', $edge['targetHandle']);
         $this->assertSame('arrowclosed', $edge['markerEnd']);
         $this->assertSame('Supervisiona · N:1', $edge['label']);
         $component
-            ->assertSeeHtml("x-flow-handle:source.right=\"'relation-source-right'\"")
-            ->assertSeeHtml("x-flow-handle:target.top=\"'relation-target-top'\"")
+            ->assertDontSeeHtml('relation-source-right')
+            ->assertDontSeeHtml('relation-target-top')
             ->assertSee('window.relationalSelfLoopPath', escape: false);
     }
 
@@ -139,9 +147,9 @@ class RelationalBoardTest extends TestCase
         $this->assertSame(['PK/FK', 'PK/FK'], array_column($table['columns'], 'key'));
         $this->assertCount(2, $edges);
         $this->assertSame(['categories'], $edges->pluck('target')->unique()->values()->all());
-        $this->assertSame(['bezier'], $edges->pluck('type')->unique()->values()->all());
+        $this->assertSame(['smoothstep'], $edges->pluck('type')->unique()->values()->all());
         $this->assertCount(2, $edges->pluck('sourceHandle')->unique());
-        $this->assertCount(2, $edges->pluck('targetHandle')->unique());
+        $this->assertCount(1, $edges->pluck('targetHandle')->unique());
         $this->assertSame(['arrowclosed'], $edges->pluck('markerEnd')->unique()->values()->all());
         $component->assertViewHas(
             'nodes',
@@ -153,13 +161,32 @@ class RelationalBoardTest extends TestCase
     {
         $diagram = $this->relationalDiagram();
 
-        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
-            ->call('onNodeDragEnd', 'clients', ['x' => 410.4, 'y' => 220.7]);
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('onNodeDragEnd', 'clients', ['x' => 40, 'y' => 600])
+            ->assertDispatched('flow:fromObject');
 
         $client = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'clients');
 
-        $this->assertSame(410, $client['x']);
-        $this->assertSame(221, $client['y']);
+        $this->assertSame(40, $client['x']);
+        $this->assertSame(600, $client['y']);
+        $edge = $component->instance()->buildEdges()[0];
+        $this->assertSame('col-clients.staff_no-right', $edge['sourceHandle']);
+        $this->assertSame('col-staff.id-right', $edge['targetHandle']);
+    }
+
+    public function test_organizing_the_relational_board_centers_the_hub_persists_and_fits_the_view(): void
+    {
+        $diagram = $this->relationalDiagram();
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('organizeBoard')
+            ->assertDispatched('flow:fromObject')
+            ->assertDispatched('flow:fitView')
+            ->assertSee('Organizar quadro');
+
+        $tables = collect($component->get('tables'))->keyBy('id');
+
+        $this->assertSame(180, abs($tables['clients']['x'] - $tables['staff']['x']) - 380);
+        $this->assertSame($tables->values()->all(), $diagram->fresh()->data['tables']);
     }
 
     public function test_relational_edits_are_persisted_without_changing_the_er_source(): void
@@ -223,6 +250,52 @@ class RelationalBoardTest extends TestCase
         $this->assertSame(12, $decimal['precision']);
         $this->assertSame(4, $decimal['scale']);
         $this->assertNull($decimal['length']);
+    }
+
+    public function test_database_dialect_selector_exposes_supported_relational_databases(): void
+    {
+        Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
+            ->assertSet('dialect', 'mysql')
+            ->assertSee('Banco')
+            ->assertSee('MySQL')
+            ->assertSee('PostgreSQL')
+            ->assertSee('Oracle')
+            ->assertSee('SQL Server');
+    }
+
+    public function test_changing_database_dialect_converts_types_clamps_sizes_and_persists_the_choice(): void
+    {
+        $diagram = $this->relationalDiagram();
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('addColumn', 'staff', 'contador', 'tinyint')
+            ->call('addColumn', 'staff', 'codigo_externo', 'varchar')
+            ->call('updateColumnSize', 'staff', 'staff.manual_2', 8000)
+            ->call('setDialect', 'oracle')
+            ->assertSet('dialect', 'oracle')
+            ->assertDispatched('relational-saved');
+
+        $columns = collect(collect($component->get('tables'))->firstWhere('id', 'staff')['columns']);
+
+        $this->assertSame('smallint', $columns->firstWhere('id', 'staff.manual_1')['type']);
+        $this->assertSame(4000, $columns->firstWhere('id', 'staff.manual_2')['length']);
+        $this->assertSame('oracle', $diagram->fresh()->data['dialect']);
+
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram->fresh()])
+            ->assertSet('dialect', 'oracle');
+    }
+
+    public function test_invalid_database_dialect_and_unavailable_column_type_are_rejected(): void
+    {
+        $diagram = $this->relationalDiagram();
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('setDialect', 'sqlite')
+            ->assertSet('dialect', 'mysql')
+            ->call('updateColumnType', 'staff', 'staff.id', 'money');
+
+        $staff = collect($component->get('tables'))->firstWhere('id', 'staff');
+
+        $this->assertSame('bigint', collect($staff['columns'])->firstWhere('id', 'staff.id')['type']);
+        $this->assertArrayNotHasKey('dialect', $diagram->fresh()->data);
     }
 
     public function test_header_links_both_independent_models_and_explains_regeneration(): void

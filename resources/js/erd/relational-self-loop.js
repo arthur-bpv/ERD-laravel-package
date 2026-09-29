@@ -1,4 +1,4 @@
-const LOOP_GAP = 72;
+const LOOP_GAP = 44;
 const CORNER_RADIUS = 16;
 
 const outwardVector = (position) => ({
@@ -66,24 +66,33 @@ export function relationalSelfLoopPath({
         x: target.x + targetVector.x * LOOP_GAP,
         y: target.y + targetVector.y * LOOP_GAP,
     };
+    const sameSide = sourcePosition === targetPosition;
     const corner = sourceVector.x !== 0
         ? { x: sourceOutside.x, y: targetOutside.y }
         : { x: targetOutside.x, y: sourceOutside.y };
+    const outerPoints = sameSide
+        ? [sourceOutside, targetOutside]
+        : [sourceOutside, corner, targetOutside];
 
-    const firstOuterLength = Math.hypot(
-        corner.x - sourceOutside.x,
-        corner.y - sourceOutside.y,
-    );
-    const secondOuterLength = Math.hypot(
-        targetOutside.x - corner.x,
-        targetOutside.y - corner.y,
-    );
-    const labelPosition = firstOuterLength >= secondOuterLength
-        ? midpoint(sourceOutside, corner)
-        : midpoint(corner, targetOutside);
+    const labelPosition = sameSide
+        ? midpoint(sourceOutside, targetOutside)
+        : (() => {
+            const firstOuterLength = Math.hypot(
+                corner.x - sourceOutside.x,
+                corner.y - sourceOutside.y,
+            );
+            const secondOuterLength = Math.hypot(
+                targetOutside.x - corner.x,
+                targetOutside.y - corner.y,
+            );
+
+            return firstOuterLength >= secondOuterLength
+                ? midpoint(sourceOutside, corner)
+                : midpoint(corner, targetOutside);
+        })();
 
     return {
-        path: roundedPolyline([source, sourceOutside, corner, targetOutside, target]),
+        path: roundedPolyline([source, ...outerPoints, target]),
         labelPosition,
         labelOffsetX: Math.abs(target.x - source.x) / 2,
         labelOffsetY: Math.abs(target.y - source.y) / 2,

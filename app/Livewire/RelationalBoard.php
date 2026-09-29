@@ -4,43 +4,30 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Support\BoardLayout;
+use App\Support\DataTypeCatalog;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
-use App\Support\DataTypeCatalog;
-
 
 #[Layout('layouts.app')]
 class RelationalBoard extends Component
 {
     use WithWireFlow;
 
+    #[Locked]
     public string $dialect = 'mysql';
 
+    private const RECURSIVE_SIDES = ['right', 'left'];
 
-    private const RECURSIVE_HANDLE_PAIRS = [
-        ['right', 'top'],
-        ['bottom', 'right'],
-        ['left', 'bottom'],
-        ['top', 'left'],
-    ];
+    private const TABLE_WIDTH = 380;
 
-    private const PARALLEL_HORIZONTAL_HANDLE_PAIRS = [
-        ['top', 'top'],
-        ['bottom', 'bottom'],
-        ['right', 'left'],
-        ['left', 'right'],
-    ];
+    private const LAYOUT_COLUMN_GAP = 180;
 
-    private const PARALLEL_VERTICAL_HANDLE_PAIRS = [
-        ['left', 'left'],
-        ['right', 'right'],
-        ['bottom', 'top'],
-        ['top', 'bottom'],
-    ];
+    private const LAYOUT_ROW_GAP = 140;
 
     #[Locked]
     public int $diagramId;
@@ -130,6 +117,7 @@ class RelationalBoard extends Component
         unset($table);
 
         $this->persistCurrentData();
+        $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
     }
 
     public function renameTable(string $tableId, string $name): void
@@ -199,7 +187,7 @@ class RelationalBoard extends Component
     {
         $name = $this->normalizedName($name);
         $tableIndex = $this->tableIndex($tableId);
-        $type = $this->isValidType($type) ? $type : 'varchar';
+        $type = in_array($type, DataTypeCatalog::canonicalFor($this->dialect), true) ? $type : 'varchar';
 
         if ($name === null || $tableIndex === null) {
             return;
@@ -219,7 +207,7 @@ class RelationalBoard extends Component
             $sequence++;
         }
 
-        $this->tables[$tableIndex]['columns'][] = [
+        $this->tables[$tableIndex]['columns'][] = DataTypeCatalog::normalize($this->dialect, [
             'id' => $tableId.'.manual_'.$sequence,
             'name' => $name,
             'type' => $type,
@@ -227,58 +215,77 @@ class RelationalBoard extends Component
             'nullable' => false,
             'references' => null,
             'source' => 'manual',
-        ];
+        ]);
 
         $this->commitLogicalEdit();
     }
 
     public function updateColumnType(string $tableId, string $columnId, string $type): void
-{
-    $tableIndex = $this->tableIndex($tableId);
-    $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
+    {
+        $tableIndex = $this->tableIndex($tableId);
+        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
 
-    if ($columnIndex === null || ! in_array($type, DataTypeCatalog::canonicalFor($this->dialect), true)) {
-        return;
+        if ($columnIndex === null || ! in_array($type, DataTypeCatalog::canonicalFor($this->dialect), true)) {
+            return;
+        }
+
+        $column = $this->tables[$tableIndex]['columns'][$columnIndex];
+        $column['type'] = $type;
+        $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
+
+        $this->commitLogicalEdit();
     }
-
-    $column = $this->tables[$tableIndex]['columns'][$columnIndex];
-    $column['type'] = $type;
-    $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
-
-    $this->commitLogicalEdit();
-}
 
     public function updateColumnSize(
-    string $tableId,
-    string $columnId,
-    int|string|null $size,
-    int|string|null $scale = null,
-): void {
-    $tableIndex = $this->tableIndex($tableId);
-    $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
+        string $tableId,
+        string $columnId,
+        int|string|null $size,
+        int|string|null $scale = null,
+    ): void {
+        $tableIndex = $this->tableIndex($tableId);
+        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
 
-    if ($columnIndex === null || ! is_numeric($size)) {
-        return;
+        if ($columnIndex === null || ! is_numeric($size)) {
+            return;
+        }
+
+        $column = $this->tables[$tableIndex]['columns'][$columnIndex];
+
+        match (DataTypeCatalog::kind($column['type'] ?? '')) {
+            'length' => $column['length'] = (int) $size,
+            'decimal' => [
+                $column['precision'] = (int) $size,
+                $column['scale'] = is_numeric($scale) ? (int) $scale : (int) ($column['scale'] ?? 0),
+            ],
+            default => null,
+        };
+
+        if (DataTypeCatalog::kind($column['type'] ?? '') === null) {
+            return;
+        }
+
+        $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
+        $this->commitLogicalEdit();
     }
 
-    $column = $this->tables[$tableIndex]['columns'][$columnIndex];
+    public function setDialect(string $dialect): void
+    {
+        if (! DataTypeCatalog::has($dialect) || $dialect === $this->dialect) {
+            return;
+        }
 
-    match (DataTypeCatalog::kind($column['type'] ?? '')) {
-        'length' => $column['length'] = (int) $size,
-        'decimal' => [
-            $column['precision'] = (int) $size,
-            $column['scale'] = is_numeric($scale) ? (int) $scale : (int) ($column['scale'] ?? 0),
-        ],
-        default => null,
-    };
+        $this->dialect = $dialect;
 
-    if (DataTypeCatalog::kind($column['type'] ?? '') === null) {
-        return;
+        foreach ($this->tables as $tableIndex => $table) {
+            foreach ($table['columns'] as $columnIndex => $column) {
+                $column['type'] = DataTypeCatalog::resolve($dialect, $column['type'] ?? 'varchar');
+                $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($dialect, $column);
+            }
+        }
+
+        $this->commitLogicalEdit();
     }
 
-    $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
-    $this->commitLogicalEdit();
-}
     public function toggleColumnNullable(string $tableId, string $columnId): void
     {
         $tableIndex = $this->tableIndex($tableId);
@@ -370,6 +377,34 @@ class RelationalBoard extends Component
         $this->dispatch('relational-saved');
     }
 
+    public function organizeBoard(): void
+    {
+        $links = array_map(fn (array $foreignKey) => [
+            'source' => $foreignKey['fromTable'] ?? '',
+            'target' => $foreignKey['toTable'] ?? '',
+        ], $this->foreignKeys);
+        $positions = BoardLayout::centered(
+            $this->tables,
+            $links,
+            fn (array $table): int => 62 + (count($table['columns'] ?? []) * 44),
+            self::TABLE_WIDTH,
+            self::LAYOUT_COLUMN_GAP,
+            self::LAYOUT_ROW_GAP,
+        );
+
+        foreach ($this->tables as &$table) {
+            if (isset($positions[$table['id']])) {
+                $table['x'] = $positions[$table['id']]['x'];
+                $table['y'] = $positions[$table['id']]['y'];
+            }
+        }
+        unset($table);
+
+        $this->persistCurrentData();
+        $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
+        $this->flowFitView();
+    }
+
     public function getJsonPreviewProperty(): string
     {
         return json_encode([
@@ -384,6 +419,7 @@ class RelationalBoard extends Component
         return array_map(fn (array $table) => [
             'id' => $table['id'],
             'position' => ['x' => $table['x'], 'y' => $table['y']],
+            'dimensions' => ['width' => self::TABLE_WIDTH, 'height' => 62 + (count($table['columns']) * 44)],
             'data' => [
                 'name' => $table['name'],
                 'kind' => $table['kind'],
@@ -430,35 +466,35 @@ class RelationalBoard extends Component
                 'markerEnd' => 'arrowclosed',
             ];
 
-            if ($isRecursive) {
-                $slot = $recursiveSlots[$foreignKey['fromTable']] ?? 0;
-                $recursiveSlots[$foreignKey['fromTable']] = $slot + 1;
-                [$sourcePosition, $targetPosition] = self::RECURSIVE_HANDLE_PAIRS[$slot % count(self::RECURSIVE_HANDLE_PAIRS)];
-
-                return array_merge($edge, [
-                    'type' => 'relational-self-loop',
-                    'pathType' => 'smoothstep',
-                    'sourceHandle' => 'relation-source-'.$sourcePosition,
-                    'targetHandle' => 'relation-target-'.$targetPosition,
-                    'class' => 'relational-cardinality relational-self-reference',
-                ]);
-            }
-
-            // Ponto a ponto: FK aponta pra linha exata da PK/coluna referenciada.
-            $fromColumnId = $this->columnIdByName($foreignKey['fromTable'], $foreignKey['fromColumn']);
-            $toColumnId = $this->columnIdByName($foreignKey['toTable'], $foreignKey['toColumn']);
+            // Toda aresta parte da linha FK e termina na linha que ela referencia.
+            $fromColumnId = $this->columnIdForForeignKey($foreignKey, 'from');
+            $toColumnId = $this->columnIdForForeignKey($foreignKey, 'to');
 
             if ($fromColumnId === null || $toColumnId === null) {
                 return array_merge($edge, ['type' => 'floating', 'pathType' => 'smoothstep', 'class' => 'relational-cardinality']);
             }
 
+            if ($isRecursive) {
+                $slot = $recursiveSlots[$foreignKey['fromTable']] ?? 0;
+                $recursiveSlots[$foreignKey['fromTable']] = $slot + 1;
+                $side = self::RECURSIVE_SIDES[$slot % count(self::RECURSIVE_SIDES)];
+
+                return array_merge($edge, [
+                    'type' => 'relational-self-loop',
+                    'pathType' => 'smoothstep',
+                    'sourceHandle' => 'col-'.$fromColumnId.'-'.$side,
+                    'targetHandle' => 'col-'.$toColumnId.'-'.$side,
+                    'class' => 'relational-cardinality relational-self-reference',
+                ]);
+            }
+
             $from = $tablePositions[$foreignKey['fromTable']] ?? ['x' => 0, 'y' => 0];
             $to = $tablePositions[$foreignKey['toTable']] ?? ['x' => 0, 'y' => 0];
-            $horizontal = abs($to['x'] - $from['x']) >= abs($to['y'] - $from['y']);
-            $side = $horizontal
-                ? ($to['x'] >= $from['x'] ? 'right' : 'left')
-                : ($to['y'] >= $from['y'] ? 'bottom' : 'top');
-            $opposite = ['top' => 'bottom', 'bottom' => 'top', 'left' => 'right', 'right' => 'left'][$side];
+            $side = $to['x'] >= $from['x'] ? 'right' : 'left';
+            $tablesOverlapHorizontally = abs($to['x'] - $from['x']) < self::TABLE_WIDTH;
+            $opposite = $tablesOverlapHorizontally
+                ? $side
+                : ($side === 'right' ? 'left' : 'right');
 
             return array_merge($edge, [
                 'type' => 'smoothstep',
@@ -532,34 +568,24 @@ class RelationalBoard extends Component
 
         return $name !== '' && mb_strlen($name) <= 80 ? $name : null;
     }
-    private function columnIdByName(string $tableId, string $columnName): ?string
-{
-    $tableIndex = $this->tableIndex($tableId);
-    if ($tableIndex === null) {
-        return null;
-    }
-    foreach ($this->tables[$tableIndex]['columns'] as $column) {
-        if ($column['name'] === $columnName) {
-            return $column['id'];
-        }
-    }
-    return null;
-}
-    public function setDialect(string $dialect): void
+
+    private function columnIdForForeignKey(array $foreignKey, string $end): ?string
     {
-        if (! DataTypeCatalog::has($dialect) || $dialect === $this->dialect) {
-            return;
+        $tableId = $foreignKey[$end.'Table'];
+        $stableId = $foreignKey[$end.'ColumnId'] ?? null;
+        $columnName = $foreignKey[$end.'Column'];
+        $tableIndex = $this->tableIndex($tableId);
+
+        if ($tableIndex === null) {
+            return null;
         }
 
-        $this->dialect = $dialect;
-
-        foreach ($this->tables as $t => $table) {
-            foreach ($table['columns'] as $c => $column) {
-                $column['type'] = DataTypeCatalog::resolve($dialect, $column['type'] ?? 'varchar');
-                $this->tables[$t]['columns'][$c] = DataTypeCatalog::normalize($dialect, $column);
+        foreach ($this->tables[$tableIndex]['columns'] as $column) {
+            if (($stableId !== null && $column['id'] === $stableId) || $column['name'] === $columnName) {
+                return $column['id'];
             }
         }
 
-        $this->commitLogicalEdit();
+        return null;
     }
 }

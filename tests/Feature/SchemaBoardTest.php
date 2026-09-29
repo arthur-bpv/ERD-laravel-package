@@ -104,6 +104,16 @@ class SchemaBoardTest extends TestCase
         $response->assertOk();
         $response->assertSee('erd-open-relation', false);
         $response->assertSee('node.data.relationId', false);
+        $response->assertDontSee('er-diamond-add', false);
+
+        $blade = file_get_contents(resource_path('views/livewire/schema-board.blade.php'));
+        preg_match(
+            '/<template x-if="node\.data\.kind === \'relationship\'">(.*?)<template x-if="node\.data\.kind === \'relationship-port\'">/s',
+            $blade,
+            $relationshipTemplate,
+        );
+        $this->assertNotEmpty($relationshipTemplate);
+        $this->assertStringNotContainsString('x-flow-handle', $relationshipTemplate[1]);
     }
 
     /**

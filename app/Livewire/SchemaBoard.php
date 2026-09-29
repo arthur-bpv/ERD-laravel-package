@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Support\BoardLayout;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
@@ -1518,6 +1519,71 @@ class SchemaBoard extends Component
         // dentro do escopo do componente.
 
         $this->dispatch('saved'); // pra mostrar um toast/feedback no front, se quiser
+    }
+
+    /**
+     * Reorganiza somente as entidades. As relações completas continuam sendo
+     * as arestas clássicas floating/smoothstep e se recalculam pelo canvas.
+     */
+    public function organizeBoard(): void
+    {
+        $oldPositions = collect($this->entities)->mapWithKeys(fn (array $entity): array => [
+            $entity['id'] => ['x' => $entity['x'], 'y' => $entity['y']],
+        ])->all();
+        $links = array_map(fn (array $relation): array => [
+            'source' => $relation['from'] ?? '',
+            'target' => $relation['to'] ?? '',
+        ], $this->relations);
+        $positions = BoardLayout::centered(
+            $this->entities,
+            $links,
+            fn (array $entity): float => $this->entityDimensions($entity)['height'],
+            self::ENTITY_WIDTH,
+            300,
+            160,
+        );
+        $positions = BoardLayout::clearLinkCorridors(
+            $this->entities,
+            $links,
+            $positions,
+            fn (array $entity): float => $this->entityDimensions($entity)['height'],
+            self::ENTITY_WIDTH,
+            160,
+            24,
+        );
+
+        foreach ($this->entities as &$entity) {
+            if (isset($positions[$entity['id']])) {
+                $entity['x'] = $positions[$entity['id']]['x'];
+                $entity['y'] = $positions[$entity['id']]['y'];
+            }
+        }
+        unset($entity);
+
+        // No fluxo antigo, nós de relacionamento só existem para relações
+        // incompletas ou autorrelacionamentos. Preserve o deslocamento manual
+        // desses losangos em relação à entidade a que pertencem.
+        foreach ($this->relations as &$relation) {
+            if (! $this->usesRelationshipNode($relation)) {
+                continue;
+            }
+
+            $entityId = $relation['from'] ?: $relation['to'];
+            if (! $entityId || ! isset($oldPositions[$entityId], $positions[$entityId])) {
+                continue;
+            }
+
+            if (isset($relation['diamondX'])) {
+                $relation['diamondX'] += $positions[$entityId]['x'] - $oldPositions[$entityId]['x'];
+            }
+            if (isset($relation['diamondY'])) {
+                $relation['diamondY'] += $positions[$entityId]['y'] - $oldPositions[$entityId]['y'];
+            }
+        }
+        unset($relation);
+
+        $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
+        $this->flowFitView();
     }
 
     /**

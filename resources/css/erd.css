@@ -229,8 +229,19 @@
 .er-key:hover { border-color: #cbd5e1; background: #fff; }
 
 
-.er-attr-name { font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.er-row.is-pk .er-attr-name { text-decoration: underline; text-decoration-color: #f59e0b; }
+.er-attr-name-input {
+    min-width: 0;
+    width: 100%;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    padding: 2px 3px;
+    font: inherit;
+    font-weight: 600;
+    color: #0f172a;
+}
+.er-attr-name-input:focus { outline: none; border-color: #a5b4fc; background: #fff; }
+.er-row.is-pk .er-attr-name-input { text-decoration: underline; text-decoration-color: #f59e0b; }
 .er-attr-type {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 10.5px; color: #94a3b8; white-space: nowrap;
@@ -691,7 +702,8 @@
 .dark .er-row:hover { background: #172033; }
 .dark .er-row.is-pk { background: #272313; }
 .dark .er-row.is-pk:hover { background: #352f16; }
-.dark .er-attr-name { color: #f1f5f9; }
+.dark .er-attr-name-input { color: #f1f5f9; }
+.dark .er-attr-name-input:focus { border-color: #6366f1; background: #0f172a; }
 .dark .er-attr-type { color: #64748b; }
 .dark .er-foot { border-color: #1e293b; background: #0b1324; }
 .dark .er-add-toggle { color: #a5b4fc; }

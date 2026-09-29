@@ -429,6 +429,7 @@ class ErToRelationalTransformer
             $column['references'] = [
                 'table' => $parent['id'],
                 'column' => $key['name'],
+                'columnId' => $key['id'],
                 'cardinality' => $cardinality,
                 'sourceCard' => $sourceCard,
                 'targetCard' => $targetCard,
@@ -552,8 +553,10 @@ class ErToRelationalTransformer
                     'id' => 'fk_'.$table['id'].'_'.$column['id'],
                     'fromTable' => $table['id'],
                     'fromColumn' => $column['name'],
+                    'fromColumnId' => $column['id'],
                     'toTable' => $column['references']['table'],
                     'toColumn' => $column['references']['column'],
+                    'toColumnId' => $column['references']['columnId'] ?? null,
                     'cardinality' => $column['references']['cardinality'] ?? 'N:1',
                     'sourceCard' => $column['references']['sourceCard'] ?? 'cf-zero-many',
                     'targetCard' => $column['references']['targetCard'] ?? 'cf-one-one',

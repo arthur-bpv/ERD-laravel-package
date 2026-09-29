@@ -26,6 +26,16 @@
                     <span aria-hidden="true" x-text="dark ? '☀' : '☾'"></span>
                     <span x-text="dark ? 'Claro' : 'Escuro'"></span>
                 </button>
+                <button
+                    type="button"
+                    wire:click="organizeBoard"
+                    wire:loading.attr="disabled"
+                    wire:target="organizeBoard"
+                    class="er-toolbar-secondary"
+                >
+                    <span wire:loading.remove wire:target="organizeBoard">⌘ Organizar quadro</span>
+                    <span wire:loading wire:target="organizeBoard">Organizando…</span>
+                </button>
                 <button type="button" class="er-toolbar-secondary" @click="guideOpen = !guideOpen">? Guia</button>
                 <button wire:click="toggleJson" class="er-toolbar-secondary">{ } JSON</button>
                 <button
@@ -179,12 +189,6 @@
                      atravessa o conteúdo da tabela. --}}
                 <template x-if="node.data.kind === 'relationship'">
                     <div class="er-relationship" :class="{ 'is-associative': node.data.associative }" :data-id="node.id">
-                        <div class="er-anchor er-anchor-left" x-flow-handle:target.left="'left'"></div>
-                        <div class="er-anchor er-anchor-right" x-flow-handle:source.right="'right'"></div>
-                        <div class="er-anchor er-anchor-top" x-flow-handle:target.top="'top'"></div>
-                        <div class="er-anchor er-anchor-top" x-flow-handle:source.top="'top'"></div>
-                        <div class="er-anchor er-anchor-bottom" x-flow-handle:target.bottom="'bottom'"></div>
-                        <div class="er-anchor er-anchor-bottom" x-flow-handle:source.bottom="'bottom'"></div>
                         <div
                             class="er-diamond"
                             :class="{ 'is-incomplete': !node.data.complete }"
@@ -201,14 +205,6 @@
                             "
                             title="Duplo clique para renomear"
                         ></div>
-                        <button
-                            class="er-diamond-add nodrag"
-                            title="Adicionar atributo ao relacionamento"
-                            @click.stop="
-                                const nome = window.prompt('Nome do atributo do relacionamento');
-                                if (nome) $wire.addRelationAttribute(node.data.relationId, nome);
-                            "
-                        >+</button>
                     </div>
                 </template>
 
@@ -365,15 +361,25 @@
                                 </button>
 
                                 {{-- nome do atributo --}}
-                                <span
-                                    class="er-attr-name"
-                                    x-text="attr.name"
-                                    @dblclick="
-                                        const nome = window.prompt('Renomear atributo', attr.name);
-                                        if (nome) $wire.renameAttribute(node.id, attr.id, nome);
+                                <input
+                                    type="text"
+                                    class="er-attr-name-input nodrag"
+                                    x-data="{ draft: attr.name }"
+                                    x-model="draft"
+                                    :aria-label="'Nome do atributo ' + attr.name"
+                                    @pointerdown.stop
+                                    @click.stop
+                                    @keydown.enter.stop.prevent="$event.target.blur()"
+                                    @keydown.escape.stop.prevent="draft = attr.name; $event.target.blur()"
+                                    @blur="
+                                        const name = draft.trim();
+                                        if (name && name !== attr.name) {
+                                            $wire.renameAttribute(node.id, attr.id, draft.trim());
+                                        } else {
+                                            draft = attr.name;
+                                        }
                                     "
-                                    title="Duplo clique para renomear"
-                                ></span>
+                                >
 
 
 
@@ -392,14 +398,14 @@
                         <button class="er-add-toggle" @click="open = !open" x-text="open ? '− cancelar' : '+ atributo'"></button>
 
                         <div x-show="open" x-cloak class="er-add-form" @keydown.enter.prevent="
-                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }
+                            if (n.trim()) { $wire.addAttribute(node.id, n.trim(), 'varchar', k); n=''; k=''; open=false; }
                         ">
                             <input class="er-add-input" x-model="n" placeholder="nome" @pointerdown.stop>
                             <select class="er-add-select er-add-key" x-model="k" @pointerdown.stop>
                                 <option value="">—</option>
                                 <option value="PK">PK</option>
                             </select>
-                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), k); n=''; k=''; open=false; }">ok</button>
+                            <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), 'varchar', k); n=''; k=''; open=false; }">ok</button>
                         </div>
                     </div>
                 </div>

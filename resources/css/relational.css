@@ -85,11 +85,6 @@
 .rel-notice.is-warning { border-color: rgb(245 158 11 / 32%); color: #fde68a; }
 .rel-notice.is-warning > span { background: rgb(245 158 11 / 16%); }
 
-.rel-relation-handle {
-    opacity: 0;
-    pointer-events: none;
-}
-
 .rel-node-head {
     display: flex;
     align-items: center;

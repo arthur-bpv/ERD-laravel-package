@@ -3,40 +3,41 @@ import test from 'node:test';
 
 import { relationalSelfLoopPath } from '../../resources/js/erd/relational-self-loop.js';
 
-test('routes a right-to-top self relationship outside the table', () => {
+test('routes a recursive FK between two rows on the right side', () => {
     const result = relationalSelfLoopPath({
         sourceX: 290,
-        sourceY: 75,
+        sourceY: 125,
         sourcePosition: 'right',
-        targetX: 145,
-        targetY: 0,
-        targetPosition: 'top',
+        targetX: 290,
+        targetY: 25,
+        targetPosition: 'right',
     });
 
-    assert.equal(result.path, 'M290,75 L346,75 Q362,75 362,59 L362,-56 Q362,-72 346,-72 L161,-72 Q145,-72 145,-56 L145,0');
-    assert.ok(result.labelPosition.x > 290 || result.labelPosition.y < 0);
+    assert.equal(result.path, 'M290,125 L318,125 Q334,125 334,109 L334,41 Q334,25 318,25 L290,25');
+    assert.equal(result.labelPosition.x, 334);
+    assert.equal(result.labelPosition.y, 75);
+    assert.doesNotMatch(result.path, /NaN/);
 });
 
-test('rotates the external loop for every recursive handle pair', () => {
+test('routes recursive FKs on either lateral side without crossing the table', () => {
     const cases = [
-        ['right', 'top', { x: 290, y: 75 }, { x: 145, y: 0 }],
-        ['bottom', 'right', { x: 145, y: 150 }, { x: 290, y: 75 }],
-        ['left', 'bottom', { x: 0, y: 75 }, { x: 145, y: 150 }],
-        ['top', 'left', { x: 145, y: 0 }, { x: 0, y: 75 }],
+        ['right', { x: 290, y: 125 }, { x: 290, y: 25 }],
+        ['left', { x: 0, y: 125 }, { x: 0, y: 25 }],
     ];
 
-    for (const [sourcePosition, targetPosition, source, target] of cases) {
+    for (const [position, source, target] of cases) {
         const result = relationalSelfLoopPath({
             sourceX: source.x,
             sourceY: source.y,
-            sourcePosition,
+            sourcePosition: position,
             targetX: target.x,
             targetY: target.y,
-            targetPosition,
+            targetPosition: position,
         });
 
         assert.match(result.path, /^M[-\d.]+,[-\d.]+ L/);
         assert.match(result.path, / Q/);
+        assert.doesNotMatch(result.path, /NaN/);
         assert.ok(Number.isFinite(result.labelPosition.x));
         assert.ok(Number.isFinite(result.labelPosition.y));
     }

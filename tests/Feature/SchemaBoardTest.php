@@ -444,18 +444,59 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('cf-one-many', $this->relacao($component->get('relations'), 'r1')['childCard']);
     }
 
-    /** Inverter troca as duas pontas por completo: entidades, colunas e símbolos. */
-    public function test_swapping_a_relation_inverts_both_ends(): void
+    /** Inverter muda a ponta visual e escolhe uma PK válida na nova origem. */
+    public function test_swapping_a_relation_moves_cardinalities_and_reselects_its_columns(): void
     {
         $component = Livewire::test(SchemaBoard::class)->call('swapRelation', 'r1');
 
         $r1 = $this->relacao($component->get('relations'), 'r1');
         $this->assertSame('users', $r1['from']);
         $this->assertSame('posts', $r1['to']);
-        $this->assertSame('users.id', $r1['fromAttr']);
-        $this->assertSame('posts.user_id', $r1['toAttr']);
-        $this->assertSame('cf-one-one', $r1['childCard']);
-        $this->assertSame('cf-one-many', $r1['parentCard']);
+        $this->assertSame('', $r1['fromAttr']);
+        $this->assertSame('posts.id', $r1['toAttr']);
+        $this->assertSame('cf-one-many', $r1['childCard']);
+        $this->assertSame('cf-one-one', $r1['parentCard']);
+
+        $edge = collect($component->instance()->buildEdges())->firstWhere('id', 'r1');
+        $this->assertSame('users', $edge['source']);
+        $this->assertSame('posts', $edge['target']);
+        $this->assertSame('cf-one-many', $edge['markerStart']['type']);
+        $this->assertSame('cf-one-one', $edge['markerEnd']['type']);
+        $component->assertDispatched('erd-rebuild-edge');
+
+        $component->call('swapRelation', 'r1');
+        $restored = $this->relacao($component->get('relations'), 'r1');
+        $this->assertSame('posts', $restored['from']);
+        $this->assertSame('users', $restored['to']);
+        $this->assertSame('posts.user_id', $restored['fromAttr']);
+        $this->assertSame('users.id', $restored['toAttr']);
+    }
+
+    public function test_swapping_requires_an_identifier_on_the_new_parent(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('cycleKey', 'posts', 'posts.id');
+        $before = $this->relacao($component->get('relations'), 'r1');
+
+        $component->call('swapRelation', 'r1')
+            ->assertDispatched('erd-swap-rejected');
+
+        $this->assertSame($before, $this->relacao($component->get('relations'), 'r1'));
+    }
+
+    public function test_swapping_a_self_relationship_still_exchanges_its_roles(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('createSelfRelation', 'users');
+        $before = $this->relacao($component->get('relations'), 'r4');
+
+        $component->call('swapRelation', 'r4');
+        $after = $this->relacao($component->get('relations'), 'r4');
+
+        $this->assertSame($before['toRole'], $after['fromRole']);
+        $this->assertSame($before['fromRole'], $after['toRole']);
+        $this->assertSame($before['parentCard'], $after['childCard']);
+        $this->assertSame($before['childCard'], $after['parentCard']);
     }
 
     /** Renomear o relacionamento troca o texto do losango via patch, sem recriar a linha. */

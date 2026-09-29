@@ -373,6 +373,9 @@ document.addEventListener('alpine:init', () => {
                 this.activeRelationship = ev.detail.relationship ?? null;
                 if (this.activeRelationship) this.activeRelationship.relationId = ev.detail.relationId;
             });
+            this.$wire.on('erd-swap-rejected', ({ relationId, message }) => {
+                if (this.activeRelationId === relationId) this.feedback = message;
+            });
         },
 
         // Ancora perto do cursor, mas sem deixar o painel estourar a borda

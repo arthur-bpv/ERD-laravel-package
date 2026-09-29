@@ -7,6 +7,7 @@ use App\Services\ErToRelationalTransformer;
 use App\Support\BoardLayout;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -1310,19 +1311,47 @@ class SchemaBoard extends Component
         }
     }
 
-    /**
-     * Inverte a direção do relacionamento (quem é pai vira filho).
-     */
+    /** Inverte quem recebe a FK e move as cardinalidades para as novas pontas. */
     public function swapRelation(string $relationId): void
     {
-        $this->mutateRelation($relationId, function (&$r) {
-            [$r['from'], $r['to']] = [$r['to'], $r['from']];
-            [$r['fromAttr'], $r['toAttr']] = [$r['toAttr'], $r['fromAttr']];
-            [$r['childCard'], $r['parentCard']] = [$r['parentCard'], $r['childCard']];
-            [$r['fromRole'], $r['toRole']] = [$r['toRole'] ?? 'papel_destino', $r['fromRole'] ?? 'papel_origem'];
-        });
+        foreach ($this->relations as $relation) {
+            if ($relation['id'] !== $relationId) {
+                continue;
+            }
 
-        $this->syncNodeData();
+            if ($this->isSelfRelationship($relation)) {
+                $this->mutateRelation($relationId, function (&$item) {
+                    [$item['fromAttr'], $item['toAttr']] = [$item['toAttr'], $item['fromAttr']];
+                    [$item['childCard'], $item['parentCard']] = [$item['parentCard'], $item['childCard']];
+                    [$item['fromRole'], $item['toRole']] = [$item['toRole'] ?? 'papel_destino', $item['fromRole'] ?? 'papel_origem'];
+                });
+            } elseif ($this->isCompleteRelationship($relation)) {
+                $newParent = $this->findEntity($relation['from']);
+                $newChild = $this->findEntity($relation['to']);
+                $identifier = $newParent ? $this->identificadorDe($newParent) : null;
+                if (! $identifier || ! $newChild) {
+                    $this->dispatch('erd-swap-rejected', relationId: $relationId,
+                        message: 'A nova entidade de destino precisa de uma coluna PK ou UQ.');
+
+                    return;
+                }
+
+                $foreignKey = $this->buscarColunaFkExistente($newChild['id'], $newParent) ?? '';
+                $this->mutateRelation($relationId, function (&$item) use ($identifier, $foreignKey) {
+                    [$item['from'], $item['to']] = [$item['to'], $item['from']];
+                    $item['fromAttr'] = $foreignKey;
+                    $item['toAttr'] = $identifier;
+                    // childCard e parentCard descrevem os novos papéis; ao manter
+                    // os valores, os símbolos mudam de entidade no canvas.
+                });
+            } else {
+                return;
+            }
+
+            $this->syncNodeData();
+
+            return;
+        }
     }
 
     public function addRelationAttribute(string $relationId, string $name, string $type = 'varchar'): void
@@ -1547,7 +1576,10 @@ class SchemaBoard extends Component
 
     private function buscarColunaFkExistente(string $entityId, array $destino): ?string
     {
-        $desejado = $destino['name'].'_id';
+        $nomes = array_unique([
+            Str::snake(Str::singular($destino['name'])).'_id',
+            Str::snake($destino['name']).'_id',
+        ]);
 
         // Colunas já comprometidas com alguma relação existente.
         $ocupadas = [];
@@ -1559,7 +1591,7 @@ class SchemaBoard extends Component
 
         $origem = $this->findEntity($entityId);
         foreach ($origem['attributes'] as $a) {
-            if ($a['name'] === $desejado && ! in_array($a['id'], $ocupadas, true)) {
+            if (in_array($a['name'], $nomes, true) && ! in_array($a['id'], $ocupadas, true)) {
                 return $a['id'];
             }
         }

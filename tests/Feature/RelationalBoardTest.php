@@ -397,6 +397,21 @@ class RelationalBoardTest extends TestCase
         $component->call('downloadSql')->assertFileDownloaded('modelo-relacional-pgsql.sql');
     }
 
+    public function test_json_modal_copies_and_downloads_the_relational_model(): void
+    {
+        Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
+            ->call('toggleJson')
+            ->assertSet('showJson', true)
+            // Mesmo componente do quadro ER, mesmo rodapé.
+            ->assertSeeHtml('class="rel-modal"')
+            ->assertSeeHtml('class="rel-modal-actions"')
+            ->assertSee('Copiar')
+            ->assertSee('Baixar .json')
+            ->assertSee('wire:click="downloadJson"', escape: false)
+            ->call('downloadJson')
+            ->assertFileDownloaded('modelo-relacional.json');
+    }
+
     public function test_regeneration_explicitly_replaces_the_logical_copy_from_er(): void
     {
         $diagram = $this->relationalDiagram();

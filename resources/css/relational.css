@@ -28,6 +28,13 @@
 .rel-modal-card header { display: flex; justify-content: space-between; border-bottom: 1px solid #1e293b; padding: 12px 15px; font-size: 12px; }
 .rel-modal-card header button { border: 0; background: transparent; color: #94a3b8; }
 .rel-modal-card pre { overflow: auto; padding: 16px; color: #a5f3fc; font-size: 10px; line-height: 1.6; }
+.rel-modal-actions { display: flex; justify-content: flex-end; gap: 9px; border-top: 1px solid #1e293b; padding: 10px 15px; }
+.rel-modal-actions button {
+    border: 1px solid #334155; border-radius: 8px; background: #172033; color: #cbd5e1;
+    padding: 6px 12px; font-size: 11px; font-weight: 750; cursor: pointer;
+}
+.rel-modal-actions button:hover:not(:disabled) { border-color: #0891b2; color: #fff; }
+.rel-modal-actions button:disabled { opacity: .55; cursor: wait; }
 .rel-notice {
     position: fixed; right: 18px; top: 126px; z-index: 60; display: flex; max-width: 330px;
     align-items: center; gap: 9px; border: 1px solid rgb(34 197 94 / 28%); border-radius: 10px;
@@ -253,6 +260,9 @@ html:not(.dark) .relational-board .flow-edge-label:not(.flow-edge-label-start):n
 html:not(.dark) .rel-modal-card { border-color: #cbd5e1; background: #fff; }
 html:not(.dark) .rel-modal-card header { border-color: #e2e8f0; }
 html:not(.dark) .rel-modal-card pre { color: #155e75; }
+html:not(.dark) .rel-modal-actions { border-color: #e2e8f0; }
+html:not(.dark) .rel-modal-actions button { border-color: #dbe3ee; background: #fff; color: #475569; }
+html:not(.dark) .rel-modal-actions button:hover:not(:disabled) { border-color: #0891b2; color: #0e7490; }
 
 .rel-col-handle {
     position: absolute;

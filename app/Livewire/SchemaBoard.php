@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Editor visual de modelo Entidade-Relacionamento.
@@ -2025,6 +2026,22 @@ class SchemaBoard extends Component
     public function toggleJson(): void
     {
         $this->showJson = ! $this->showJson;
+    }
+
+    /**
+     * Baixa o JSON exibido no modal — o mesmo conteúdo de `jsonPreview`.
+     */
+    public function downloadJson(): StreamedResponse
+    {
+        $json = $this->jsonPreview;
+
+        return response()->streamDownload(
+            static function () use ($json): void {
+                echo $json;
+            },
+            'modelo-er.json',
+            ['Content-Type' => 'application/json; charset=UTF-8'],
+        );
     }
 
     /**

@@ -678,4 +678,21 @@ class SchemaBoardTest extends TestCase
         $this->assertArrayHasKey('relations', $json);
         $this->assertArrayNotHasKey('tables', $json);
     }
+
+    public function test_json_modal_copies_and_downloads_the_er_model(): void
+    {
+        $component = Livewire::test(SchemaBoard::class)
+            ->call('createEntity')
+            ->assertSet('showJson', false)
+            ->call('toggleJson')
+            ->assertSet('showJson', true)
+            // Mesmo componente do quadro Relacional, mesmo rodapé.
+            ->assertSeeHtml('class="rel-modal"')
+            ->assertSeeHtml('class="rel-modal-actions"')
+            ->assertSee('Copiar')
+            ->assertSee('Baixar .json')
+            ->assertSee('wire:click="downloadJson"', escape: false);
+
+        $component->call('downloadJson')->assertFileDownloaded('modelo-er.json');
+    }
 }

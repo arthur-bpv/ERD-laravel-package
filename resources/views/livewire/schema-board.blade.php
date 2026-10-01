@@ -28,30 +28,8 @@
         <button type="button" @click="guideOpen = false" aria-label="Fechar guia">✕</button>
     </div>
     {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
-<div
-    x-show="$wire.showJson"
-    x-cloak
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
-    @click.self="$wire.toggleJson()"
-    @keydown.escape.window="$wire.showJson = false"
->
-    <div class="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
-        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 class="text-sm font-bold">JSON do diagrama</h2>
-            <div class="flex items-center gap-2">
-                <button
-                    x-data
-                    @click="navigator.clipboard.writeText($refs.jsonBox.innerText)"
-                    class="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
-                >
-                    Copiar
-                </button>
-                <button wire:click="toggleJson" class="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-        </div>
-        <pre x-ref="jsonBox" class="overflow-auto p-4 text-xs leading-relaxed text-slate-700">{{ $this->jsonPreview }}</pre>
-    </div>
-</div>
+    {{-- Mesmo componente usado pelo quadro Relacional, com o mesmo rodapé de copiar/baixar. --}}
+    <x-json-modal title="JSON do diagrama" />
 
     {{-- ===================== CANVAS ===================== --}}
     <div class="relative min-h-0 flex-1 overflow-hidden">

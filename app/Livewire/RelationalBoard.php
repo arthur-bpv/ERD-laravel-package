@@ -399,6 +399,22 @@ class RelationalBoard extends Component
         }
     }
 
+    /**
+     * Baixa o JSON exibido no modal — o mesmo conteúdo de `jsonPreview`.
+     */
+    public function downloadJson(): StreamedResponse
+    {
+        $json = $this->jsonPreview;
+
+        return response()->streamDownload(
+            static function () use ($json): void {
+                echo $json;
+            },
+            'modelo-relacional.json',
+            ['Content-Type' => 'application/json; charset=UTF-8'],
+        );
+    }
+
     public function downloadSql(RelationalSqlGenerator $generator): StreamedResponse
     {
         $sql = $generator->generate($this->sqlData());

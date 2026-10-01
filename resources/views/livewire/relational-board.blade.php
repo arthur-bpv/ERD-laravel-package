@@ -44,12 +44,7 @@
         <button type="button" @click="guideOpen = false" aria-label="Fechar guia">✕</button>
     </div>
 
-    <div x-show="$wire.showJson" x-cloak class="rel-modal" @click.self="$wire.toggleJson()" @keydown.escape.window="$wire.showJson = false">
-        <div class="rel-modal-card">
-            <header><strong>JSON do modelo Relacional</strong><button wire:click="toggleJson">✕</button></header>
-            <pre>{{ $this->jsonPreview }}</pre>
-        </div>
-    </div>
+    <x-json-modal title="JSON do modelo Relacional" />
 
     <div x-show="$wire.showSql" x-cloak class="rel-modal" @click.self="$wire.showSql = false" @keydown.escape.window="$wire.showSql = false">
         <div class="rel-modal-card">

@@ -4,6 +4,7 @@ import AlpineFlow from '../../vendor/getartisanflow/wireflow/dist/alpineflow.bun
 import './erd/markers';
 import './erd/edge-editor';
 import './erd/node-measurement';
+import './erd/export-image';
 import { relationalSelfLoopPath } from './erd/relational-self-loop';
 
 Alpine.plugin(AlpineFlow);

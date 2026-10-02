@@ -109,7 +109,6 @@
                                     @keydown.escape.stop.prevent="editing = false; draft = node.data.name"
                                     @blur="if (draft.trim() && draft.trim() !== node.data.name) $wire.renameTable(node.id, draft); editing = false">
                             </div>
-                            <span class="rel-node-count" x-text="node.data.columns.length"></span>
                         </header>
                         <div class="rel-columns">
                             <template x-for="column in node.data.columns" :key="column.id">
@@ -123,9 +122,7 @@
                                     <div class="rel-col-handle rel-col-handle-left" aria-hidden="true" x-flow-handle:source.left="'col-' + column.id + '-left'"></div>
                                     <div class="rel-col-handle rel-col-handle-left" aria-hidden="true" x-flow-handle:target.left="'col-' + column.id + '-left'"></div>
                                     <span class="rel-key" :class="{ 'is-pk': column.key.includes('PK'), 'is-fk': column.key.includes('FK') }" x-text="column.key || '—'"></span>
-                                    <button x-show="!editing" type="button" class="rel-column-name nodrag" x-text="column.name"
-                                        @pointerdown.stop @click.stop="draft = column.name; editing = true; $nextTick(() => { $refs.columnName.focus(); $refs.columnName.select(); })"
-                                        title="Clique para renomear"></button>
+                                    <span class="rel-column-name nodrag" x-text="column.name"></span>
                                     <input x-show="editing" x-ref="columnName" x-model="draft" class="rel-column-name-input nodrag" maxlength="80"
                                         @pointerdown.stop @click.stop @keydown.enter.stop.prevent="$event.target.blur()"
                                         @keydown.escape.stop.prevent="editing = false; draft = column.name"
@@ -161,14 +158,12 @@
                                     <button type="button" class="rel-null nodrag" :class="{ 'is-active': column.nullable }"
                                         @pointerdown.stop @click.stop="$wire.toggleColumnNullable(node.id, column.id)"
                                         :title="column.key.includes('PK') ? 'PK não pode aceitar NULL' : 'Alternar nulabilidade'">NULL</button>
-                                    <button type="button" class="rel-column-remove nodrag"
-                                        @pointerdown.stop @click.stop="if (window.confirm('Remover a coluna ' + column.name + '? FKs que dependem dela também serão removidas deste modelo Relacional.')) $wire.removeColumn(node.id, column.id)"
-                                        title="Remover coluna do modelo Relacional">✕</button>
                                 </div>
                             </template>
                         </div>
                     </article>
                 </x-slot:node>
+                
             </x-flow>
         @else
             <div class="flex h-full items-center justify-center p-8 text-center">

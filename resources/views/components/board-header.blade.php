@@ -51,6 +51,13 @@
                 <span wire:loading.remove wire:target="organizeBoard">Organizar</span>
                 <span wire:loading wire:target="organizeBoard">Organizando…</span>
             </button>
+            <details class="board-toolbar-menu board-toolbar-export" @click.outside="$el.open = false">
+                <summary>Exportar imagem</summary>
+                <div class="board-menu-panel">
+                    <button type="button" data-export-name="{{ $diagramName }}" @click="window.exportBoardImage($el, 'png'); $el.closest('details').open = false">Baixar PNG</button>
+                    <button type="button" data-export-name="{{ $diagramName }}" @click="window.exportBoardImage($el, 'jpg'); $el.closest('details').open = false">Baixar JPG</button>
+                </div>
+            </details>
             @unless ($isEr)
                 <button type="button" class="board-toolbar-button" wire:click="openSqlPreview" wire:loading.attr="disabled" wire:target="openSqlPreview">
                     <span wire:loading.remove wire:target="openSqlPreview">Gerar SQL</span>

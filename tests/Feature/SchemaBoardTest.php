@@ -589,6 +589,32 @@ class SchemaBoardTest extends TestCase
             ->assertSee(route('boards.relational', $relational), escape: false);
     }
 
+    public function test_er_header_flags_a_relational_copy_left_behind_by_later_edits(): void
+    {
+        $source = Diagram::create([
+            'name' => 'Biblioteca',
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => ['entities' => [], 'relations' => []],
+        ]);
+        $relational = Diagram::create([
+            'name' => 'Biblioteca — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $source->id,
+            'data' => app(ErToRelationalTransformer::class)->transform($source->data),
+        ]);
+
+        Livewire::test(SchemaBoard::class, ['diagram' => $source])
+            ->assertSet('relationalIsOutdated', false)
+            ->assertDontSee('board-tab-flag')
+            // Salvar o ER grava o que a cópia relacional ainda não tem — o sinal
+            // acende na mesma resposta, sem esperar um reload.
+            ->call('createEntity')
+            ->call('save')
+            ->assertSet('relationalIsOutdated', true)
+            ->assertSee('board-tab-flag')
+            ->assertSee('O modelo relacional está desatualizado');
+    }
+
     public function test_er_guide_is_rendered_below_the_header_instead_of_over_the_minimap(): void
     {
         $component = Livewire::test(SchemaBoard::class);

@@ -30,6 +30,41 @@
         :columns-count="collect($tables)->sum(fn (array $table) => count($table['columns']))"
         :foreign-keys-count="count($foreignKeys)" />
 
+    @if ($isOutdated)
+        {{-- Aviso de defasagem: o ER mudou depois da última geração e nada foi
+             reescrito sozinho. O botão reaproveita o mesmo regenerate (e a mesma
+             confirmação) que já existia no menu "Mais". --}}
+        <aside class="rel-drift" role="status" aria-live="polite">
+            <span class="rel-drift-icon" aria-hidden="true">!</span>
+
+            <div class="rel-drift-body">
+                <strong>Este modelo Relacional está desatualizado</strong>
+                <p>O modelo ER <b>{{ $sourceDiagramName }}</b> mudou depois da última geração. Nada foi regravado — regenere para aplicar.</p>
+                <details>
+                    <summary>{{ count($drift) }} {{ count($drift) === 1 ? 'mudança pendente' : 'mudanças pendentes' }}</summary>
+                    <ul>
+                        @foreach (array_slice($drift, 0, 12) as $change)
+                            <li wire:key="drift-{{ md5($change) }}">{{ $change }}</li>
+                        @endforeach
+                        @if (count($drift) > 12)
+                            <li class="rel-drift-more">e mais {{ count($drift) - 12 }}…</li>
+                        @endif
+                    </ul>
+                </details>
+                @if ($isCustomized)
+                    <p class="rel-drift-note">As edições manuais deste quadro também serão substituídas.</p>
+                @endif
+            </div>
+
+            <button type="button" class="rel-drift-action" wire:click="regenerate"
+                wire:confirm="Regenerar substitui todas as edições manuais deste modelo Relacional pelos dados atuais do ER. Continuar?"
+                wire:loading.attr="disabled" wire:target="regenerate">
+                <span wire:loading.remove wire:target="regenerate">Regenerar do ER</span>
+                <span wire:loading wire:target="regenerate">Regenerando…</span>
+            </button>
+        </aside>
+    @endif
+
     <div x-show="guideOpen" x-cloak class="rel-guide" @keydown.escape.window="guideOpen = false">
         <div>
             <span class="rel-guide-step">1</span>

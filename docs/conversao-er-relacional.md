@@ -54,8 +54,16 @@ O modelo relacional usa setas simples do ArtisanFlow, sem crow's foot. Cada seta
 
 Uma FK recursiva 1:N é mostrada como um laço Bézier saindo e voltando por lados diferentes da mesma tabela. Quando um autorrelacionamento gera uma tabela própria (1:1 ou N:N), ela recebe o nome do relacionamento e suas duas FKs são desenhadas em rotas separadas para não se sobreporem.
 
+## Aviso de modelo desatualizado
+
+Cada geração grava em `sourceFingerprint` a impressão digital do ER que a originou. A interface compara essa impressão com o ER atual e, havendo diferença, mostra um aviso com a lista do que uma regeneração mudaria. Nada é regenerado automaticamente: a decisão continua sendo do usuário, pelo botão de regeneração, que também substitui as edições manuais feitas no quadro Relacional.
+
+A verificação é de conteúdo, não de tempo. O `updated_at` da cópia Relacional não serve para isso porque ele avança toda vez que o usuário arrasta ou edita uma tabela. As posições (`x`/`y`) ficam fora da comparação, e os dois lados são normalizados pelo dialeto gravado no modelo, para que tamanho e precisão só contem quando a diferença existe de fato.
+
+Quando as duas impressões coincidem, nenhuma mudança pendente é listada mesmo que existam diferenças: elas são de edição manual, e acusar o ER por elas seria falso. Modelos gerados antes de a impressão digital existir não têm como distinguir as duas situações, então só são apontados como desatualizados quando nunca receberam edição manual. A aba do modelo Relacional e o cartão do projeto no painel exibem o mesmo sinal.
+
 ## Limites
 
 FK e unicidade não garantem, por si só, participação total na tabela referenciada (por exemplo, todo pai possuir ao menos um filho). Essa obrigação exige validação adicional na implementação do banco ou da aplicação, e o conversor emite um aviso quando isso afeta um auto-relacionamento 1:1 obrigatório.
 
-O conversor produz metadados do modelo lógico; as indicações de PK, FK, unicidade e nulabilidade não executam DDL no banco. Modelos relacionais já salvos precisam ser regenerados pela interface para incorporar mudanças de conversão. A remoção visual de crow's foot vale também para modelos salvos.
+O conversor produz metadados do modelo lógico; as indicações de PK, FK, unicidade e nulabilidade não executam DDL no banco. Modelos relacionais já salvos precisam ser regenerados pela interface para incorporar mudanças de conversão, e o aviso de modelo desatualizado é justamente o que indica quando essa regeneração passou a ser necessária. A remoção visual de crow's foot vale também para modelos salvos.

@@ -23,6 +23,31 @@
 .rel-guide-rule { margin-left: auto; color: #94a3b8; font-size: 9.5px; }
 .rel-guide > button { border: 0; background: transparent; color: #64748b; }
 
+.rel-drift {
+    position: relative; z-index: 15; display: flex; flex: none; align-items: flex-start; gap: 11px;
+    border-bottom: 1px solid rgb(245 158 11 / 22%); background: rgb(120 53 15 / 18%); padding: 11px 20px;
+}
+.rel-drift-icon {
+    display: grid; width: 22px; height: 22px; flex: none; place-items: center; border-radius: 7px;
+    background: rgb(245 158 11 / 18%); color: #fcd34d; font-size: 12px; font-weight: 900;
+}
+.rel-drift-body { min-width: 0; flex: 1; }
+.rel-drift-body strong { display: block; color: #fde68a; font-size: 11.5px; }
+.rel-drift-body p { margin-top: 3px; color: rgb(253 230 138 / 72%); font-size: 10.5px; }
+.rel-drift-body b { color: #fde68a; font-weight: 700; }
+.rel-drift-body details { margin-top: 5px; }
+.rel-drift-body summary { color: #fcd34d; font-size: 10px; font-weight: 750; cursor: pointer; }
+.rel-drift-body ul { display: grid; gap: 2px; margin-top: 5px; padding-left: 16px; color: rgb(253 230 138 / 85%); font-size: 10px; }
+.rel-drift-body li { list-style: disc; }
+.rel-drift-more { color: #94a3b8; }
+.rel-drift-note { color: rgb(253 230 138 / 55%); font-style: italic; }
+.rel-drift-action {
+    flex: none; border: 1px solid rgb(245 158 11 / 45%); border-radius: 8px; background: rgb(245 158 11 / 14%);
+    color: #fde68a; padding: 7px 11px; font-size: 11px; font-weight: 750; white-space: nowrap; cursor: pointer;
+}
+.rel-drift-action:hover:not(:disabled) { border-color: #f59e0b; background: rgb(245 158 11 / 24%); color: #fff; }
+.rel-drift-action:disabled { opacity: .55; cursor: wait; }
+
 .rel-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgb(0 0 0 / 58%); padding: 24px; }
 .rel-modal-card { display: flex; width: min(760px, 100%); max-height: 78vh; flex-direction: column; overflow: hidden; border: 1px solid #334155; border-radius: 14px; background: #0f172a; box-shadow: 0 24px 70px rgb(0 0 0 / 45%); }
 .rel-modal-card header { display: flex; justify-content: space-between; border-bottom: 1px solid #1e293b; padding: 12px 15px; font-size: 12px; }
@@ -84,23 +109,12 @@
     color: #f8fafc; padding: 2px 5px; font: inherit; outline: none;
 }
 
-.rel-node-head .rel-node-count {
-    display: grid;
-    flex: 0 0 auto;
-    width: 25px;
-    height: 25px;
-    place-items: center;
-    border: 1px solid rgb(103 232 249 / 20%);
-    border-radius: 8px;
-    background: rgb(8 145 178 / 12%);
-    letter-spacing: 0;
-}
-
 .rel-columns { padding: 6px 0; }
 
 .rel-column {
     display: grid;
-    grid-template-columns: 38px minmax(0, 1fr) 160px 34px 14px;
+    /* chave | nome (ou o input de edicao) | tipo + tamanho | NULL */
+    grid-template-columns: 38px minmax(0, 1fr) 160px 34px;
     align-items: center;
     gap: 8px;
     min-height: 34px;
@@ -200,15 +214,6 @@
 .rel-column-definition input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
 .rel-null { border: 0; border-radius: 4px; background: transparent; padding: 3px; opacity: .32; }
 .rel-null.is-active { background: rgb(139 92 246 / 12%); opacity: 1; }
-.rel-column-remove { border: 0; background: transparent; color: #475569; opacity: 0; }
-.rel-column:hover .rel-column-remove { opacity: 1; }
-.rel-column-remove:hover { color: #f87171; }
-.rel-node-foot { border-top: 1px solid rgb(255 255 255 / 6%); padding: 7px 12px 10px; }
-.rel-node-foot > button { border: 0; background: transparent; color: #67e8f9; font-size: 10px; font-weight: 700; }
-.rel-node-foot form { display: grid; grid-template-columns: 1fr 72px auto; gap: 5px; margin-top: 6px; }
-.rel-node-foot input,
-.rel-node-foot select { min-width: 0; border: 1px solid #334155; border-radius: 6px; background: #07111f; color: #cbd5e1; padding: 5px 6px; font-size: 9px; outline: none; }
-.rel-node-foot form button { border: 0; border-radius: 6px; background: #0e7490; color: #fff; padding: 5px 7px; font-size: 9px; font-weight: 700; }
 
 .rel-null { color: #a78bfa; }
 
@@ -243,20 +248,27 @@ html:not(.dark) .rel-node-title > button { color: #0f172a; }
 html:not(.dark) .rel-node-title > input,
 html:not(.dark) .rel-column-name-input,
 html:not(.dark) .rel-column-definition > input,
-html:not(.dark) .rel-decimal-size input,
-html:not(.dark) .rel-node-foot input,
-html:not(.dark) .rel-node-foot select { border-color: #cbd5e1; background: #fff; color: #0f172a; }
+html:not(.dark) .rel-decimal-size input { border-color: #cbd5e1; background: #fff; color: #0f172a; }
 html:not(.dark) .rel-column-definition > input:hover,
 html:not(.dark) .rel-decimal-size input:hover { border-color: #94a3b8; }
 html:not(.dark) .rel-column-definition > input:focus-visible,
 html:not(.dark) .rel-decimal-size input:focus-visible { border-color: #0891b2; box-shadow: 0 0 0 2px rgb(8 145 178 / 15%); }
 html:not(.dark) .rel-column-definition > input:invalid,
 html:not(.dark) .rel-decimal-size input:invalid { border-color: #dc2626; }
-html:not(.dark) .rel-column + .rel-column,
-html:not(.dark) .rel-node-foot { border-color: #e2e8f0; }
+html:not(.dark) .rel-column + .rel-column { border-color: #e2e8f0; }
 html:not(.dark) .rel-column-name { color: #334155; }
 html:not(.dark) .rel-column-type:hover { color: #334155; }
 html:not(.dark) .relational-board .flow-edge-label:not(.flow-edge-label-start):not(.flow-edge-label-end) { background: rgb(255 255 255 / 95%); color: #0e7490; }
+html:not(.dark) .rel-drift { border-color: #fcd34d; background: rgb(254 243 199 / 70%); }
+html:not(.dark) .rel-drift-icon { background: rgb(217 119 6 / 14%); color: #b45309; }
+html:not(.dark) .rel-drift-body strong { color: #92400e; }
+html:not(.dark) .rel-drift-body p,
+html:not(.dark) .rel-drift-body b,
+html:not(.dark) .rel-drift-body ul { color: #a16207; }
+html:not(.dark) .rel-drift-body summary { color: #b45309; }
+html:not(.dark) .rel-drift-note { color: #b45309; }
+html:not(.dark) .rel-drift-action { border-color: #d97706; background: #fff; color: #b45309; }
+html:not(.dark) .rel-drift-action:hover:not(:disabled) { background: #fef3c7; color: #92400e; }
 html:not(.dark) .rel-modal-card { border-color: #cbd5e1; background: #fff; }
 html:not(.dark) .rel-modal-card header { border-color: #e2e8f0; }
 html:not(.dark) .rel-modal-card pre { color: #155e75; }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Livewire\ProjectDashboard;
 use App\Livewire\SchemaBoard;
 use App\Models\Diagram;
+use App\Services\ErToRelationalTransformer;
 use App\Support\ErDiagramImport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -232,5 +233,59 @@ class ProjectDashboardTest extends TestCase
 
         $this->assertModelMissing($er);
         $this->assertModelMissing($relational);
+    }
+
+    public function test_project_card_flags_only_the_relational_copies_left_behind_by_the_er(): void
+    {
+        $transformer = app(ErToRelationalTransformer::class);
+
+        $fresh = Diagram::create(['name' => 'Em dia', 'type' => Diagram::TYPE_ENTITY_RELATIONSHIP, 'data' => $this->erData()]);
+        Diagram::create([
+            'name' => 'Em dia — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $fresh->id,
+            'data' => $transformer->transform($fresh->data),
+        ]);
+
+        $late = Diagram::create(['name' => 'Atrasado', 'type' => Diagram::TYPE_ENTITY_RELATIONSHIP, 'data' => $this->erData()]);
+        Diagram::create([
+            'name' => 'Atrasado — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $late->id,
+            'data' => $transformer->transform($late->data),
+        ]);
+        $changed = $late->data;
+        $changed['entities'][0]['attributes'][] = [
+            'id' => 'books.isbn',
+            'name' => 'isbn',
+            'type' => 'varchar',
+            'key' => 'UQ',
+        ];
+        $late->update(['data' => $changed]);
+
+        $component = Livewire::test(ProjectDashboard::class);
+
+        $this->assertSame([$late->id], $component->instance()->outdatedRelational);
+        $this->assertSame(1, substr_count($component->html(), 'Desatualizada'));
+        $this->assertStringContainsString('Em dia', $component->html());
+    }
+
+    private function erData(): array
+    {
+        return [
+            'entities' => [[
+                'id' => 'books',
+                'name' => 'Book',
+                'x' => 0,
+                'y' => 0,
+                'attributes' => [[
+                    'id' => 'books.id',
+                    'name' => 'bookNo',
+                    'type' => 'bigint',
+                    'key' => 'PK',
+                ]],
+            ]],
+            'relations' => [],
+        ];
     }
 }

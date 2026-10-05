@@ -2,6 +2,7 @@
     'mode',
     'diagramName',
     'relationalDiagramId' => null,
+    'relationalOutdated' => false,
     'sourceDiagramId' => null,
     'sourceDiagramName' => null,
     'entitiesCount' => 0,
@@ -26,7 +27,13 @@
             @if ($isEr)
                 <a class="is-active" aria-current="page">Modelo ER</a>
                 @if ($relationalDiagramId)
-                    <a wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}">Modelo Relacional</a>
+                    <a wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}"
+                        @if ($relationalOutdated) title="O modelo relacional não foi regerado após as últimas mudanças deste ER" @endif>
+                        Modelo Relacional
+                        @if ($relationalOutdated)
+                            <span class="board-tab-flag" aria-label="Modelo relacional desatualizado">!</span>
+                        @endif
+                    </a>
                 @else
                     <button type="button" wire:click="convertToRelational" wire:loading.attr="disabled" wire:target="convertToRelational">Modelo Relacional</button>
                 @endif
@@ -96,6 +103,9 @@
                             <a class="board-menu-special" wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}">Abrir modelo relacional</a>
                         @else
                             <button type="button" class="board-menu-special" wire:click="convertToRelational" wire:loading.attr="disabled" wire:target="convertToRelational">Converter para relacional</button>
+                        @endif
+                        @if ($relationalOutdated)
+                            <p class="board-menu-flag">O modelo relacional está desatualizado. Ele só é regerado por você, no quadro relacional.</p>
                         @endif
                     @endif
                     @unless ($isEr)

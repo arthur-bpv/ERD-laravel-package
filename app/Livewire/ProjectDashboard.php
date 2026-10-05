@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalDrift;
 use App\Support\ErDiagramImport;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
@@ -33,9 +34,29 @@ class ProjectDashboard extends Component
     {
         return Diagram::query()
             ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
-            ->with('relationalDiagram:id,name,type,source_diagram_id,updated_at')
+            ->with('relationalDiagram:id,name,type,source_diagram_id,updated_at,data')
             ->latest('updated_at')
-            ->get(['id', 'name', 'type', 'updated_at']);
+            ->get(['id', 'name', 'type', 'updated_at', 'data']);
+    }
+
+    /**
+     * IDs dos projetos cuja cópia Relacional já não corresponde ao ER.
+     *
+     * Só sinaliza: o quadro Relacional é quem oferece a regeneração, porque só
+     * ele conhece as edições manuais que ela substituiria.
+     *
+     * É uma computed property no formato legado (`get...Property`) porque,
+     * ao contrário de `#[Computed]`, ela aceita a dependência injetada.
+     *
+     * @return array<int, int>
+     */
+    public function getOutdatedRelationalProperty(RelationalDrift $drift): array
+    {
+        return $this->projects
+            ->filter(fn (Diagram $project): bool => $project->relationalDiagram !== null
+                && $drift->report($project->data ?? [], $project->relationalDiagram->data ?? [])['outdated'])
+            ->pluck('id')
+            ->all();
     }
 
     public function createProject(): void

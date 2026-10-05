@@ -159,6 +159,12 @@
                                 @if ($project->relationalDiagram)
                                     <a wire:navigate href="{{ route('boards.relational', $project->relationalDiagram) }}" class="group rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5 transition hover:border-cyan-300/40 hover:bg-cyan-400/15">
                                         <span class="text-xs font-semibold uppercase tracking-widest text-cyan-300">Etapa 2</span>
+                                        @if (in_array($project->id, $this->outdatedRelational, true))
+                                            <span class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2.5 py-1 text-[11px] font-semibold text-amber-300"
+                                                title="O ER mudou depois da última geração: regere no quadro relacional.">
+                                                <span aria-hidden="true">!</span> Desatualizada
+                                            </span>
+                                        @endif
                                         <strong class="mt-6 block text-base text-white">Modelo relacional</strong>
                                         <span class="mt-1 block text-sm text-slate-400">Referenciado ao modelo ER</span>
                                         <span class="mt-5 block text-sm font-medium text-cyan-300">Abrir board →</span>

@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalDrift;
 use App\Services\RelationalSqlGenerator;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
@@ -56,6 +57,15 @@ class RelationalBoard extends Component
     #[Locked]
     public bool $isCustomized = false;
 
+    /**
+     * Impressão digital do ER no momento da última geração.
+     *
+     * Vive aqui para que a verificação de defasagem não dependa de `$this->tables`
+     * (que a edição manual também mexe): o que decide se o ER mudou é o ER.
+     */
+    #[Locked]
+    public ?string $sourceFingerprint = null;
+
     public bool $showJson = false;
 
     public bool $showSql = false;
@@ -84,6 +94,7 @@ class RelationalBoard extends Component
             $diagram->update(['data' => $data]);
         }
 
+        $this->sourceFingerprint = $data['sourceFingerprint'] ?? null;
         $this->fillFromData($data);
     }
 
@@ -106,6 +117,7 @@ class RelationalBoard extends Component
                 ->update(['data' => $data]);
         });
 
+        $this->sourceFingerprint = $data['sourceFingerprint'] ?? null;
         $this->fillFromData($data);
         if ($oldTableIds !== [] && $this->tables !== []) {
             $this->syncCanvas($oldTableIds);
@@ -266,7 +278,9 @@ class RelationalBoard extends Component
 
         $column = $this->tables[$tableIndex]['columns'][$columnIndex];
 
-        match (DataTypeCatalog::kind($column['type'] ?? '')) {
+        // Só faz sentido dimensionar tipos parametrizáveis (length/decimal).
+        // Qualquer outro tipo é ignorado para não gravar lixo no estado.
+        match ($kind = DataTypeCatalog::kind($column['type'] ?? '')) {
             'length' => $column['length'] = (int) $size,
             'decimal' => [
                 $column['precision'] = (int) $size,
@@ -275,7 +289,7 @@ class RelationalBoard extends Component
             default => null,
         };
 
-        if (DataTypeCatalog::kind($column['type'] ?? '') === null) {
+        if ($kind === null) {
             return;
         }
 
@@ -312,8 +326,7 @@ class RelationalBoard extends Component
             return;
         }
 
-        $current = (bool) $this->tables[$tableIndex]['columns'][$columnIndex]['nullable'];
-        $this->tables[$tableIndex]['columns'][$columnIndex]['nullable'] = ! $current;
+        $this->tables[$tableIndex]['columns'][$columnIndex]['nullable'] = ! $this->tables[$tableIndex]['columns'][$columnIndex]['nullable'];
         $this->commitLogicalEdit();
     }
 
@@ -581,12 +594,31 @@ class RelationalBoard extends Component
         }, $this->foreignKeys);
     }
 
-    public function render(): View
+    public function render(RelationalDrift $drift): View
     {
+        $report = $drift->report($this->sourceDiagramData(), [
+            'dialect' => $this->dialect,
+            'tables' => $this->tables,
+            'foreignKeys' => $this->foreignKeys,
+            'customized' => $this->isCustomized,
+            'sourceFingerprint' => $this->sourceFingerprint,
+        ]);
+
         return view('livewire.relational-board', [
             'nodes' => $this->buildNodes(),
             'edges' => $this->buildEdges(),
+            'isOutdated' => $report['outdated'],
+            'drift' => $report['changes'],
         ]);
+    }
+
+    private function sourceDiagramData(): array
+    {
+        return Diagram::query()
+            ->whereKey($this->sourceDiagramId)
+            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->firstOrFail()
+            ->data ?? [];
     }
 
     private function fillFromData(array $data): void

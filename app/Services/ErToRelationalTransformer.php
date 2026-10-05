@@ -55,7 +55,40 @@ class ErToRelationalTransformer
             'foreignKeys' => $this->foreignKeys($tables),
             'warnings' => array_values(array_unique($this->warnings)),
             'generatedAt' => now()->toIso8601String(),
+            'sourceFingerprint' => $this->fingerprint($diagram),
         ];
+    }
+
+    /**
+     * Impressão digital do ER de origem.
+     *
+     * É gravada junto com o modelo gerado para que a cópia Relacional saiba,
+     * depois, se o ER que a originou ainda é o mesmo (ver `RelationalDrift`).
+     * A comparação usa `updated_at` justamente porque ele não serve aqui: a
+     * cópia Relacional é salva toda vez que o usuário arrasta ou edita uma
+     * tabela, então o timestamp dela avança mesmo sem nenhuma mudança no ER.
+     *
+     * A ordem das chaves não pode mudar o resultado — o mesmo diagrama
+     * serializado de formas diferentes tem de produzir a mesma impressão.
+     */
+    public function fingerprint(array $diagram): string
+    {
+        return md5((string) json_encode($this->canonicalize($diagram)));
+    }
+
+    private function canonicalize(array $value): array
+    {
+        $isList = array_is_list($value);
+        $value = array_map(
+            fn (mixed $item): mixed => is_array($item) ? $this->canonicalize($item) : $item,
+            $value,
+        );
+
+        if (! $isList) {
+            ksort($value);
+        }
+
+        return $value;
     }
 
     private function tableFromEntity(array $entity, int $index): array
@@ -239,29 +272,33 @@ class ErToRelationalTransformer
         $tables[$id] = $table;
     }
 
+    /**
+     * Autorrelacionamento 1:N, N:1 ou N:N mapeado na própria tabela.
+     *
+     * O chamador já descartou o caso 1:1 (que vira tabela dedicada), então
+     * aqui uma das pontas é sempre "muitos": a PK é copiada para a mesma tabela
+     * com o papel da ponta oposta e, quando a ponta oposta admite zero linhas,
+     * sai anulável.
+     */
     private function mapRecursiveRelation(array &$table, array $relation, array $fromCard, array $toCard): void
     {
-        if ($fromCard['many'] || $toCard['many']) {
-            $manyIsFrom = $fromCard['many'];
-            $prefix = $this->role($relation, $manyIsFrom ? 'to' : 'from');
-            $this->copyPrimaryKey(
-                $table,
-                $table,
-                prefix: $prefix,
-                nullable: ($fromCard['many'] ? $toCard['min'] : $fromCard['min']) === 0,
-                sourceCard: $manyIsFrom ? $relation['childCard'] : $relation['parentCard'],
-                targetCard: $manyIsFrom ? $relation['parentCard'] : $relation['childCard'],
-                parentAttributeId: $manyIsFrom ? ($relation['toAttr'] ?? null) : ($relation['fromAttr'] ?? null),
-                relationshipName: $relation['name'] ?? null,
-            );
-            $this->appendRelationshipAttributes(
-                $table,
-                $relation,
-                ($manyIsFrom ? $toCard['min'] : $fromCard['min']) === 0,
-            );
-
-            return;
-        }
+        $manyIsFrom = $fromCard['many'];
+        $prefix = $this->role($relation, $manyIsFrom ? 'to' : 'from');
+        $this->copyPrimaryKey(
+            $table,
+            $table,
+            prefix: $prefix,
+            nullable: ($manyIsFrom ? $toCard['min'] : $fromCard['min']) === 0,
+            sourceCard: $manyIsFrom ? $relation['childCard'] : $relation['parentCard'],
+            targetCard: $manyIsFrom ? $relation['parentCard'] : $relation['childCard'],
+            parentAttributeId: $manyIsFrom ? ($relation['toAttr'] ?? null) : ($relation['fromAttr'] ?? null),
+            relationshipName: $relation['name'] ?? null,
+        );
+        $this->appendRelationshipAttributes(
+            $table,
+            $relation,
+            ($manyIsFrom ? $toCard['min'] : $fromCard['min']) === 0,
+        );
     }
 
     private function createRecursiveOneToOneTable(array &$tables, string $entityId, array $relation): void

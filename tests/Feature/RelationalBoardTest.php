@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\RelationalBoard;
 use App\Models\Diagram;
+use App\Services\ErToRelationalTransformer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -463,6 +464,97 @@ class RelationalBoardTest extends TestCase
 
         Livewire::test(RelationalBoard::class, ['diagram' => $er])
             ->assertNotFound();
+    }
+
+    public function test_a_generated_board_is_not_flagged_as_outdated(): void
+    {
+        $diagram = $this->generatedRelationalDiagram();
+
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->assertViewHas('isOutdated', false)
+            ->assertViewHas('drift', [])
+            ->assertDontSee('Este modelo Relacional está desatualizado');
+    }
+
+    public function test_editing_the_er_only_warns_and_never_regenerates_the_relational_copy(): void
+    {
+        $diagram = $this->generatedRelationalDiagram();
+        $this->addEmailToStaff($diagram->sourceDiagram);
+
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->assertViewHas('isOutdated', true)
+            ->assertSee('Este modelo Relacional está desatualizado')
+            ->assertSee('Nada foi regravado')
+            ->assertSee('Regenerar do ER')
+            // O texto já vem escapado da Blade, daí o escape: false.
+            ->assertSee('Coluna &quot;email&quot; foi adicionada em &quot;Staff&quot;.', escape: false);
+
+        // O aviso não pode gravar nada: a cópia continua sem a coluna nova.
+        $staff = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'staff');
+        $this->assertNotContains('email', array_column($staff['columns'], 'name'));
+    }
+
+    public function test_regenerating_an_outdated_board_applies_the_er_and_clears_the_warning(): void
+    {
+        $diagram = $this->generatedRelationalDiagram();
+        $this->addEmailToStaff($diagram->sourceDiagram);
+
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->assertViewHas('isOutdated', true)
+            ->call('regenerate')
+            ->assertViewHas('isOutdated', false)
+            ->assertViewHas('drift', [])
+            ->assertDontSee('Este modelo Relacional está desatualizado');
+
+        $staff = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'staff');
+        $this->assertContains('email', array_column($staff['columns'], 'name'));
+    }
+
+    public function test_editing_the_relational_copy_alone_never_raises_the_warning(): void
+    {
+        $diagram = $this->generatedRelationalDiagram();
+
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('renameTable', 'staff', 'Equipe')
+            ->call('onNodeDragEnd', 'staff', ['x' => 900, 'y' => 40])
+            ->assertViewHas('isOutdated', false)
+            ->assertDontSee('Este modelo Relacional está desatualizado');
+    }
+
+    public function test_the_outdated_warning_reminds_that_manual_edits_will_be_replaced(): void
+    {
+        $diagram = $this->generatedRelationalDiagram();
+        $this->addEmailToStaff($diagram->sourceDiagram);
+
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->assertViewHas('isOutdated', true)
+            ->assertDontSee('As edições manuais deste quadro também serão substituídas.')
+            ->call('addColumn', 'staff', 'telefone')
+            ->assertSee('As edições manuais deste quadro também serão substituídas.');
+    }
+
+    private function addEmailToStaff(Diagram $source): void
+    {
+        $data = $source->data;
+        $data['entities'][0]['attributes'][] = [
+            'id' => 'staff.email',
+            'name' => 'email',
+            'type' => 'varchar',
+            'key' => 'UQ',
+        ];
+        $source->update(['data' => $data]);
+    }
+
+    private function generatedRelationalDiagram(): Diagram
+    {
+        $source = $this->sourceDiagram();
+
+        return Diagram::create([
+            'name' => 'CRM — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $source->id,
+            'data' => app(ErToRelationalTransformer::class)->transform($source->data),
+        ]);
     }
 
     private function relationalDiagram(): Diagram

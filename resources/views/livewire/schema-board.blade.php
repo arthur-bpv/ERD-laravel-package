@@ -1,6 +1,7 @@
 <div class="er-board flex h-screen min-h-0 flex-col overflow-hidden bg-slate-100 font-sans text-slate-800" x-data="{ guideOpen: false }">
 
     <x-board-header mode="er" :diagram-name="$diagramName" :relational-diagram-id="$relationalDiagramId"
+        :relational-outdated="$relationalIsOutdated"
         :entities-count="count($entities)" :relations-count="count($relations)" />
 
     @if ($diagramName === 'Análise de alternativas ER → relacional')
@@ -246,7 +247,7 @@
                                     class="er-key nodrag"
                                     :class="'k-' + (attr.key || 'none').toLowerCase()"
                                     @click="$wire.cycleKey(node.id, attr.id)"
-                                    title="Clique para alternar PK / FK / UQ"
+                                    title="Clique para alternar a chave primária"
                                 >
                                     <span x-show="attr.key === 'PK'">🔑</span>
                                     <span x-show="attr.key !== 'PK'" class="er-key-empty">•</span>

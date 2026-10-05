@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalDrift;
 use App\Support\BoardLayout;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
@@ -161,9 +162,17 @@ class SchemaBoard extends Component
     #[Locked]
     public ?int $relationalDiagramId = null;
 
+    /**
+     * A cópia Relacional já não corresponde a este ER.
+     *
+     * É apenas um sinal para o usuário decidir — nada é regenerado a partir
+     * daqui. Ver `refreshRelationalSignal`.
+     */
+    public bool $relationalIsOutdated = false;
+
     public string $diagramName = 'Diagrama sem nome';
 
-    public function mount($diagram = null): void
+    public function mount($diagram = null, ?RelationalDrift $drift = null): void
     {
         if ($diagram) {
             $diagram = $diagram instanceof Diagram ? $diagram : Diagram::findOrFail($diagram);
@@ -172,7 +181,6 @@ class SchemaBoard extends Component
 
             $this->diagramId = $diagram->id;
             $this->diagramName = $diagram->name;
-            $this->relationalDiagramId = $diagram->relationalDiagram()->value('id');
 
             // Um projeto recém-criado possui `data: []`. Isso representa um
             // quadro realmente vazio, não um pedido para carregar o exemplo.
@@ -182,6 +190,10 @@ class SchemaBoard extends Component
             $this->relSeq = $this->largestNumericId($this->relations, 'r');
             foreach ($this->relations as $relation) {
                 $this->seq = max($this->seq, $this->largestNumericId($relation['attributes'] ?? [], 'a'));
+            }
+
+            if ($drift instanceof RelationalDrift) {
+                $this->refreshRelationalSignal($drift, $diagram);
             }
 
             return;
@@ -260,17 +272,11 @@ class SchemaBoard extends Component
     {
         $nodes = array_map(fn ($e) => $this->nodeFor($e), $this->entities);
 
+        // Os nós visuais de cada relacionamento são exatamente os mesmos que
+        // `relationshipVisualNodesFor` devolve para o diff/remove — listar os
+        // dois aqui e lá era a mesma regra escrita duas vezes.
         foreach ($this->relations as $relation) {
-            if ($this->usesRelationshipNode($relation)) {
-                $nodes[] = $this->relationshipNodeFor($relation);
-                if ($this->isSelfRelationship($relation)) {
-                    array_push($nodes, ...$this->selfRelationshipPortNodesFor($relation));
-                }
-            }
-            if ($this->usesAttributeAnchor($relation)) {
-                $nodes[] = $this->relationshipAttributeAnchorFor($relation);
-            }
-            array_push($nodes, ...$this->relationshipAttributeNodesFor($relation));
+            array_push($nodes, ...$this->relationshipVisualNodesFor($relation));
         }
 
         return $nodes;
@@ -313,7 +319,6 @@ class SchemaBoard extends Component
      *
      *   canBeParent  — tem identificador (PK/UQ), então pode receber relação
      *   usedAttrs    — colunas já comprometidas com alguma relação
-     *   relCount     — quantas relações tocam a entidade (só informativo na UI)
      */
     private function nodeData(array $e): array
     {
@@ -564,7 +569,7 @@ class SchemaBoard extends Component
      * "Organizar quadro", que só muda as coordenadas das entidades.
      *
      * Relações completas e não autorrelacionadas usam o nó de âncora (o
-     *urringo no meio da aresta); as demais pendem do losango.
+     * losango no meio da aresta); as demais pendem do losango.
      *
      * @return array{x:int,y:int}
      */
@@ -870,22 +875,38 @@ class SchemaBoard extends Component
         ], $relation['attributes'] ?? []);
     }
 
+    /**
+     * Todos os nós que um relacionamento desenha por conta própria.
+     *
+     * A ordem é a de publicação no canvas: losango primeiro (é ele que o clique
+     * abre), depois as portas invisíveis do autorrelacionamento, a âncora dos
+     * atributos e, por último, os balões — que dependem da âncora.
+     *
+     * @return array<int, array>
+     */
     private function relationshipVisualNodesFor(array $relation): array
     {
-        $nodes = $this->relationshipAttributeNodesFor($relation);
-        if ($this->usesAttributeAnchor($relation)) {
-            $nodes[] = $this->relationshipAttributeAnchorFor($relation);
-        }
+        $nodes = [];
         if ($this->usesRelationshipNode($relation)) {
             $nodes[] = $this->relationshipNodeFor($relation);
             if ($this->isSelfRelationship($relation)) {
                 array_push($nodes, ...$this->selfRelationshipPortNodesFor($relation));
             }
         }
+        if ($this->usesAttributeAnchor($relation)) {
+            $nodes[] = $this->relationshipAttributeAnchorFor($relation);
+        }
+        array_push($nodes, ...$this->relationshipAttributeNodesFor($relation));
 
         return $nodes;
     }
 
+    /**
+     * Todas as arestas que um relacionamento desenha: as pernas até o losango
+     * (ou a linha reta, quando a relação é completa) e os fios dos balões.
+     *
+     * @return array<int, array>
+     */
     private function relationshipVisualEdgesFor(array $relation): array
     {
         return [...$this->edgesForRelation($relation), ...$this->relationshipAttributeEdgesFor($relation)];
@@ -969,31 +990,14 @@ class SchemaBoard extends Component
      */
     public function deleteEntity(string $id): void
     {
-        // Toda relação que encosta nessa entidade (como origem ou destino) morre junto.
-        $removidas = [];
-        $nodesRemovidos = [];
-        foreach ($this->relations as $r) {
-            if ($r['from'] === $id || $r['to'] === $id) {
-                array_push($removidas, ...array_column($this->relationshipVisualEdgesFor($r), 'id'));
-                array_push($nodesRemovidos, ...array_column($this->relationshipVisualNodesFor($r), 'id'));
-            }
-        }
-
         $this->entities = array_values(array_filter($this->entities, fn ($e) => $e['id'] !== $id));
 
-        $this->relations = array_values(array_filter($this->relations, fn ($r) => $r['from'] !== $id && $r['to'] !== $id));
-
-        if ($removidas) {
-            $this->flowRemoveEdges($removidas);
-        }
+        // Toda relação que encosta nessa entidade (como origem ou destino)
+        // morre junto, e o canvas precisa saber exatamente quais arestas e nós
+        // somem para não deixar linha nenhuma apontando para o vazio.
+        $this->dropRelations(fn (array $r): bool => $r['from'] === $id || $r['to'] === $id);
 
         $this->flowRemoveNodes([$id]);
-        if ($nodesRemovidos) {
-            $this->flowRemoveNodes($nodesRemovidos);
-        }
-
-        // As entidades que sobraram podem ter liberado colunas — republica o estado.
-        $this->syncNodeData();
     }
 
     /**
@@ -1060,49 +1064,72 @@ class SchemaBoard extends Component
             $e['attributes'] = array_values(array_filter($e['attributes'], fn ($a) => $a['id'] !== $attrId));
         });
 
-        $removidas = [];
-        $nodesRemovidos = [];
-        $relationIds = [];
-        foreach ($this->relations as $r) {
-            if ($r['fromAttr'] === $attrId || $r['toAttr'] === $attrId) {
-                $relationIds[] = $r['id'];
-                array_push($removidas, ...array_column($this->relationshipVisualEdgesFor($r), 'id'));
-                array_push($nodesRemovidos, ...array_column($this->relationshipVisualNodesFor($r), 'id'));
-            }
-        }
-
-        if ($removidas) {
-            $this->relations = array_values(array_filter($this->relations, fn ($r) => ! in_array($r['id'], $relationIds, true)));
-            $this->flowRemoveEdges($removidas);
-            if ($nodesRemovidos) {
-                $this->flowRemoveNodes($nodesRemovidos);
-            }
-            $this->syncNodeData();
-        }
+        // Uma relação que apontava para a coluna que acabou de sumir não tem
+        // mais o que representar: ela cai junto, em qualquer uma das pontas.
+        $this->dropRelations(fn (array $r): bool => $r['fromAttr'] === $attrId || $r['toAttr'] === $attrId);
     }
 
     /**
-     * Alterna ciclicamente a restrição da coluna:
-     * comum (vazio) → PK → FK → UQ → volta ao vazio.
+     * Remove do estado as relações que o filtro escolher e limpa o canvas.
      *
-     * Como PK/UQ definem se a entidade pode receber relacionamento, o ciclo
-     * republica o estado de todos os nodes ao final.
+     * Uma relação não é só um registro em $relations: ela virou arestas e nós
+     * de verdade no AlpineFlow (o losango, as portas, a âncora e os balões de
+     * atributo). Por isso a remoção precisa listar o que foi desenhado, senão
+     * sobra lixo desenhado apontando para entidades que não existem mais.
+     *
+     * @param  callable(array): bool  $shouldDrop
+     */
+    private function dropRelations(callable $shouldDrop): void
+    {
+        $kept = [];
+        $edgeIds = [];
+        $nodeIds = [];
+
+        foreach ($this->relations as $relation) {
+            if (! $shouldDrop($relation)) {
+                $kept[] = $relation;
+
+                continue;
+            }
+
+            array_push($edgeIds, ...array_column($this->relationshipVisualEdgesFor($relation), 'id'));
+            array_push($nodeIds, ...array_column($this->relationshipVisualNodesFor($relation), 'id'));
+        }
+
+        if ($edgeIds === []) {
+            return;
+        }
+
+        $this->relations = array_values($kept);
+        $this->flowRemoveEdges($edgeIds);
+        $this->flowRemoveNodes($nodeIds);
+
+        // As entidades que sobraram podem ter liberado colunas — republica o estado.
+        $this->syncNodeData();
+    }
+
+    /**
+     * Alterna a coluna entre "sem chave" e PK.
+     *
+     * Esse é o único par de estados editável na tela — FK e UQ só entram pelo
+     * importador de JSON ou pela conversão, e viram PK/FK no modelo
+     * relacional. O botão é o único ponto de entrada do editor, então qualquer
+     * outro valor que chegue aqui é normalizado para "sem chave".
+     *
+     * É a PK (ou a UQ) que decide se a entidade pode receber uma relação, então
+     * o estado do node precisa ser republicado: `mutateEntity` já faz isso ao
+     * recarregar `nodeData()` da entidade.
      */
     public function cycleKey(string $entityId, string $attrId): void
     {
-        $order = ['', 'PK', 'FK', 'UQ']; // lista circular
-
         $this->mutateEntity($entityId, function (&$e) use ($attrId) {
-
-            $vaiVirarPk = false;
-            foreach ($e['attributes'] as &$a) {
-                if ($a['id'] === $attrId) {
-                    $vaiVirarPk = $a['key'] !== 'PK';
-                    $a['key'] = $vaiVirarPk ? 'PK' : '';
+            foreach ($e['attributes'] as &$attribute) {
+                if ($attribute['id'] === $attrId) {
+                    $attribute['key'] = $attribute['key'] === 'PK' ? '' : 'PK';
                     break;
                 }
             }
-            unset($a);
+            unset($attribute);
         });
     }
 
@@ -1484,12 +1511,10 @@ class SchemaBoard extends Component
                     $relation['diamondX'] = (int) round($position['x'] ?? 0);
                     $relation['diamondY'] = (int) round($position['y'] ?? 0);
 
+                    // Só as portas: o losango é o nó arrastado, então o
+                    // AlpineFlow já devolveu a posição dele no evento.
                     if ($this->isSelfRelationship($relation)) {
-                        $patch = [];
-                        foreach ($this->selfRelationshipPortNodesFor($relation) as $port) {
-                            $patch[$port['id']] = ['position' => $port['position']];
-                        }
-                        $this->flowUpdate(['nodes' => $patch]);
+                        $this->flowUpdate(['nodes' => $this->positionPatch($this->selfRelationshipPortNodesFor($relation))]);
                     }
                     break;
                 }
@@ -1506,6 +1531,11 @@ class SchemaBoard extends Component
                 $deltaX = $newX - $e['x'];
                 $deltaY = $newY - $e['y'];
 
+                // Arrastar a entidade leva junto o losango e as portas
+                // invisíveis do autorrelacionamento que nasce nela. O losango
+                // guarda a posição *desenhada* (que pode estar presa dentro dos
+                // limites da entidade), então o deslocamento da entidade é
+                // somado a ela, e não ao diamondX bruto.
                 foreach ($this->relations as &$relation) {
                     if (! $this->isSelfRelationship($relation) || $relation['from'] !== $nodeId) {
                         continue;
@@ -1514,22 +1544,13 @@ class SchemaBoard extends Component
                     $diamond = $this->relationshipNodeFor($relation)['position'];
                     $relation['diamondX'] = $diamond['x'] + $deltaX;
                     $relation['diamondY'] = $diamond['y'] + $deltaY;
+
+                    $this->flowUpdate(['nodes' => $this->positionPatch($this->selfRelationshipVisualNodesFor($relation))]);
                 }
                 unset($relation);
 
                 $e['x'] = $newX;
                 $e['y'] = $newY;
-
-                foreach ($this->relations as $relation) {
-                    if ($this->isSelfRelationship($relation) && $relation['from'] === $nodeId) {
-                        $node = $this->relationshipNodeFor($relation);
-                        $patch = [$node['id'] => ['position' => $node['position']]];
-                        foreach ($this->selfRelationshipPortNodesFor($relation) as $port) {
-                            $patch[$port['id']] = ['position' => $port['position']];
-                        }
-                        $this->flowUpdate(['nodes' => $patch]);
-                    }
-                }
                 break;
             }
         }
@@ -1635,9 +1656,7 @@ class SchemaBoard extends Component
                         continue;
                     }
 
-                    foreach ($this->selfRelationshipPortNodesFor($relation) as $port) {
-                        $patch[$port['id']] = ['position' => $port['position']];
-                    }
+                    $patch = [...$patch, ...$this->positionPatch($this->selfRelationshipVisualNodesFor($relation))];
                 }
 
                 $this->flowUpdate(['nodes' => $patch]);
@@ -1755,6 +1774,37 @@ class SchemaBoard extends Component
             'diamondOut' => $prefix.'diamond-out',
             'diamondIn' => $prefix.'diamond-in',
         ];
+    }
+
+    /**
+     * Converte nós em patch de `flowUpdate`, no formato `id => posição`.
+     *
+     * @param  array<int, array>  $nodes
+     * @return array<string, array>
+     */
+    private function positionPatch(array $nodes): array
+    {
+        $patch = [];
+        foreach ($nodes as $node) {
+            $patch[$node['id']] = ['position' => $node['position']];
+        }
+
+        return $patch;
+    }
+
+    /**
+     * O losango mais as quatro portas invisíveis de um autorrelacionamento.
+     *
+     * Serve para quando o losango é *empurrado* junto com outra coisa (a
+     * entidade): aí ele precisa ser reposicionado no canvas como os demais.
+     * Quando o losango é o próprio nó arrastado, basta o patch das portas,
+     * porque o AlpineFlow já devolve a posição dele.
+     *
+     * @return array<int, array>
+     */
+    private function selfRelationshipVisualNodesFor(array $relation): array
+    {
+        return [$this->relationshipNodeFor($relation), ...$this->selfRelationshipPortNodesFor($relation)];
     }
 
     /**
@@ -1887,9 +1937,13 @@ class SchemaBoard extends Component
      * cria um novo e passa a lembrar o id dele — assim cliques seguintes em
      * "Salvar" viram UPDATE, e não ficam criando registros duplicados.
      */
-    public function save(): void
+    public function save(RelationalDrift $drift): void
     {
-        $this->persistDiagram();
+        $source = $this->persistDiagram();
+
+        // O ER é a origem da cópia Relacional: salvar aqui pode deixá-la
+        // defasada, e o quadro precisa mostrar isso na mesma resposta.
+        $this->refreshRelationalSignal($drift, $source);
 
         // Evento ouvido no Blade (Alpine, via @saved.window) para exibir o
         // selo "✅ Salvo!" por alguns segundos. O .window é necessário porque
@@ -1910,7 +1964,7 @@ class SchemaBoard extends Component
      * Livewire devolveria o quadro inteiro — entidades e balões — ao layout
      * antigo.
      */
-    public function organizeBoard(): void
+    public function organizeBoard(RelationalDrift $drift): void
     {
         $oldPositions = collect($this->entities)->mapWithKeys(fn (array $entity): array => [
             $entity['id'] => ['x' => $entity['x'], 'y' => $entity['y']],
@@ -1974,7 +2028,7 @@ class SchemaBoard extends Component
 
         $this->placeRelationshipAttributes();
 
-        $this->persistDiagram();
+        $this->refreshRelationalSignal($drift, $this->persistDiagram());
         $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
         $this->flowFitView();
     }
@@ -1984,7 +2038,7 @@ class SchemaBoard extends Component
      * Assim a conversão nunca usa um snapshot antigo nem exige voltar antes
      * ao dashboard para encontrar o botão da Etapa 2.
      */
-    public function convertToRelational(ErToRelationalTransformer $transformer): void
+    public function convertToRelational(ErToRelationalTransformer $transformer, RelationalDrift $drift): void
     {
         $source = $this->persistDiagram();
 
@@ -1997,9 +2051,34 @@ class SchemaBoard extends Component
             ],
         );
 
-        $this->relationalDiagramId = $relational->id;
+        // A conversão só cria a cópia; se ela já existia, quem decide sobre a
+        // defasagem continua sendo o quadro Relacional.
+        $this->refreshRelationalSignal($drift, $source);
 
         $this->redirectRoute('boards.relational', $relational, navigate: true);
+    }
+
+    /**
+     * Atualiza o sinal "a cópia Relacional está defasada" da aba do topo.
+     *
+     * A comparação usa o estado em memória (`entities`/`relations`), que é
+     * exatamente o que `persistDiagram` grava — assim salvar o ER acende o
+     * sinal na mesma resposta, sem esperar um reload.
+     */
+    private function refreshRelationalSignal(RelationalDrift $drift, ?Diagram $source = null): void
+    {
+        $source ??= $this->diagramId
+            ? Diagram::query()->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->find($this->diagramId)
+            : null;
+
+        $relational = $source?->relationalDiagram()->first();
+
+        $this->relationalDiagramId = $relational?->id;
+        $this->relationalIsOutdated = $relational !== null
+            && $drift->report(
+                ['entities' => $this->entities, 'relations' => $this->relations],
+                $relational->data ?? [],
+            )['outdated'];
     }
 
     private function persistDiagram(): Diagram

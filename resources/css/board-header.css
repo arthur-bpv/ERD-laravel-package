@@ -33,6 +33,13 @@
 .board-model-tabs a:hover,
 .board-model-tabs button:hover { color: var(--board-accent); }
 .board-model-tabs .is-active { background: #fff; color: var(--board-accent); box-shadow: 0 1px 4px rgb(15 23 42 / 10%); }
+/* Sinal de "cópia relacional defasada" — a aba continua sendo um link normal,
+   só ganha um marcador para o ojo não perder a aba. */
+.board-model-tabs .board-tab-flag {
+    display: inline-grid; width: 13px; height: 13px; margin-left: 3px; place-items: center; vertical-align: -1px;
+    border-radius: 50%; background: #f59e0b; color: #fff; font-size: 9px; font-weight: 900;
+}
+.board-menu-flag { padding: 6px 10px 8px; color: #b45309; font-size: 10px; line-height: 1.5; }
 .board-toolbar-actions { display: flex; min-width: 0; align-items: center; justify-self: end; gap: 7px; }
 .board-toolbar-button,
 .board-toolbar-menu > summary {
@@ -82,6 +89,7 @@
 .dark .board-model-tabs a,
 .dark .board-model-tabs button { color: #94a3b8; }
 .dark .board-model-tabs .is-active { background: #1e293b; color: #a5f3fc; box-shadow: none; }
+.dark .board-menu-flag { color: #fcd34d; }
 .dark .board-toolbar-button,
 .dark .board-toolbar-menu > summary { border-color: #334155; background: #172033; color: #cbd5e1; }
 .dark .board-toolbar-button:hover,

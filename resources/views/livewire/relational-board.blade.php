@@ -91,7 +91,7 @@
                 <p role="alert" class="p-4 text-amber-300">{{ $sqlError }}</p>
             @else
                 <pre>{{ $sqlPreview }}</pre>
-                <div class="flex justify-end gap-3 border-t border-slate-700 p-3">
+                <div class="rel-modal-actions">
                     <button type="button" @click="navigator.clipboard.writeText($wire.sqlPreview); showNotice('SQL copiado.')">Copiar</button>
                     <button type="button" wire:click="downloadSql" wire:loading.attr="disabled" wire:target="downloadSql">Baixar .sql</button>
                 </div>
@@ -193,8 +193,23 @@
                                     <button type="button" class="rel-null nodrag" :class="{ 'is-active': column.nullable }"
                                         @pointerdown.stop @click.stop="$wire.toggleColumnNullable(node.id, column.id)"
                                         :title="column.key.includes('PK') ? 'PK não pode aceitar NULL' : 'Alternar nulabilidade'">NULL</button>
+                                    <button type="button" class="rel-column-delete nodrag"
+                                        @pointerdown.stop @click.stop="$wire.removeColumn(node.id, column.id)"
+                                        title="Remover coluna (e as FKs que dependem dela)" aria-label="Remover coluna">✕</button>
                                 </div>
                             </template>
+
+                            <div class="rel-add-column nodrag" x-data="{ open: false, draft: '' }">
+                                <button type="button" x-show="!open" @pointerdown.stop @click.stop="open = true; $nextTick(() => { $refs.newColumn.focus(); })">
+                                    <span aria-hidden="true">＋</span> Coluna
+                                </button>
+                                <form x-show="open" @submit.prevent="$wire.addColumn(node.id, draft); draft = ''; open = false; $nextTick(() => { $refs.newColumn.focus(); })" x-cloak>
+                                    <input x-ref="newColumn" type="text" x-model="draft" class="rel-add-column-input" maxlength="80"
+                                        @pointerdown.stop @click.stop @keydown.escape.stop.prevent="open = false; draft = ''"
+                                        placeholder="nome_da_coluna" aria-label="Nome da nova coluna">
+                                    <button type="submit" @pointerdown.stop @click.stop>Adicionar</button>
+                                </form>
+                            </div>
                         </div>
                     </article>
                 </x-slot:node>

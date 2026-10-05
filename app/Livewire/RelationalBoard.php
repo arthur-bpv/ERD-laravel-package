@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\InterageComJson;
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
 use App\Services\RelationalDrift;
@@ -20,6 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 #[Layout('layouts.app')]
 class RelationalBoard extends Component
 {
+    use InterageComJson;
     use WithWireFlow;
 
     #[Locked]
@@ -28,6 +30,21 @@ class RelationalBoard extends Component
     private const RECURSIVE_SIDES = ['right', 'left'];
 
     private const TABLE_WIDTH = 380;
+
+    /**
+     * Altura da tabela, por partes.
+     *
+     * Cabeçalho + a linha "＋ Coluna" (que fica sempre visível) + uma linha
+     * por coluna. Fica em constantes porque o layout, o desenho dos nós e o
+     * arranjo automático precisam do mesmo número — e porque a linha de
+     * adicionar coluna não some, ela só troca de lugar quando o formulário
+     * abre, então ela conta uma vez só.
+     */
+    private const TABLE_HEADER_HEIGHT = 62;
+
+    private const TABLE_ADD_ROW_HEIGHT = 44;
+
+    private const TABLE_COLUMN_HEIGHT = 44;
 
     private const LAYOUT_COLUMN_GAP = 180;
 
@@ -65,8 +82,6 @@ class RelationalBoard extends Component
      */
     #[Locked]
     public ?string $sourceFingerprint = null;
-
-    public bool $showJson = false;
 
     public bool $showSql = false;
 
@@ -170,12 +185,7 @@ class RelationalBoard extends Component
             return;
         }
 
-        $duplicate = collect($this->tables[$tableIndex]['columns'])->contains(
-            fn (array $column) => $column['id'] !== $columnId && mb_strtolower($column['name']) === mb_strtolower($name),
-        );
-        if ($duplicate) {
-            $this->dispatch('relational-edit-rejected', message: 'Já existe uma coluna com esse nome.');
-
+        if ($this->rejectDuplicateColumnName($tableIndex, $name, $columnId)) {
             return;
         }
 
@@ -220,11 +230,7 @@ class RelationalBoard extends Component
             return;
         }
 
-        if (collect($this->tables[$tableIndex]['columns'])->contains(
-            fn (array $column) => mb_strtolower($column['name']) === mb_strtolower($name),
-        )) {
-            $this->dispatch('relational-edit-rejected', message: 'Já existe uma coluna com esse nome.');
-
+        if ($this->rejectDuplicateColumnName($tableIndex, $name)) {
             return;
         }
 
@@ -394,11 +400,6 @@ class RelationalBoard extends Component
         $this->commitLogicalEdit();
     }
 
-    public function toggleJson(): void
-    {
-        $this->showJson = ! $this->showJson;
-    }
-
     public function openSqlPreview(RelationalSqlGenerator $generator): void
     {
         $this->showSql = true;
@@ -412,22 +413,6 @@ class RelationalBoard extends Component
         }
     }
 
-    /**
-     * Baixa o JSON exibido no modal — o mesmo conteúdo de `jsonPreview`.
-     */
-    public function downloadJson(): StreamedResponse
-    {
-        $json = $this->jsonPreview;
-
-        return response()->streamDownload(
-            static function () use ($json): void {
-                echo $json;
-            },
-            'modelo-relacional.json',
-            ['Content-Type' => 'application/json; charset=UTF-8'],
-        );
-    }
-
     public function downloadSql(RelationalSqlGenerator $generator): StreamedResponse
     {
         $sql = $generator->generate($this->sqlData());
@@ -439,6 +424,21 @@ class RelationalBoard extends Component
             'modelo-relacional-'.$this->dialect.'.sql',
             ['Content-Type' => 'application/sql; charset=UTF-8'],
         );
+    }
+
+    /**
+     * Tamanho de uma tabela, no canvas e no arranjo automático.
+     *
+     * @return array{width: int, height: int}
+     */
+    private function tableDimensions(array $table): array
+    {
+        return [
+            'width' => self::TABLE_WIDTH,
+            'height' => self::TABLE_HEADER_HEIGHT
+                + self::TABLE_ADD_ROW_HEIGHT
+                + (count($table['columns'] ?? []) * self::TABLE_COLUMN_HEIGHT),
+        ];
     }
 
     private function sqlData(): array
@@ -465,7 +465,7 @@ class RelationalBoard extends Component
         $positions = BoardLayout::centered(
             $this->tables,
             $links,
-            fn (array $table): int => 62 + (count($table['columns'] ?? []) * 44),
+            fn (array $table): int => $this->tableDimensions($table)['height'],
             self::TABLE_WIDTH,
             self::LAYOUT_COLUMN_GAP,
             self::LAYOUT_ROW_GAP,
@@ -474,7 +474,7 @@ class RelationalBoard extends Component
             $this->tables,
             $links,
             $positions,
-            fn (array $table): int => 62 + (count($table['columns'] ?? []) * 44),
+            fn (array $table): int => $this->tableDimensions($table)['height'],
             self::TABLE_WIDTH,
             self::LAYOUT_ROW_GAP,
             24,
@@ -502,12 +502,18 @@ class RelationalBoard extends Component
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
+    /** Nome do arquivo baixado pelo botão "Baixar .json" do modal. */
+    protected function jsonFileName(): string
+    {
+        return 'modelo-relacional.json';
+    }
+
     public function buildNodes(): array
     {
         return array_map(fn (array $table) => [
             'id' => $table['id'],
             'position' => ['x' => $table['x'], 'y' => $table['y']],
-            'dimensions' => ['width' => self::TABLE_WIDTH, 'height' => 62 + (count($table['columns']) * 44)],
+            'dimensions' => $this->tableDimensions($table),
             'data' => [
                 'name' => $table['name'],
                 'kind' => $table['kind'],
@@ -708,6 +714,32 @@ class RelationalBoard extends Component
         $name = trim(preg_replace('/\s+/', ' ', $name) ?? '');
 
         return $name !== '' && mb_strlen($name) <= 80 ? $name : null;
+    }
+
+    /**
+     * Recusa um nome que já existe na tabela, e avisa por que.
+     *
+     * A comparação ignora maiúsculas porque o SQL trata identificadores assim
+     * em MySQL e PostgreSQL: `Email` e `email` na mesma tabela colidem no
+     * banco, mesmo que o quadro as mostre lado a lado.
+     *
+     * @param  string|null  $exceptColumnId  coluna que está sendo renomeada,
+     *                                       e portanto não colide consigo mesma
+     */
+    private function rejectDuplicateColumnName(int $tableIndex, string $name, ?string $exceptColumnId = null): bool
+    {
+        $duplicate = collect($this->tables[$tableIndex]['columns'])->contains(
+            fn (array $column): bool => $column['id'] !== $exceptColumnId
+                && mb_strtolower($column['name']) === mb_strtolower($name),
+        );
+
+        if ($duplicate) {
+            $this->dispatch('relational-edit-rejected', message: 'Já existe uma coluna com esse nome.');
+
+            return true;
+        }
+
+        return false;
     }
 
     private function columnIdForForeignKey(array $foreignKey, string $end): ?string

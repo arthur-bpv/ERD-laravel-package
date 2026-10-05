@@ -3,7 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Diagram;
-use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalCopy;
 use App\Services\RelationalDrift;
 use App\Support\ErDiagramImport;
 use Illuminate\Contracts\View\View;
@@ -45,6 +45,9 @@ class ProjectDashboard extends Component
      * Só sinaliza: o quadro Relacional é quem oferece a regeneração, porque só
      * ele conhece as edições manuais que ela substituiria.
      *
+     * Usa `isOutdated` e não `report` porque aqui a lista de mudanças não é
+     * usada — e ela custa um transform do ER por projeto a cada render.
+     *
      * É uma computed property no formato legado (`get...Property`) porque,
      * ao contrário de `#[Computed]`, ela aceita a dependência injetada.
      *
@@ -54,7 +57,7 @@ class ProjectDashboard extends Component
     {
         return $this->projects
             ->filter(fn (Diagram $project): bool => $project->relationalDiagram !== null
-                && $drift->report($project->data ?? [], $project->relationalDiagram->data ?? [])['outdated'])
+                && $drift->isOutdated($project->data ?? [], $project->relationalDiagram->data ?? []))
             ->pluck('id')
             ->all();
     }
@@ -113,23 +116,14 @@ class ProjectDashboard extends Component
         $this->redirectRoute('boards.er', $diagram, navigate: true);
     }
 
-    public function createRelational(int $sourceDiagramId, ErToRelationalTransformer $transformer): void
+    public function createRelational(int $sourceDiagramId, RelationalCopy $copy): void
     {
         $source = Diagram::query()
             ->whereKey($sourceDiagramId)
             ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
             ->firstOrFail();
 
-        $diagram = Diagram::firstOrCreate(
-            ['source_diagram_id' => $source->id],
-            [
-                'name' => $source->name.' — Relacional',
-                'type' => Diagram::TYPE_RELATIONAL,
-                'data' => $transformer->transform($source->data ?? []),
-            ],
-        );
-
-        $this->redirectRoute('boards.relational', $diagram, navigate: true);
+        $this->redirectRoute('boards.relational', $copy->findOrCreate($source), navigate: true);
     }
 
     public function deleteProject(int $projectId): void

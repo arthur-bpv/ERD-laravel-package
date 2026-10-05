@@ -138,9 +138,10 @@
     .board-toolbar--relational .board-toolbar-save { grid-column: 3 / 5; grid-row: 3; }
 }
 @media (max-width: 370px) {
-    .board-toolbar-main { grid-template-columns: 1fr; }
-    .board-model-tabs { justify-self: start; }
-    .board-toolbar-actions { grid-column: 1; }
+    /* Só o que muda em relação aos breakpoints acima: o formulário de nova
+       entidade deixa de ser flex e vira grid. `grid-template-columns`,
+       `width` e o `grid-column` do label são novos — o `flex: 1` do input
+       definido aos 620px não vale para um item de grid. */
     .board-create-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
     .board-create-form label { grid-column: 1 / -1; }
     .board-create-form input { width: 100%; }

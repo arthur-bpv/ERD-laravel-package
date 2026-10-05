@@ -49,12 +49,14 @@ class ErToRelationalTransformer
             $this->mapMultivaluedAttributes($tables, $entityTable, $entity);
         }
 
+        // A saída é determinística de propósito: dois ERs iguais produzem payloads
+        // byte a byte iguais. Por isso nada de `generatedAt` aqui — um carimbo de
+        // tempo só mudaria o resultado sem acrescentar informação. Quem precisa saber
+        // de qual ER o modelo veio lê `sourceFingerprint`.
         return [
-            'version' => 1,
             'tables' => array_values($tables),
             'foreignKeys' => $this->foreignKeys($tables),
             'warnings' => array_values(array_unique($this->warnings)),
-            'generatedAt' => now()->toIso8601String(),
             'sourceFingerprint' => $this->fingerprint($diagram),
         ];
     }

@@ -32,6 +32,31 @@ class RelationalDrift
     public function __construct(private ErToRelationalTransformer $transformer) {}
 
     /**
+     * Só o booleano, sem montar a lista de mudanças.
+     *
+     * Para quem só precisa saber se o aviso aparece (a aba do quadro ER, o card
+     * do dashboard) e não quer pagar pelo transform completo a cada render.
+     *
+     * @param  array  $source  `data` do diagrama ER
+     * @param  array  $relational  `data` do diagrama Relacional
+     */
+    public function isOutdated(array $source, array $relational): bool
+    {
+        $fingerprint = $relational['sourceFingerprint'] ?? null;
+
+        // Impressão digital igual significa que o ER não mudou desde a geração.
+        // O que ainda difere no quadro Relacional é edição manual do usuário —
+        // e isso nunca é motivo para acusar o ER de desatualizado. Decidir
+        // isso aqui evita o transform, que é a parte cara de `changes`.
+        if (is_string($fingerprint) && $fingerprint !== ''
+            && hash_equals($fingerprint, $this->transformer->fingerprint($source))) {
+            return false;
+        }
+
+        return $this->report($source, $relational)['outdated'];
+    }
+
+    /**
      * Estado da verificação, pronto para a view.
      *
      * @param  array  $source  `data` do diagrama ER

@@ -533,6 +533,34 @@ class RelationalBoardTest extends TestCase
             ->assertSee('As edições manuais deste quadro também serão substituídas.');
     }
 
+    /**
+     * A largura/altura da tabela no canvas precisa cobrir a linha "＋ Coluna",
+     * que fica sempre visível — se ela não contar, as tabelas se sobrepõem ao
+     * arrastar e o arranjo automático reserva espaço demais.
+     */
+    public function test_node_height_accounts_for_the_always_visible_add_column_row(): void
+    {
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->generatedRelationalDiagram()]);
+
+        $nodes = collect($component->instance()->buildNodes())->keyBy('id');
+
+        $before = $nodes['staff']['dimensions']['height'];
+
+        $component->call('addColumn', 'staff', 'telefone');
+
+        $after = collect($component->instance()->buildNodes())->firstWhere('id', 'staff')['dimensions']['height'];
+
+        $this->assertSame(44, $after - $before, 'Uma coluna a mais precisa somar exatamente uma linha.');
+    }
+
+    /** O quadro oferece os dois controles no HTML, e não só nos testes. */
+    public function test_the_column_editor_offers_adding_and_removing_columns(): void
+    {
+        Livewire::test(RelationalBoard::class, ['diagram' => $this->generatedRelationalDiagram()])
+            ->assertSeeHtml('$wire.addColumn(node.id, draft)')
+            ->assertSeeHtml('$wire.removeColumn(node.id, column.id)');
+    }
+
     private function addEmailToStaff(Diagram $source): void
     {
         $data = $source->data;

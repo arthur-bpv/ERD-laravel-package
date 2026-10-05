@@ -71,8 +71,9 @@
                     <span wire:loading wire:target="openSqlPreview">Gerando…</span>
                 </button>
             @endunless
-            <button type="button" class="board-toolbar-button board-toolbar-save" wire:click="save" wire:loading.attr="disabled" wire:target="save"
-                @if ($isEr) @saved.window="window.alert('✅ Diagrama salvo com sucesso!')" @endif>
+            {{-- Mesmo botão nos dois quadros: a confirmação de "Salvar" é um aviso
+                 flutuante, emitido pelo quadro que trata `saved`/`relational-saved`. --}}
+            <button type="button" class="board-toolbar-button board-toolbar-save" wire:click="save" wire:loading.attr="disabled" wire:target="save">
                 <span wire:loading.remove wire:target="save">Salvar</span>
                 <span wire:loading wire:target="save">Salvando…</span>
             </button>

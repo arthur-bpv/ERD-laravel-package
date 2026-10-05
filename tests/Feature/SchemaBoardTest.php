@@ -292,7 +292,7 @@ class SchemaBoardTest extends TestCase
     public function test_drawing_a_connection_creates_a_server_owned_relation(): void
     {
         $component = Livewire::test(SchemaBoard::class)
-            ->call('onConnect', 'comments', 'comments', 's:right', 't:left')
+            ->call('onConnect', 'comments', 'comments')
             ->assertDispatched('flow:addEdges');
 
         $relations = $component->get('relations');
@@ -311,7 +311,7 @@ class SchemaBoardTest extends TestCase
     public function test_connecting_does_not_create_a_foreign_key_column(): void
     {
         $component = Livewire::test(SchemaBoard::class)
-            ->call('onConnect', 'comments', 'comments', 's:right', 't:left');
+            ->call('onConnect', 'comments', 'comments');
 
         $comments = collect($component->get('entities'))->firstWhere('id', 'comments');
         $recursiveFk = collect($comments['attributes'])->firstWhere('name', 'comments_id');
@@ -370,7 +370,7 @@ class SchemaBoardTest extends TestCase
             ->call('cycleKey', 'e4', 'e4.id')                       // PK  → FK
             ->call('cycleKey', 'e4', 'e4.id')                       // FK  → UQ
             ->call('cycleKey', 'e4', 'e4.id')                       // UQ  → (vazio)
-            ->call('onConnect', 'users', 'e4', 's:right', 't:left');
+            ->call('onConnect', 'users', 'e4');
 
         $this->assertCount(3, $component->get('relations'), 'nenhuma relação nova deveria existir');
 
@@ -386,7 +386,7 @@ class SchemaBoardTest extends TestCase
     public function test_deleting_an_entity_cascades_to_hand_drawn_relations(): void
     {
         $component = Livewire::test(SchemaBoard::class)
-            ->call('onConnect', 'users', 'posts', 's:right', 't:left')
+            ->call('onConnect', 'users', 'posts')
             ->call('deleteEntity', 'users')
             ->assertDispatched('flow:removeEdges')
             ->assertDispatched('flow:removeNodes');
@@ -518,25 +518,6 @@ class SchemaBoardTest extends TestCase
         $component = Livewire::test(SchemaBoard::class)->call('renameRelation', 'r1', '   ');
 
         $this->assertSame('escreve', $this->relacao($component->get('relations'), 'r1')['name']);
-    }
-
-    /** Trocar a coluna de uma ponta atualiza a relação e redesenha a aresta. */
-    public function test_setting_relation_attr_changes_the_column(): void
-    {
-        $component = Livewire::test(SchemaBoard::class)
-            ->call('setRelationAttr', 'r1', 'to', 'users.email')
-            ->assertDispatched('erd-rebuild-edge');
-
-        $this->assertSame('users.email', $this->relacao($component->get('relations'), 'r1')['toAttr']);
-    }
-
-    /** Coluna que não pertence à entidade daquela ponta é recusada. */
-    public function test_setting_relation_attr_to_a_column_from_another_table_is_rejected(): void
-    {
-        $component = Livewire::test(SchemaBoard::class)
-            ->call('setRelationAttr', 'r1', 'to', 'comments.body');
-
-        $this->assertSame('users.id', $this->relacao($component->get('relations'), 'r1')['toAttr']);
     }
 
     /** Arrastar a entidade persiste a posição, para o layout sobreviver a um reload. */

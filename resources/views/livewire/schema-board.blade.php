@@ -1,4 +1,17 @@
-<div class="er-board flex h-screen min-h-0 flex-col overflow-hidden bg-slate-100 font-sans text-slate-800" x-data="{ guideOpen: false }">
+<div class="er-board flex h-screen min-h-0 flex-col overflow-hidden bg-slate-100 font-sans text-slate-800"
+    x-data="{
+        guideOpen: false,
+        notice: '',
+        noticeKind: 'success',
+        noticeTimer: null,
+        showNotice(message, kind = 'success') {
+            this.notice = message;
+            this.noticeKind = kind;
+            window.clearTimeout(this.noticeTimer);
+            this.noticeTimer = window.setTimeout(() => this.notice = '', 2800);
+        },
+    }"
+    @saved.window="showNotice('Diagrama salvo.')">
 
     <x-board-header mode="er" :diagram-name="$diagramName" :relational-diagram-id="$relationalDiagramId"
         :relational-outdated="$relationalIsOutdated"
@@ -31,6 +44,12 @@
     {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
     {{-- Mesmo componente usado pelo quadro Relacional, com o mesmo rodapé de copiar/baixar. --}}
     <x-json-modal title="JSON do diagrama" />
+
+    {{-- Aviso flutuante: mesma marcação e mesmo ciclo do quadro Relacional. --}}
+    <div x-show="notice" x-cloak x-transition class="er-notice" :class="{ 'is-warning': noticeKind === 'warning' }" role="status" aria-live="polite">
+        <span x-text="noticeKind === 'warning' ? '!' : '✓'"></span>
+        <p x-text="notice"></p>
+    </div>
 
     {{-- ===================== CANVAS ===================== --}}
     <div class="relative min-h-0 flex-1 overflow-hidden">

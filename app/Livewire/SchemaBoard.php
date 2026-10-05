@@ -2,8 +2,9 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\InterageComJson;
 use App\Models\Diagram;
-use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalCopy;
 use App\Services\RelationalDrift;
 use App\Support\BoardLayout;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
@@ -12,7 +13,6 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Editor visual de modelo Entidade-Relacionamento.
@@ -40,6 +40,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 #[Layout('layouts.app')]
 class SchemaBoard extends Component
 {
+    use InterageComJson;
     // A trait WithWireFlow permite enviar comandos JavaScript granulares e diretos
     // para a biblioteca de diagramas do frontend, evitando renderizações pesadas do Livewire.
     use WithWireFlow;
@@ -59,10 +60,17 @@ class SchemaBoard extends Component
      */
     private const MARKER_OFFSET = 0;
 
-    /** Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente. */
+    /**
+     * Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente.
+     *
+     * A lista tem de ser idêntica à de `CARDINALIDADES` em `resources/js/erd/markers.js`:
+     * um nome só em um dos lados falha em silêncio (a aresta vira uma seta comum).
+     * `cf-many` ("muitos") é o pé de galinha sem barra, aceito na importação.
+     */
     private const CARDINALIDADES = [
         'cf-one-one', 'cf-zero-one',
         'cf-one-many', 'cf-zero-many',
+        'cf-many',
     ];
 
     /** Cor padrão das relações. */
@@ -1146,7 +1154,7 @@ class SchemaBoard extends Component
      */
     public function createSelfRelation(string $entityId): void
     {
-        $this->onConnect($entityId, $entityId, 's:top', 't:tr');
+        $this->onConnect($entityId, $entityId);
     }
 
     /**
@@ -1157,9 +1165,10 @@ class SchemaBoard extends Component
      * id do servidor, e a devolvemos pronta para a tela.
      *
      * As colunas são escolhidas automaticamente porque a conexão é feita de
-     * entidade para entidade — o usuário refina depois no painel lateral.
+     * entidade para entidade — quem quiser refinar depois usa o botão de
+     * inverter do painel do relacionamento, que troca as pontas inteiras.
      */
-    public function onConnect(string $source, string $target, ?string $sourceHandle = null, ?string $targetHandle = null): void
+    public function onConnect(string $source, string $target): void
     {
         $sourceRelationId = $this->relationIdFromNode($source);
         $targetRelationId = $this->relationIdFromNode($target);
@@ -1461,37 +1470,6 @@ class SchemaBoard extends Component
             $this->flowRemoveNodes(array_column($this->relationshipVisualNodesFor($relation), 'id'));
         }
         $this->syncNodeData();
-    }
-
-    /**
-     * Troca qual coluna participa de uma das pontas do relacionamento.
-     *
-     * @param  string  $end  'from' (coluna FK) ou 'to' (coluna referenciada)
-     */
-    public function setRelationAttr(string $relationId, string $end, string $attrId): void
-    {
-        foreach ($this->relations as $relation) {
-            if ($relation['id'] !== $relationId) {
-                continue;
-            }
-
-            $entityId = $end === 'to' ? $relation['to'] : $relation['from'];
-            $entity = $this->findEntity($entityId);
-            $belongsToEntity = collect($entity['attributes'] ?? [])->contains('id', $attrId);
-
-            if (! $belongsToEntity) {
-                return;
-            }
-
-            $field = $end === 'to' ? 'toAttr' : 'fromAttr';
-            $this->mutateRelation($relationId, function (array &$item) use ($field, $attrId) {
-                $item[$field] = $attrId;
-            });
-
-            $this->syncNodeData();
-
-            return;
-        }
     }
 
     /**
@@ -2038,18 +2016,11 @@ class SchemaBoard extends Component
      * Assim a conversão nunca usa um snapshot antigo nem exige voltar antes
      * ao dashboard para encontrar o botão da Etapa 2.
      */
-    public function convertToRelational(ErToRelationalTransformer $transformer, RelationalDrift $drift): void
+    public function convertToRelational(RelationalCopy $copy, RelationalDrift $drift): void
     {
         $source = $this->persistDiagram();
 
-        $relational = Diagram::query()->firstOrCreate(
-            ['source_diagram_id' => $source->id],
-            [
-                'name' => $source->name.' — Relacional',
-                'type' => Diagram::TYPE_RELATIONAL,
-                'data' => $transformer->transform($source->data ?? []),
-            ],
-        );
+        $relational = $copy->findOrCreate($source);
 
         // A conversão só cria a cópia; se ela já existia, quem decide sobre a
         // defasagem continua sendo o quadro Relacional.
@@ -2065,20 +2036,16 @@ class SchemaBoard extends Component
      * exatamente o que `persistDiagram` grava — assim salvar o ER acende o
      * sinal na mesma resposta, sem esperar um reload.
      */
-    private function refreshRelationalSignal(RelationalDrift $drift, ?Diagram $source = null): void
+    private function refreshRelationalSignal(RelationalDrift $drift, Diagram $source): void
     {
-        $source ??= $this->diagramId
-            ? Diagram::query()->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->find($this->diagramId)
-            : null;
-
-        $relational = $source?->relationalDiagram()->first();
+        $relational = $source->relationalDiagram()->first();
 
         $this->relationalDiagramId = $relational?->id;
         $this->relationalIsOutdated = $relational !== null
-            && $drift->report(
+            && $drift->isOutdated(
                 ['entities' => $this->entities, 'relations' => $this->relations],
                 $relational->data ?? [],
-            )['outdated'];
+            );
     }
 
     private function persistDiagram(): Diagram
@@ -2099,30 +2066,6 @@ class SchemaBoard extends Component
         return $model;
     }
 
-    public bool $showJson = false;
-
-    /** Alterna a exibição do modal com o JSON do diagrama. */
-    public function toggleJson(): void
-    {
-        $this->showJson = ! $this->showJson;
-    }
-
-    /**
-     * Baixa o JSON exibido no modal — o mesmo conteúdo de `jsonPreview`.
-     */
-    public function downloadJson(): StreamedResponse
-    {
-        $json = $this->jsonPreview;
-
-        return response()->streamDownload(
-            static function () use ($json): void {
-                echo $json;
-            },
-            'modelo-er.json',
-            ['Content-Type' => 'application/json; charset=UTF-8'],
-        );
-    }
-
     /**
      * Monta o JSON formatado (indentado, em UTF-8 sem escapar acentos) do
      * estado atual, para exibir dentro do modal.
@@ -2138,6 +2081,12 @@ class SchemaBoard extends Component
             'entities' => $this->entities,
             'relations' => $this->relations,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    /** Nome do arquivo baixado pelo botão "Baixar .json" do modal. */
+    protected function jsonFileName(): string
+    {
+        return 'modelo-er.json';
     }
 
     /**

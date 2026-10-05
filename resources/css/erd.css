@@ -105,8 +105,6 @@
     outline: 2px dashed #c4b5fd;
     outline-offset: 3px;
 }
-.er-relationship .er-anchor { opacity: 0; }
-.er-relationship:hover .er-anchor { opacity: .65; }
 .er-relationship-port {
     width: 2px;
     height: 2px;
@@ -241,6 +239,15 @@
 }
 .er-key:hover { border-color: #cbd5e1; background: #fff; }
 
+/* A coluna de chave alterna PK -> (nenhuma) -> FK -> UQ. O emoji já marca a
+   PK, mas FK e UQ não tinham nenhum sinal visual — daí as cores por `k-*`.
+   Essa classe é montada dinamicamente no Blade
+   (`:class="'k-' + (attr.key || 'none').toLowerCase()"`), então ela não
+   aparece num grep por `k-fk`. O ponto é o estado "sem chave". */
+.er-key-empty { color: #cbd5e1; }
+.er-key.k-pk { border-color: #fde68a; background: #fefce8; color: #a16207; }
+.er-key.k-fk { border-color: #c7d2fe; background: #eef2ff; color: #4338ca; }
+.er-key.k-uq { border-color: #a5f3fc; background: #ecfeff; color: #0e7490; }
 
 .er-attr-name-input {
     min-width: 0;
@@ -300,6 +307,13 @@
     border-radius: 0;
     white-space: nowrap;
     pointer-events: none;
+}
+/* Selecionar a relação escurece o losango. O seletor precisa repetir os
+   :not() do bloco acima (e excluir os rótulos que têm estilo próprio) senão
+   esta regra tem especificidade menor e perde — o losango selecionado ficava
+   idêntico ao não selecionado, e os outros rótulos seriam sobrescritos. */
+.er-board .flow-edge-selected .flow-edge-label:not(.er-self-role-label):not(.er-associative-label):not(.flow-edge-label-start):not(.flow-edge-label-end) {
+    background: #312e81;
 }
 .er-board .flow-edge-label.er-associative-label:not(.flow-edge-label-start):not(.flow-edge-label-end) {
     position: absolute;
@@ -523,7 +537,6 @@
     --flow-edge-stroke-width-selected: 1.6;
 }
 .flow-edge-selected path:not(:first-child) { stroke: #4f46e5; }
-.er-board .flow-edge-selected .flow-edge-label { background: #312e81; }
 
 .er-guide {
     position: relative; z-index: 15; display: flex; flex: none; align-items: center; gap: 14px;
@@ -541,6 +554,17 @@
 .er-guide-cardinalities b { color: #4338ca; font-size: 12px; }
 .er-guide > button { border: 0; background: transparent; color: #64748b; }
 
+/* ---- aviso flutuante de ação (mesma marcação do quadro Relacional) ---- */
+.er-notice {
+    position: fixed; right: 18px; top: 126px; z-index: 60; display: flex; max-width: 330px;
+    align-items: center; gap: 9px; border: 1px solid rgb(22 163 74 / 28%); border-radius: 10px;
+    background: rgb(255 255 255 / 96%); color: #166534; padding: 9px 12px; box-shadow: 0 14px 36px rgb(15 23 42 / 18%);
+}
+.er-notice > span { display: grid; width: 19px; height: 19px; flex: none; place-items: center; border-radius: 50%; background: rgb(34 197 94 / 16%); font-size: 10px; font-weight: 900; }
+.er-notice p { font-size: 10.5px; font-weight: 650; }
+.er-notice.is-warning { border-color: rgb(245 158 11 / 32%); color: #b45309; }
+.er-notice.is-warning > span { background: rgb(245 158 11 / 16%); }
+
 /* ---- tema escuro do editor completo ---- */
 .dark { color-scheme: dark; }
 .dark .er-board { background: #020617; color: #e2e8f0; }
@@ -551,6 +575,8 @@
 .dark .er-guide-cardinalities { color: #94a3b8; }
 .dark .er-guide-cardinalities b { color: #a5b4fc; }
 .dark .er-guide kbd { border-color: #475569; background: #1e293b; }
+.dark .er-notice { border-color: rgb(34 197 94 / 32%); background: rgb(6 22 31 / 96%); color: #bbf7d0; box-shadow: 0 14px 36px rgb(0 0 0 / 32%); }
+.dark .er-notice.is-warning { border-color: rgb(245 158 11 / 32%); color: #fde68a; }
 .dark .er-node {
     border-color: #334155;
     background: #0f172a;
@@ -565,6 +591,11 @@
 .dark .er-row:hover { background: #172033; }
 .dark .er-row.is-pk { background: #272313; }
 .dark .er-row.is-pk:hover { background: #352f16; }
+.dark .er-key-empty { color: #475569; }
+.dark .er-key:hover { border-color: #475569; background: #1e293b; }
+.dark .er-key.k-pk { border-color: #78350f; background: #272313; color: #fcd34d; }
+.dark .er-key.k-fk { border-color: #3730a3; background: #1e1b4b; color: #a5b4fc; }
+.dark .er-key.k-uq { border-color: #155e75; background: #0c2531; color: #67e8f9; }
 .dark .er-attr-name-input { color: #f1f5f9; }
 .dark .er-attr-name-input:focus { border-color: #6366f1; background: #0f172a; }
 .dark .er-foot { border-color: #1e293b; background: #0b1324; }
@@ -670,22 +701,6 @@
     .flow-node.er-relation-attribute-following { transition: none; }
 }
 
-.er-diamond-add {
-    position: absolute;
-    bottom: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #6366f1;
-    color: #fff;
-    font-size: 12px;
-    line-height: 18px;
-    text-align: center;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 6px rgb(49 46 129 / 28%);
-}
 .dark .er-relationship.is-associative::before,
 .dark .er-board .flow-edge-label.er-associative-label:not(.flow-edge-label-start):not(.flow-edge-label-end) {
     border-color: #818cf8;
@@ -707,4 +722,3 @@
 }
 .dark .er-relation-attr small { color: #64748b; }
 .dark .er-relation-attr-del { border-color: #7f1d1d; background: #1e293b; color: #fca5a5; }
-.dark .er-diamond-add { border-color: #0f172a; }

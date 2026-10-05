@@ -1,7 +1,4 @@
-@props([
-    'title',
-    'downloadAction' => 'downloadJson',
-])
+@props(['title'])
 
 {{--
     Modal de JSON compartilhado pelo quadro ER e pelo Relacional.
@@ -16,6 +13,10 @@
     elemento. O texto copiado vem do `<pre>` via `textContent` — e não de
     `$wire.jsonPreview` — para não depender de a property computada
     `getJsonPreviewProperty` estar exposta no payload do Livewire.
+
+    O botão de baixar chama sempre `downloadJson`: os dois quadros implementam
+    esse mesmo nome (ver a trait `InterageComJson`), então não há o que
+    parametrizar aqui.
 --}}
 <div x-show="$wire.showJson" x-cloak class="rel-modal"
      x-data="{
@@ -37,8 +38,8 @@
         <pre x-ref="jsonBox">{{ $this->jsonPreview }}</pre>
         <div class="rel-modal-actions">
             <button type="button" @click="copyJson()" x-text="copied ? 'Copiado!' : 'Copiar'"></button>
-            <button type="button" wire:click="{{ $downloadAction }}" wire:loading.attr="disabled"
-                wire:target="{{ $downloadAction }}">Baixar .json</button>
+            <button type="button" wire:click="downloadJson" wire:loading.attr="disabled"
+                wire:target="downloadJson">Baixar .json</button>
         </div>
     </div>
 </div>

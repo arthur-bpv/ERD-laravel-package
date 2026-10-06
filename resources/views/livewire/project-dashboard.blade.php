@@ -1,34 +1,46 @@
-<main class="min-h-screen bg-slate-950 text-slate-100">
+<main class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
     <div class="mx-auto max-w-7xl px-6 py-10 lg:px-10 lg:py-14">
-        <header class="flex flex-col gap-8 border-b border-white/10 pb-10 lg:flex-row lg:items-end lg:justify-between">
+        <div class="mb-7 flex justify-end">
+            <button type="button"
+                x-data="{ dark: document.documentElement.classList.contains('dark') }"
+                @erd-theme-changed.window="dark = $event.detail.theme === 'dark'"
+                @click="window.setErdTheme(dark ? 'light' : 'dark')"
+                :aria-pressed="dark.toString()"
+                :aria-label="dark ? 'Ativar tema claro' : 'Ativar tema escuro'"
+                class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-300 hover:text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-white/15 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-400 dark:hover:text-indigo-200">
+                <span aria-hidden="true" x-text="dark ? '☀' : '☾'"></span>
+                <span x-text="dark ? 'Tema claro' : 'Tema escuro'"></span>
+            </button>
+        </div>
+        <header class="flex flex-col gap-8 border-b border-slate-200 pb-10 dark:border-white/10 lg:flex-row lg:items-end lg:justify-between">
             <div class="max-w-3xl">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-indigo-300">Workspace de modelagem</p>
-                <h1 class="text-4xl font-semibold tracking-tight text-white sm:text-5xl">Do conceito ao banco, sem pular etapas.</h1>
-                <p class="mt-4 max-w-2xl text-base leading-7 text-slate-400">
+                <p class="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-indigo-700 dark:text-indigo-300">Workspace de modelagem</p>
+                <h1 class="text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">Do conceito ao banco, sem pular etapas.</h1>
+                <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-400">
                     Cada projeto começa no modelo entidade-relacionamento. Quando ele estiver maduro, avance para o modelo relacional vinculado à mesma ideia.
                 </p>
             </div>
 
             <div class="w-full space-y-3 lg:max-w-md">
-                <form wire:submit="createProject" class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <label for="project-name" class="text-sm font-medium text-slate-200">Novo projeto</label>
+                <form wire:submit="createProject" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5 dark:shadow-none">
+                    <label for="project-name" class="text-sm font-medium text-slate-800 dark:text-slate-200">Novo projeto</label>
                     <div class="mt-2 flex gap-2">
                         <input id="project-name" wire:model="projectName" type="text" placeholder="Ex.: Sistema da biblioteca"
-                            class="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-400">
+                            class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-400 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-600">
                         <button type="submit" class="rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-60" wire:loading.attr="disabled" wire:target="createProject">
                             Criar ER
                         </button>
                     </div>
-                    @error('projectName') <p class="mt-2 text-xs text-rose-300">{{ $message }}</p> @enderror
+                    @error('projectName') <p class="mt-2 text-xs text-rose-700 dark:text-rose-300">{{ $message }}</p> @enderror
                 </form>
 
                 <button
                     type="button"
                     wire:click="toggleImport"
-                    class="flex w-full items-center justify-between rounded-2xl border border-dashed border-indigo-300/25 bg-indigo-400/[0.06] px-4 py-3 text-left text-sm font-semibold text-indigo-200 transition hover:border-indigo-300/50 hover:bg-indigo-400/10"
+                    class="flex w-full items-center justify-between rounded-2xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-left text-sm font-semibold text-indigo-800 transition hover:border-indigo-400 hover:bg-indigo-100 dark:border-indigo-300/25 dark:bg-indigo-400/[0.06] dark:text-indigo-200 dark:hover:border-indigo-300/50 dark:hover:bg-indigo-400/10"
                 >
                     <span><span aria-hidden="true">↑</span> Importar projeto</span>
-                    <span class="text-xs font-normal text-slate-500">JSON de modelo ER</span>
+                    <span class="text-xs font-normal text-slate-600 dark:text-slate-500">JSON de modelo ER</span>
                 </button>
             </div>
         </header>
@@ -108,48 +120,48 @@
         <section class="py-10">
             <div class="mb-6 flex items-center justify-between">
                 <div>
-                    <h2 class="text-xl font-semibold text-white">Seus projetos</h2>
-                    <p class="mt-1 text-sm text-slate-500">O progresso segue ER → Relacional.</p>
+                    <h2 class="text-xl font-semibold text-slate-950 dark:text-white">Seus projetos</h2>
+                    <p class="mt-1 text-sm text-slate-600 dark:text-slate-500">O progresso segue ER → Relacional.</p>
                 </div>
-                <span class="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400">{{ $this->projects->count() }} projetos</span>
+                <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 dark:border-white/10 dark:bg-transparent dark:text-slate-400">{{ $this->projects->count() }} projetos</span>
             </div>
 
             @if ($this->projects->isEmpty())
-                <div class="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-16 text-center">
-                    <div class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-xl text-indigo-300">ER</div>
-                    <h3 class="mt-5 text-lg font-medium text-white">Comece pelo modelo conceitual</h3>
-                    <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Dê um nome ao projeto acima. O primeiro board será criado pronto para você mapear entidades e relacionamentos.</p>
+                <div class="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-white/15 dark:bg-white/[0.03]">
+                    <div class="mx-auto flex size-12 items-center justify-center rounded-2xl bg-indigo-100 text-xl text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">ER</div>
+                    <h3 class="mt-5 text-lg font-medium text-slate-950 dark:text-white">Comece pelo modelo conceitual</h3>
+                    <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-500">Dê um nome ao projeto acima. O primeiro board será criado pronto para você mapear entidades e relacionamentos.</p>
                 </div>
             @else
                 <div class="grid gap-5 xl:grid-cols-2">
                     @foreach ($this->projects as $project)
-                        <article wire:key="project-{{ $project->id }}" class="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-2xl shadow-black/10">
-                            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 px-6 py-5 sm:flex-nowrap">
+                        <article wire:key="project-{{ $project->id }}" class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/80 dark:shadow-2xl dark:shadow-black/10">
+                            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-white/10 sm:flex-nowrap">
                                 <div class="min-w-0 w-full flex-1 sm:w-auto">
                                     @if ($editingProjectId === $project->id)
                                         <form wire:submit="renameProject" class="space-y-2">
-                                            <label for="rename-project-{{ $project->id }}" class="block text-xs font-medium text-slate-300">Nome do projeto</label>
+                                            <label for="rename-project-{{ $project->id }}" class="block text-xs font-medium text-slate-700 dark:text-slate-300">Nome do projeto</label>
                                             <input id="rename-project-{{ $project->id }}" wire:model="editingProjectName" type="text" maxlength="120"
-                                                class="w-full rounded-lg border border-indigo-400 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-indigo-400/40">
-                                            @error('editingProjectName') <p class="text-xs text-rose-300" role="alert">{{ $message }}</p> @enderror
+                                                class="w-full rounded-lg border border-indigo-400 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-indigo-400/40 dark:bg-slate-950 dark:text-white">
+                                            @error('editingProjectName') <p class="text-xs text-rose-700 dark:text-rose-300" role="alert">{{ $message }}</p> @enderror
                                             <div class="flex gap-2">
                                                 <button type="submit" wire:loading.attr="disabled" wire:target="renameProject"
                                                     class="rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-400 disabled:opacity-60">Salvar nome</button>
                                                 <button type="button" wire:click="cancelRename"
-                                                    class="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">Cancelar</button>
+                                                    class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:border-white/15 dark:text-slate-300 dark:hover:bg-white/5">Cancelar</button>
                                             </div>
                                         </form>
                                     @else
-                                        <h3 class="truncate text-lg font-semibold text-white">{{ $project->name }}</h3>
-                                        <p class="mt-1 text-xs text-slate-500">Atualizado {{ $project->updated_at->diffForHumans() }}</p>
+                                        <h3 class="truncate text-lg font-semibold text-slate-950 dark:text-white">{{ $project->name }}</h3>
+                                        <p class="mt-1 text-xs text-slate-600 dark:text-slate-500">Atualizado {{ $project->updated_at->diffForHumans() }}</p>
                                     @endif
                                 </div>
                                 <div class="flex w-full items-center justify-end gap-2 sm:w-auto">
-                                    <span class="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">Em andamento</span>
+                                    <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300">Em andamento</span>
                                     @if ($editingProjectId !== $project->id)
                                         <button type="button" wire:click="startRename({{ $project->id }})"
                                             aria-label="Renomear projeto {{ $project->name }}" title="Renomear projeto"
-                                            class="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-indigo-300/40 hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                                            class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-indigo-400 hover:text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:border-white/15 dark:text-slate-300 dark:hover:border-indigo-300/40 dark:hover:text-indigo-200">
                                             Renomear
                                         </button>
                                     @endif
@@ -161,7 +173,7 @@
                                         wire:target="deleteProject({{ $project->id }})"
                                         aria-label="Excluir projeto {{ $project->name }}"
                                         title="Excluir projeto"
-                                        class="grid size-8 place-items-center rounded-lg border border-rose-400/15 bg-rose-400/5 text-sm text-rose-300 transition hover:border-rose-300/35 hover:bg-rose-400/15 focus:outline-none focus:ring-2 focus:ring-rose-300 disabled:opacity-50"
+                                        class="grid size-8 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-sm text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-300 disabled:opacity-50 dark:border-rose-400/15 dark:bg-rose-400/5 dark:text-rose-300 dark:hover:border-rose-300/35 dark:hover:bg-rose-400/15"
                                     >
                                         🗑
                                     </button>
@@ -169,35 +181,35 @@
                             </div>
 
                             <div class="grid gap-3 p-5 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch">
-                                <a wire:navigate href="{{ route('boards.er', $project) }}" class="group rounded-2xl border border-indigo-400/20 bg-indigo-400/10 p-5 transition hover:border-indigo-300/40 hover:bg-indigo-400/15">
-                                    <span class="text-xs font-semibold uppercase tracking-widest text-indigo-300">Etapa 1</span>
-                                    <strong class="mt-6 block text-base text-white">Modelo ER</strong>
-                                    <span class="mt-1 block text-sm text-slate-400">Entidades, atributos e relações</span>
-                                    <span class="mt-5 block text-sm font-medium text-indigo-300">Abrir board →</span>
+                                <a wire:navigate href="{{ route('boards.er', $project) }}" class="group rounded-2xl border border-indigo-200 bg-indigo-50 p-5 transition hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:hover:border-indigo-300/40 dark:hover:bg-indigo-400/15">
+                                    <span class="text-xs font-semibold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">Etapa 1</span>
+                                    <strong class="mt-6 block text-base text-slate-950 dark:text-white">Modelo ER</strong>
+                                    <span class="mt-1 block text-sm text-slate-600 dark:text-slate-400">Entidades, atributos e relações</span>
+                                    <span class="mt-5 block text-sm font-medium text-indigo-700 dark:text-indigo-300">Abrir board →</span>
                                 </a>
 
-                                <div class="hidden items-center text-slate-700 sm:flex">→</div>
+                                <div class="hidden items-center text-slate-400 dark:text-slate-700 sm:flex">→</div>
 
                                 @if ($project->relationalDiagram)
-                                    <a wire:navigate href="{{ route('boards.relational', $project->relationalDiagram) }}" class="group rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5 transition hover:border-cyan-300/40 hover:bg-cyan-400/15">
-                                        <span class="text-xs font-semibold uppercase tracking-widest text-cyan-300">Etapa 2</span>
+                                    <a wire:navigate href="{{ route('boards.relational', $project->relationalDiagram) }}" class="group rounded-2xl border border-cyan-200 bg-cyan-50 p-5 transition hover:border-cyan-300 hover:bg-cyan-100 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:hover:border-cyan-300/40 dark:hover:bg-cyan-400/15">
+                                        <span class="text-xs font-semibold uppercase tracking-widest text-cyan-800 dark:text-cyan-300">Etapa 2</span>
                                         @if (in_array($project->id, $this->outdatedRelational, true))
-                                            <span class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2.5 py-1 text-[11px] font-semibold text-amber-300"
+                                            <span class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-400/15 dark:text-amber-300"
                                                 title="O ER mudou depois da última geração: regere no quadro relacional.">
                                                 <span aria-hidden="true">!</span> Desatualizada
                                             </span>
                                         @endif
-                                        <strong class="mt-6 block text-base text-white">Modelo relacional</strong>
-                                        <span class="mt-1 block text-sm text-slate-400">Referenciado ao modelo ER</span>
-                                        <span class="mt-5 block text-sm font-medium text-cyan-300">Abrir board →</span>
+                                        <strong class="mt-6 block text-base text-slate-950 dark:text-white">Modelo relacional</strong>
+                                        <span class="mt-1 block text-sm text-slate-600 dark:text-slate-400">Referenciado ao modelo ER</span>
+                                        <span class="mt-5 block text-sm font-medium text-cyan-800 dark:text-cyan-300">Abrir board →</span>
                                     </a>
                                 @else
                                     <button wire:click="createRelational({{ $project->id }})" wire:loading.attr="disabled" wire:target="createRelational({{ $project->id }})"
-                                        class="rounded-2xl border border-dashed border-white/15 p-5 text-left transition hover:border-cyan-300/40 hover:bg-cyan-400/5 disabled:opacity-60">
-                                        <span class="text-xs font-semibold uppercase tracking-widest text-slate-500">Etapa 2</span>
-                                        <strong class="mt-6 block text-base text-slate-200">Criar modelo relacional</strong>
-                                        <span class="mt-1 block text-sm text-slate-500">Disponível a partir deste ER</span>
-                                        <span class="mt-5 block text-sm font-medium text-cyan-300">Continuar projeto →</span>
+                                        class="rounded-2xl border border-dashed border-slate-300 p-5 text-left transition hover:border-cyan-400 hover:bg-cyan-50 disabled:opacity-60 dark:border-white/15 dark:hover:border-cyan-300/40 dark:hover:bg-cyan-400/5">
+                                        <span class="text-xs font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">Etapa 2</span>
+                                        <strong class="mt-6 block text-base text-slate-800 dark:text-slate-200">Criar modelo relacional</strong>
+                                        <span class="mt-1 block text-sm text-slate-600 dark:text-slate-500">Disponível a partir deste ER</span>
+                                        <span class="mt-5 block text-sm font-medium text-cyan-800 dark:text-cyan-300">Continuar projeto →</span>
                                     </button>
                                 @endif
                             </div>

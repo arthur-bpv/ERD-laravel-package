@@ -70,12 +70,31 @@ class ErToRelationalTransformer
      * cópia Relacional é salva toda vez que o usuário arrasta ou edita uma
      * tabela, então o timestamp dela avança mesmo sem nenhuma mudança no ER.
      *
-     * A ordem das chaves não pode mudar o resultado — o mesmo diagrama
-     * serializado de formas diferentes tem de produzir a mesma impressão.
+     * Coordenadas de entidades, losangos e atributos também ficam fora da
+     * assinatura: mover elementos no canvas não muda o modelo lógico. A ordem
+     * das chaves não pode mudar o resultado.
      */
     public function fingerprint(array $diagram): string
     {
+        return 'v2:'.md5((string) json_encode($this->canonicalize($this->withoutLayout($diagram))));
+    }
+
+    /** Assinatura usada pelas cópias criadas antes de separar dados e posições. */
+    public function legacyFingerprint(array $diagram): string
+    {
         return md5((string) json_encode($this->canonicalize($diagram)));
+    }
+
+    private function withoutLayout(array $value): array
+    {
+        foreach (['x', 'y', 'diamondX', 'diamondY', 'offsetX', 'offsetY'] as $field) {
+            unset($value[$field]);
+        }
+
+        return array_map(
+            fn (mixed $item): mixed => is_array($item) ? $this->withoutLayout($item) : $item,
+            $value,
+        );
     }
 
     private function canonicalize(array $value): array

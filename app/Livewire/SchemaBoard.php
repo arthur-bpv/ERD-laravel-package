@@ -2091,8 +2091,17 @@ class SchemaBoard extends Component
     /**
      * Renderiza o template Blade do componente, injetando as coleções iniciais.
      */
-    public function render(): View
+    public function render(RelationalDrift $drift): View
     {
+        if ($this->diagramId !== null) {
+            $source = Diagram::query()
+                ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+                ->findOrFail($this->diagramId);
+            // Compara o estado em memória para acender o aviso já na edição,
+            // antes do clique em Salvar.
+            $this->refreshRelationalSignal($drift, $source);
+        }
+
         return view('livewire.schema-board', [
             'nodes' => $this->buildNodes(),
             'edges' => $this->buildEdges(),

@@ -33,8 +33,7 @@
 .board-model-tabs a:hover,
 .board-model-tabs button:hover { color: var(--board-accent); }
 .board-model-tabs .is-active { background: #fff; color: var(--board-accent); box-shadow: 0 1px 4px rgb(15 23 42 / 10%); }
-/* Sinal de "cópia relacional defasada" — a aba continua sendo um link normal,
-   só ganha um marcador para o ojo não perder a aba. */
+/* Sinal de cópia relacional defasada na aba do quadro ER. */
 .board-model-tabs .board-tab-flag {
     display: inline-grid; width: 13px; height: 13px; margin-left: 3px; place-items: center; vertical-align: -1px;
     border-radius: 50%; background: #f59e0b; color: #fff; font-size: 9px; font-weight: 900;

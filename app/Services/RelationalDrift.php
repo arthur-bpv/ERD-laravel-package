@@ -7,10 +7,9 @@ use App\Support\DataTypeCatalog;
 /**
  * Diz se a cópia Relacional ainda corresponde ao ER que a originou.
  *
- * A verificação é feita comparando o modelo Relacional guardado com o que o ER
- * atual gera — e não comparando timestamps, porque a cópia Relacional é salva
- * também quando o usuário arrasta ou edita uma tabela. Assim, o aviso só
- * aparece quando existe uma diferença de verdade entre as duas etapas.
+ * A assinatura do ER detecta mudanças semânticas desde a geração; a comparação
+ * das tabelas e FKs descreve o que a regeneração alteraria. Timestamps não
+ * servem porque a cópia Relacional também é salva após edições manuais.
  *
  * As posições das tabelas (`x`/`y`) entram de fora da comparação: arrastar uma
  * tabela no quadro Relacional é uma escolha do usuário, não um sinal de que o
@@ -35,7 +34,7 @@ class RelationalDrift
      * Só o booleano, sem montar a lista de mudanças.
      *
      * Para quem só precisa saber se o aviso aparece (a aba do quadro ER, o card
-     * do dashboard) e não quer pagar pelo transform completo a cada render.
+     * do dashboard) sem transformar o modelo completo a cada render.
      *
      * @param  array  $source  `data` do diagrama ER
      * @param  array  $relational  `data` do diagrama Relacional
@@ -44,13 +43,8 @@ class RelationalDrift
     {
         $fingerprint = $relational['sourceFingerprint'] ?? null;
 
-        // Impressão digital igual significa que o ER não mudou desde a geração.
-        // O que ainda difere no quadro Relacional é edição manual do usuário —
-        // e isso nunca é motivo para acusar o ER de desatualizado. Decidir
-        // isso aqui evita o transform, que é a parte cara de `changes`.
-        if (is_string($fingerprint) && $fingerprint !== ''
-            && hash_equals($fingerprint, $this->transformer->fingerprint($source))) {
-            return false;
+        if (is_string($fingerprint) && $fingerprint !== '') {
+            return $this->sourceHasChanged($source, $fingerprint);
         }
 
         return $this->report($source, $relational)['outdated'];
@@ -74,13 +68,25 @@ class RelationalDrift
         // só pode ter vindo do próprio ER. Com edições manuais, a diferença
         // é delas, e acusar o ER seria mentira.
         $outdated = is_string($fingerprint) && $fingerprint !== ''
-            ? ! hash_equals($fingerprint, $this->transformer->fingerprint($source)) && $changes !== []
+            ? $this->sourceHasChanged($source, $fingerprint)
             : empty($relational['customized']) && $changes !== [];
+
+        if ($outdated && $changes === []) {
+            $changes[] = 'O modelo ER mudou em relacionamentos ou cardinalidades desde a última geração.';
+        }
 
         return [
             'outdated' => $outdated,
             'changes' => $changes,
         ];
+    }
+
+    private function sourceHasChanged(array $source, string $fingerprint): bool
+    {
+        // Cópias antigas guardavam também as coordenadas na assinatura.
+        // Quando ainda coincidem com o ER atual, não precisam de regeneração.
+        return ! hash_equals($fingerprint, $this->transformer->fingerprint($source))
+            && ! hash_equals($fingerprint, $this->transformer->legacyFingerprint($source));
     }
 
     /**

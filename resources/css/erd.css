@@ -32,6 +32,32 @@
 }
 
 /* ---- caixa da entidade ---- */
+.er-relational-drift {
+    display: flex; flex: none; align-items: center; gap: 12px;
+    border-bottom: 1px solid #fcd34d; background: #fffbeb; color: #78350f;
+    padding: 11px 20px;
+}
+.er-relational-drift-icon {
+    display: grid; width: 24px; height: 24px; flex: none; place-items: center;
+    border-radius: 7px; background: #fef3c7; color: #b45309; font-weight: 900;
+}
+.er-relational-drift > div { flex: 1; min-width: 0; }
+.er-relational-drift strong { display: block; font-size: 12px; }
+.er-relational-drift p { margin-top: 2px; font-size: 11px; line-height: 1.4; }
+.er-relational-drift button {
+    flex: none; border: 1px solid #d97706; border-radius: 8px; background: #f59e0b;
+    color: #451a03; padding: 7px 11px; font-size: 11px; font-weight: 800; cursor: pointer;
+}
+.er-relational-drift button:hover { background: #fbbf24; }
+.er-relational-drift button:disabled { opacity: .6; cursor: wait; }
+.dark .er-relational-drift { border-color: #92400e; background: #451a03; color: #fde68a; }
+.dark .er-relational-drift-icon { background: #78350f; color: #fde68a; }
+.dark .er-relational-drift button { border-color: #f59e0b; color: #451a03; }
+@media (max-width: 620px) {
+    .er-relational-drift { flex-wrap: wrap; padding-inline: 12px; }
+    .er-relational-drift button { margin-left: 36px; }
+}
+
 .er-node {
     position: relative;
     width: 232px;

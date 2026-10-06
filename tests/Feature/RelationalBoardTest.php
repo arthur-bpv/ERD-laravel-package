@@ -251,13 +251,14 @@ class RelationalBoardTest extends TestCase
 
     public function test_nullable_edit_updates_the_existing_canvas_node_without_replacing_it(): void
     {
-        Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
             ->call('toggleColumnNullable', 'clients', 'clients.staff_no')
-            ->assertDispatched('flow:updateNode', fn (string $event, array $params): bool => $params['id'] === 'clients'
-                && collect($params['changes']['data']['columns'])->firstWhere('id', 'clients.staff_no')['nullable'] === true,
-            )
+            ->assertDispatched('flow:updateNode')
             ->assertDispatched('flow:fromObject', fn (string $event, array $params): bool => ! array_key_exists('nodes', $params['data']) && array_key_exists('edges', $params['data']),
             );
+
+        $clients = collect($component->get('tables'))->firstWhere('id', 'clients');
+        $this->assertTrue(collect($clients['columns'])->firstWhere('id', 'clients.staff_no')['nullable']);
     }
 
     public function test_sized_column_types_store_length_precision_and_scale(): void

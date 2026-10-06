@@ -67,6 +67,57 @@ class RelationalDriftTest extends TestCase
         $this->assertFalse($this->drift->report($source, $relational)['outdated']);
     }
 
+    public function test_er_layout_changes_do_not_make_the_relational_model_outdated(): void
+    {
+        $source = $this->library();
+        $relational = $this->generated($source);
+        $source['entities'][0]['x'] += 200;
+        $source['entities'][1]['y'] += 100;
+
+        $this->assertFalse($this->drift->isOutdated($source, $relational));
+        $this->assertFalse($this->drift->report($source, $relational)['outdated']);
+    }
+
+    public function test_cardinality_change_is_flagged_even_when_the_relational_structure_is_equal(): void
+    {
+        $source = $this->library();
+        $relational = $this->generated($source);
+        $source['relations'][0]['childCard'] = 'cf-one-many';
+
+        $this->assertTrue($this->drift->isOutdated($source, $relational));
+        $report = $this->drift->report($source, $relational);
+        $this->assertTrue($report['outdated']);
+        $this->assertNotEmpty($report['changes']);
+    }
+
+    public function test_new_self_relationship_is_flagged_as_outdated(): void
+    {
+        $source = $this->library();
+        $relational = $this->generated($source);
+        $source['relations'][] = [
+            'id' => 'books-parent',
+            'name' => 'Substitui',
+            'from' => 'books',
+            'fromAttr' => '',
+            'to' => 'books',
+            'toAttr' => 'books.id',
+            'childCard' => 'cf-zero-many',
+            'parentCard' => 'cf-one-one',
+        ];
+
+        $this->assertTrue($this->drift->isOutdated($source, $relational));
+        $this->assertTrue($this->drift->report($source, $relational)['outdated']);
+    }
+
+    public function test_unchanged_models_with_the_previous_fingerprint_remain_current(): void
+    {
+        $source = $this->library();
+        $relational = $this->generated($source);
+        $relational['sourceFingerprint'] = (new ErToRelationalTransformer)->legacyFingerprint($source);
+
+        $this->assertFalse($this->drift->isOutdated($source, $relational));
+    }
+
     public function test_a_table_created_by_hand_alone_does_not_accuse_the_er(): void
     {
         $source = $this->library();

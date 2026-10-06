@@ -27,13 +27,13 @@
             @if ($isEr)
                 <a class="is-active" aria-current="page">Modelo ER</a>
                 @if ($relationalDiagramId)
-                    <a wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}"
+                    <button type="button" wire:click="convertToRelational" wire:loading.attr="disabled" wire:target="convertToRelational"
                         @if ($relationalOutdated) title="O modelo relacional não foi regerado após as últimas mudanças deste ER" @endif>
                         Modelo Relacional
                         @if ($relationalOutdated)
                             <span class="board-tab-flag" aria-label="Modelo relacional desatualizado">!</span>
                         @endif
-                    </a>
+                    </button>
                 @else
                     <button type="button" wire:click="convertToRelational" wire:loading.attr="disabled" wire:target="convertToRelational">Modelo Relacional</button>
                 @endif
@@ -101,7 +101,7 @@
                     </button>
                     @if ($isEr)
                         @if ($relationalDiagramId)
-                            <a class="board-menu-special" wire:navigate href="{{ route('boards.relational', $relationalDiagramId) }}">Abrir modelo relacional</a>
+                            <button type="button" class="board-menu-special" wire:click="convertToRelational" wire:loading.attr="disabled" wire:target="convertToRelational">Abrir modelo relacional</button>
                         @else
                             <button type="button" class="board-menu-special" wire:click="convertToRelational" wire:loading.attr="disabled" wire:target="convertToRelational">Converter para relacional</button>
                         @endif

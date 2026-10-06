@@ -20,7 +20,10 @@ class ProjectDashboardTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSeeLivewire(ProjectDashboard::class)
-            ->assertSee('Do conceito ao banco');
+            ->assertSee('Do conceito ao banco')
+            ->assertSee('window.setErdTheme', escape: false)
+            ->assertSee('Ativar tema claro')
+            ->assertSee('dark:bg-slate-950');
     }
 
     public function test_project_starts_with_an_er_diagram(): void

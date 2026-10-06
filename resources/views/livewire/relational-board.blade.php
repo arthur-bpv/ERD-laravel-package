@@ -22,6 +22,7 @@
             { label: 'Outros', types: ['boolean', 'uuid', 'json', 'xml'] },
         ],
     }"
+    x-init="$nextTick(() => window.installRelationalConnections($el.querySelector('.flow-container')))"
     @relational-saved.window="showNotice('Alteração salva apenas no modelo Relacional.')"
     @relational-regenerated.window="showNotice('Modelo Relacional regenerado a partir do ER.')"
     @relational-edit-rejected.window="showNotice($event.detail.message, 'warning')">
@@ -81,7 +82,13 @@
 
     <x-json-modal title="JSON do modelo Relacional" />
 
-    <div x-show="$wire.showSql" x-cloak class="rel-modal" @click.self="$wire.showSql = false" @keydown.escape.window="$wire.showSql = false">
+    <div x-show="$wire.showSql" x-cloak class="rel-modal"
+        x-data="{
+            copySql() {
+                return window.copyBoardText(this.$refs.sqlBox.textContent);
+            },
+        }"
+        @click.self="$wire.showSql = false" @keydown.escape.window="$wire.showSql = false">
         <div class="rel-modal-card">
             <header>
                 <strong>SQL do modelo Relacional · {{ \App\Support\DataTypeCatalog::DIALECTS[$dialect]['label'] }}</strong>
@@ -90,9 +97,9 @@
             @if ($sqlError)
                 <p role="alert" class="p-4 text-amber-300">{{ $sqlError }}</p>
             @else
-                <pre>{{ $sqlPreview }}</pre>
+                <pre x-ref="sqlBox">{{ $sqlPreview }}</pre>
                 <div class="rel-modal-actions">
-                    <button type="button" @click="navigator.clipboard.writeText($wire.sqlPreview); showNotice('SQL copiado.')">Copiar</button>
+                    <button type="button" @click="copySql().then(() => showNotice('SQL copiado.')).catch(() => showNotice('Não foi possível copiar o SQL.', 'warning'))">Copiar</button>
                     <button type="button" wire:click="downloadSql" wire:loading.attr="disabled" wire:target="downloadSql">Baixar .sql</button>
                 </div>
             @endif
@@ -135,20 +142,14 @@
                 <x-slot:node>
                     <article class="rel-node">
                         <header class="rel-node-head">
-                            <div x-data="{ editing: false, draft: node.data.name }" class="rel-node-title nodrag">
+                            <div class="rel-node-title nodrag">
                                 <span x-text="node.data.kind === 'associative' ? 'relação associativa' : (node.data.kind === 'multivalued' ? 'atributo multivalorado' : 'relação')"></span>
-                                <button x-show="!editing" type="button" x-text="node.data.name"
-                                    @pointerdown.stop @click.stop="draft = node.data.name; editing = true; $nextTick(() => { $refs.tableName.focus(); $refs.tableName.select(); })"
-                                    title="Clique para renomear a tabela"></button>
-                                <input x-show="editing" x-ref="tableName" x-model="draft" maxlength="80"
-                                    @pointerdown.stop @click.stop @keydown.enter.stop.prevent="$event.target.blur()"
-                                    @keydown.escape.stop.prevent="editing = false; draft = node.data.name"
-                                    @blur="if (draft.trim() && draft.trim() !== node.data.name) $wire.renameTable(node.id, draft); editing = false">
+                                <strong x-text="node.data.name"></strong>
                             </div>
                         </header>
                         <div class="rel-columns">
                             <template x-for="column in node.data.columns" :key="column.id">
-                                <div class="rel-column relative" x-data="{ editing: false, draft: column.name }">
+                                <div class="rel-column relative">
                                     <div class="rel-col-handle rel-col-handle-top" aria-hidden="true" x-flow-handle:source.top="'col-' + column.id + '-top'"></div>
                                     <div class="rel-col-handle rel-col-handle-top" aria-hidden="true" x-flow-handle:target.top="'col-' + column.id + '-top'"></div>
                                     <div class="rel-col-handle rel-col-handle-right" aria-hidden="true" x-flow-handle:source.right="'col-' + column.id + '-right'"></div>
@@ -159,10 +160,6 @@
                                     <div class="rel-col-handle rel-col-handle-left" aria-hidden="true" x-flow-handle:target.left="'col-' + column.id + '-left'"></div>
                                     <span class="rel-key" :class="{ 'is-pk': column.key.includes('PK'), 'is-fk': column.key.includes('FK') }" x-text="column.key || '—'"></span>
                                     <span class="rel-column-name nodrag" x-text="column.name"></span>
-                                    <input x-show="editing" x-ref="columnName" x-model="draft" class="rel-column-name-input nodrag" maxlength="80"
-                                        @pointerdown.stop @click.stop @keydown.enter.stop.prevent="$event.target.blur()"
-                                        @keydown.escape.stop.prevent="editing = false; draft = column.name"
-                                        @blur="if (draft.trim() && draft.trim() !== column.name) $wire.renameColumn(node.id, column.id, draft); editing = false">
                                     <div class="rel-column-definition nodrag">
                                         <select class="rel-column-type"
                                             @pointerdown.stop @click.stop
@@ -200,7 +197,8 @@
                         </div>
                     </article>
                 </x-slot:node>
-                
+
+                <x-board-background-picker model="relacional" />
             </x-flow>
         @else
             <div class="flex h-full items-center justify-center p-8 text-center">

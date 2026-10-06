@@ -178,7 +178,7 @@ class SchemaBoard extends Component
 
     public string $diagramName = 'Diagrama sem nome';
 
-    public function mount($diagram = null, ?RelationalDrift $drift = null): void
+    public function mount($diagram = null): void
     {
         if ($diagram) {
             $diagram = $diagram instanceof Diagram ? $diagram : Diagram::findOrFail($diagram);
@@ -196,10 +196,6 @@ class SchemaBoard extends Component
             $this->relSeq = $this->largestNumericId($this->relations, 'r');
             foreach ($this->relations as $relation) {
                 $this->seq = max($this->seq, $this->largestNumericId($relation['attributes'] ?? [], 'a'));
-            }
-
-            if ($drift instanceof RelationalDrift) {
-                $this->refreshRelationalSignal($drift, $diagram);
             }
 
             return;
@@ -1914,13 +1910,9 @@ class SchemaBoard extends Component
      * cria um novo e passa a lembrar o id dele — assim cliques seguintes em
      * "Salvar" viram UPDATE, e não ficam criando registros duplicados.
      */
-    public function save(RelationalDrift $drift): void
+    public function save(): void
     {
-        $source = $this->persistDiagram();
-
-        // O ER é a origem da cópia Relacional: salvar aqui pode deixá-la
-        // defasada, e o quadro precisa mostrar isso na mesma resposta.
-        $this->refreshRelationalSignal($drift, $source);
+        $this->persistDiagram();
 
         // Evento ouvido no Blade (Alpine, via @saved.window) para exibir o
         // selo "✅ Salvo!" por alguns segundos. O .window é necessário porque
@@ -1941,7 +1933,7 @@ class SchemaBoard extends Component
      * Livewire devolveria o quadro inteiro — entidades e balões — ao layout
      * antigo.
      */
-    public function organizeBoard(RelationalDrift $drift): void
+    public function organizeBoard(): void
     {
         $oldPositions = collect($this->entities)->mapWithKeys(fn (array $entity): array => [
             $entity['id'] => ['x' => $entity['x'], 'y' => $entity['y']],
@@ -2005,7 +1997,7 @@ class SchemaBoard extends Component
 
         $this->placeRelationshipAttributes();
 
-        $this->refreshRelationalSignal($drift, $this->persistDiagram());
+        $this->persistDiagram();
         $this->flowFromObject(['nodes' => $this->buildNodes(), 'edges' => $this->buildEdges()]);
         $this->flowFitView();
     }
@@ -2015,15 +2007,11 @@ class SchemaBoard extends Component
      * Assim a conversão nunca usa um snapshot antigo nem exige voltar antes
      * ao dashboard para encontrar o botão da Etapa 2.
      */
-    public function convertToRelational(RelationalCopy $copy, RelationalDrift $drift): void
+    public function convertToRelational(RelationalCopy $copy): void
     {
         $source = $this->persistDiagram();
 
         $relational = $copy->findOrCreate($source);
-
-        // A conversão só cria a cópia; se ela já existia, quem decide sobre a
-        // defasagem continua sendo o quadro Relacional.
-        $this->refreshRelationalSignal($drift, $source);
 
         $this->redirectRoute('boards.relational', $relational, navigate: true);
     }
@@ -2031,9 +2019,8 @@ class SchemaBoard extends Component
     /**
      * Atualiza o sinal "a cópia Relacional está defasada" da aba do topo.
      *
-     * A comparação usa o estado em memória (`entities`/`relations`), que é
-     * exatamente o que `persistDiagram` grava — assim salvar o ER acende o
-     * sinal na mesma resposta, sem esperar um reload.
+     * A comparação usa o estado em memória (`entities`/`relations`), inclusive
+     * antes de salvar. É chamada uma vez por renderização do quadro ER.
      */
     private function refreshRelationalSignal(RelationalDrift $drift, Diagram $source): void
     {

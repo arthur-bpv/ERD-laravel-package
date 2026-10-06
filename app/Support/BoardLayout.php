@@ -193,6 +193,66 @@ final class BoardLayout
     }
 
     /**
+     * Fold a wide layout into alternating rows while keeping its graph order.
+     * Column count follows table dimensions so the exported image stays close
+     * to a landscape rectangle instead of becoming a long strip.
+     *
+     * @param  array<int, array{id:string}>  $nodes
+     * @param  array<string, array{x:int,y:int}>  $positions
+     * @param  callable(array): float|int  $heightFor
+     * @return array<string, array{x:int,y:int}>
+     */
+    public static function compactRows(
+        array $nodes,
+        array $positions,
+        callable $heightFor,
+        float $nodeWidth,
+        float $columnGap,
+        float $rowGap,
+    ): array {
+        $heights = [];
+        foreach ($nodes as $node) {
+            $id = (string) ($node['id'] ?? '');
+            if (isset($positions[$id])) {
+                $heights[$id] = max(1, (float) $heightFor($node));
+            }
+        }
+
+        $ids = array_keys($heights);
+        if ($ids === []) {
+            return [];
+        }
+
+        usort($ids, fn (string $left, string $right): int => [
+            $positions[$left]['x'], $positions[$left]['y'],
+        ] <=> [
+            $positions[$right]['x'], $positions[$right]['y'],
+        ]);
+
+        $averageHeight = array_sum($heights) / count($ids);
+        $columns = max(2, min(8, (int) round(sqrt(
+            count($ids) * ($averageHeight + $rowGap) * 1.6 / ($nodeWidth + $columnGap),
+        ))));
+        $rows = array_chunk($ids, $columns);
+        $compact = [];
+        $y = 80.0;
+
+        foreach ($rows as $rowIndex => $rowIds) {
+            $rowHeight = max(array_map(fn (string $id): float => $heights[$id], $rowIds));
+            foreach ($rowIds as $index => $id) {
+                $column = $rowIndex % 2 === 0 ? $index : $columns - 1 - $index;
+                $compact[$id] = [
+                    'x' => (int) round(80 + $column * ($nodeWidth + $columnGap)),
+                    'y' => (int) round($y + ($rowHeight - $heights[$id]) / 2),
+                ];
+            }
+            $y += $rowHeight + $rowGap;
+        }
+
+        return $compact;
+    }
+
+    /**
      * Move third-party nodes out of the visual corridor of a relationship.
      * Endpoints never move here, so the graph structure chosen by centered()
      * remains stable while cycles stop drawing through another entity.

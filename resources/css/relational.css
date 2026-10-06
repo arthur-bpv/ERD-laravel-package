@@ -91,9 +91,8 @@
     text-transform: uppercase;
 }
 
-.rel-node-title > button {
+.rel-node-title > strong {
     display: block;
-    width: 100%; border: 0; background: transparent; padding: 0; text-align: left; cursor: text;
     overflow: hidden;
     margin-top: 2px;
     color: #f8fafc;
@@ -103,17 +102,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.rel-node-title > input,
-.rel-column-name-input {
-    min-width: 0; border: 1px solid #0e7490; border-radius: 5px; background: #07111f;
-    color: #f8fafc; padding: 2px 5px; font: inherit; outline: none;
-}
 
 .rel-columns { padding: 6px 0; }
 
 .rel-column {
     display: grid;
-    /* chave | nome (ou o input de edição) | tipo + tamanho | NULL */
+    /* chave | nome | tipo + tamanho | NULL */
     grid-template-columns: 38px minmax(0, 1fr) 160px 34px;
     align-items: center;
     gap: 8px;
@@ -135,7 +129,7 @@
 .rel-key.is-fk { color: #38bdf8; }
 
 .rel-column-name {
-    border: 0; background: transparent; padding: 0; text-align: left; cursor: text;
+    border: 0; background: transparent; padding: 0; text-align: left;
     overflow: hidden;
     color: #e2e8f0;
     font-weight: 600;
@@ -252,9 +246,7 @@ html:not(.dark) .rel-guide p small,
 html:not(.dark) .rel-guide-rule { color: #64748b; }
 html:not(.dark) .rel-node { border-color: #bae6fd; background: rgb(255 255 255 / 97%); color: #334155; box-shadow: 0 12px 32px rgb(15 23 42 / 12%); }
 html:not(.dark) .rel-node-head { border-color: #dbeafe; background: linear-gradient(135deg, #ecfeff, #f8fafc); }
-html:not(.dark) .rel-node-title > button { color: #0f172a; }
-html:not(.dark) .rel-node-title > input,
-html:not(.dark) .rel-column-name-input,
+html:not(.dark) .rel-node-title > strong { color: #0f172a; }
 html:not(.dark) .rel-column-definition > input,
 html:not(.dark) .rel-decimal-size input { border-color: #cbd5e1; background: #fff; color: #0f172a; }
 html:not(.dark) .rel-column-definition > input:hover,

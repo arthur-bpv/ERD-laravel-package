@@ -94,4 +94,34 @@ class BoardLayoutTest extends TestCase
         );
         $this->assertSame($centered, $withoutOuterLink);
     }
+
+    public function test_compact_rows_fold_a_long_chain_without_overlapping_tables(): void
+    {
+        $nodes = array_map(fn (int $index): array => [
+            'id' => 'table-'.$index,
+            'height' => $index % 2 === 0 ? 118 : 162,
+        ], range(0, 7));
+        $linear = [];
+        foreach ($nodes as $index => $node) {
+            $linear[$node['id']] = ['x' => 80 + $index * 460, 'y' => 80];
+        }
+
+        $positions = BoardLayout::compactRows($nodes, $linear, fn (array $node): int => $node['height'], 380, 80, 80);
+
+        $this->assertLessThan(1400, max(array_column($positions, 'x')) - min(array_column($positions, 'x')) + 380);
+        $this->assertGreaterThan(1, count(array_unique(array_column($positions, 'y'))));
+        foreach ($nodes as $left) {
+            foreach ($nodes as $right) {
+                if ($left['id'] === $right['id']) {
+                    continue;
+                }
+                $a = $positions[$left['id']];
+                $b = $positions[$right['id']];
+                $this->assertTrue(
+                    $a['x'] + 380 + 80 <= $b['x'] || $b['x'] + 380 + 80 <= $a['x']
+                    || $a['y'] + $left['height'] + 80 <= $b['y'] || $b['y'] + $right['height'] + 80 <= $a['y'],
+                );
+            }
+        }
+    }
 }

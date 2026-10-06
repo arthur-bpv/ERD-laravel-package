@@ -332,6 +332,7 @@
                 arrasto — quem grava a relação de verdade é o servidor.
             --}}
             <x-flow-panel position="top-left" class="er-hidden-host" x-data="erdCanvas"></x-flow-panel>
+            <x-board-background-picker model="ER" />
 
             {{-- ================= EDITOR DE RELACIONAMENTO ================= --}}
             {{--

@@ -8,14 +8,6 @@ use Illuminate\Support\ServiceProvider;
 class AppServiceProvider extends ServiceProvider
 {
     /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
-
-    /**
      * Bootstrap any application services.
      */
     public function boot(): void
@@ -27,12 +19,10 @@ class AppServiceProvider extends ServiceProvider
         // Reforço de HTTPS: mesmo com TrustProxies, o Cloud Workstations nem sempre
         // repassa o X-Forwarded-Proto de forma detectável. Sem https, o navegador
         // bloqueia assets como "mixed content" e gera URLs http:// inalcançáveis.
-        $forwardedHost = (string) request()->server('HTTP_X_FORWARDED_HOST', '');
         $host = (string) request()->getHost();
 
         if (request()->server('HTTP_X_FORWARDED_HOST')
-            || str_contains($host, 'cloudworkstations.dev')
-            || str_contains($forwardedHost, 'cloudworkstations.dev')) {
+            || str_contains($host, 'cloudworkstations.dev')) {
             URL::forceScheme('https');
         }
     }

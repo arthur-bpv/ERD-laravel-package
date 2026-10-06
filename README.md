@@ -95,7 +95,7 @@ O banco é um **arquivo SQLite** (`database/database.sqlite`). Não existe conta
 
 ### Gerar SQL do modelo relacional
 
-No board relacional, escolha MySQL, PostgreSQL, Oracle ou SQL Server em **Banco** e clique em **SQL**. A janela mostra o DDL gerado do estado atual do modelo, com opção de copiar ou baixar um arquivo `.sql`. Renomeações, tipos, tamanhos, nulabilidade, PKs, unicidade e FKs são lidos do modelo relacional; a geração não modifica o modelo ER. Todas as tabelas são criadas antes das FKs, permitindo autorrelacionamentos e ciclos.
+No board relacional, escolha MySQL, PostgreSQL, Oracle ou SQL Server em **Banco** e clique em **SQL**. A janela mostra o DDL gerado do estado atual do modelo, com opção de copiar ou baixar um arquivo `.sql`. Os nomes das tabelas e colunas vêm do modelo ER e não podem ser alterados no board relacional. Tipos, tamanhos, nulabilidade, PKs, unicidade e FKs são lidos do modelo relacional; a geração não modifica o modelo ER. Todas as tabelas são criadas antes das FKs, permitindo autorrelacionamentos e ciclos.
 
 O gerador avisa quando o modelo não pode produzir uma FK válida, como uma referência a coluna ausente ou sem PK/UQ. O arquivo é um esquema de criação de tabelas, não uma migração incremental de um banco já existente.
 

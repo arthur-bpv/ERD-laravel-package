@@ -1,0 +1,65 @@
+.board-background-panel.flow-panel {
+    overflow: visible;
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    background: transparent;
+}
+
+.board-background-trigger,
+.board-background-options {
+    border: 1px solid #334155;
+    border-radius: 9px;
+    background: #101d30;
+    color: #e2e8f0;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+}
+
+.board-background-trigger {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.board-background-trigger:hover,
+.board-background-options button:hover,
+.board-background-options button[aria-pressed="true"] {
+    border-color: #0891b2;
+    color: #67e8f9;
+}
+
+.board-background-options {
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    z-index: 1;
+    display: grid;
+    min-width: 130px;
+    padding: 4px;
+}
+
+.board-background-options button {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 6px 8px;
+    text-align: left;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+html:not(.dark) .board-background-trigger,
+html:not(.dark) .board-background-options {
+    border-color: #cbd5e1;
+    background: #fff;
+    color: #334155;
+}
+
+html:not(.dark) .board-background-trigger:hover,
+html:not(.dark) .board-background-options button:hover,
+html:not(.dark) .board-background-options button[aria-pressed="true"] {
+    color: #0e7490;
+}

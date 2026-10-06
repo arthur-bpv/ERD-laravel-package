@@ -100,6 +100,17 @@ class SchemaBoardTest extends TestCase
         $response->assertDontSee('Novo relacionamento');
     }
 
+    public function test_er_background_control_uses_artisanflow_patterns(): void
+    {
+        $this->get('/schema')
+            ->assertSee('Alterar fundo do modelo ER')
+            ->assertSee('Pontilhado')
+            ->assertSee('Liso')
+            ->assertSee('Grade')
+            ->assertSee('Cruzes')
+            ->assertSee('patchConfig({ background: pattern })', false);
+    }
+
     public function test_self_relationship_diamond_opens_the_standard_relationship_editor(): void
     {
         $response = $this->get('/schema');

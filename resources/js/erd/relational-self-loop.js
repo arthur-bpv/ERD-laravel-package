@@ -42,9 +42,8 @@ const roundedPolyline = (points) => {
 };
 
 /**
- * Routes a recursive FK around the outside of its table. ArtisanFlow supplies
- * fresh endpoint coordinates after every node movement, so the loop follows
- * the table without storing absolute waypoints.
+ * Routes a recursive FK around the outside of its table using the supplied
+ * endpoint coordinates, without storing absolute waypoints.
  */
 export function relationalSelfLoopPath({
     sourceX,

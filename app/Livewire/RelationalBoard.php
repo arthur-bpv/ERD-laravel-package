@@ -38,9 +38,9 @@ class RelationalBoard extends Component
 
     private const TABLE_COLUMN_HEIGHT = 44;
 
-    private const LAYOUT_COLUMN_GAP = 180;
+    private const LAYOUT_COLUMN_GAP = 80;
 
-    private const LAYOUT_ROW_GAP = 140;
+    private const LAYOUT_ROW_GAP = 80;
 
     #[Locked]
     public int $diagramId;
@@ -152,64 +152,6 @@ class RelationalBoard extends Component
 
         $this->persistCurrentData();
         $this->syncCanvas();
-    }
-
-    public function renameTable(string $tableId, string $name): void
-    {
-        $name = $this->normalizedName($name);
-        $tableIndex = $this->tableIndex($tableId);
-
-        if ($name === null || $tableIndex === null) {
-            return;
-        }
-
-        $this->tables[$tableIndex]['name'] = $name;
-        $this->commitLogicalEdit();
-    }
-
-    public function renameColumn(string $tableId, string $columnId, string $name): void
-    {
-        $name = $this->normalizedName($name);
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
-
-        if ($name === null || $columnIndex === null) {
-            return;
-        }
-
-        if ($this->rejectDuplicateColumnName($tableIndex, $name, $columnId)) {
-            return;
-        }
-
-        $oldName = $this->tables[$tableIndex]['columns'][$columnIndex]['name'];
-        $this->tables[$tableIndex]['columns'][$columnIndex]['name'] = $name;
-        $this->tables[$tableIndex]['primaryKey'] = array_map(
-            fn (string $primary) => $primary === $oldName ? $name : $primary,
-            $this->tables[$tableIndex]['primaryKey'],
-        );
-
-        foreach ($this->tables as &$table) {
-            foreach ($table['columns'] as &$column) {
-                if (($column['references']['table'] ?? null) === $tableId
-                    && ($column['references']['column'] ?? null) === $oldName) {
-                    $column['references']['column'] = $name;
-                }
-            }
-            unset($column);
-        }
-        unset($table);
-
-        foreach ($this->foreignKeys as &$foreignKey) {
-            if ($foreignKey['fromTable'] === $tableId && $foreignKey['fromColumn'] === $oldName) {
-                $foreignKey['fromColumn'] = $name;
-            }
-            if ($foreignKey['toTable'] === $tableId && $foreignKey['toColumn'] === $oldName) {
-                $foreignKey['toColumn'] = $name;
-            }
-        }
-        unset($foreignKey);
-
-        $this->commitLogicalEdit();
     }
 
     public function updateColumnType(string $tableId, string $columnId, string $type): void
@@ -365,6 +307,16 @@ class RelationalBoard extends Component
             self::LAYOUT_COLUMN_GAP,
             self::LAYOUT_ROW_GAP,
         );
+        if (count($positions) >= 4) {
+            $positions = BoardLayout::compactRows(
+                $this->tables,
+                $positions,
+                fn (array $table): int => $this->tableDimensions($table)['height'],
+                self::TABLE_WIDTH,
+                self::LAYOUT_COLUMN_GAP,
+                self::LAYOUT_ROW_GAP,
+            );
+        }
         $positions = BoardLayout::clearLinkCorridors(
             $this->tables,
             $links,
@@ -602,39 +554,6 @@ class RelationalBoard extends Component
         $index = array_search($columnId, array_column($this->tables[$tableIndex]['columns'], 'id'), true);
 
         return $index === false ? null : $index;
-    }
-
-    private function normalizedName(string $name): ?string
-    {
-        $name = trim(preg_replace('/\s+/', ' ', $name) ?? '');
-
-        return $name !== '' && mb_strlen($name) <= 80 ? $name : null;
-    }
-
-    /**
-     * Recusa um nome que já existe na tabela, e avisa por que.
-     *
-     * A comparação ignora maiúsculas porque o SQL trata identificadores assim
-     * em MySQL e PostgreSQL: `Email` e `email` na mesma tabela colidem no
-     * banco, mesmo que o quadro as mostre lado a lado.
-     *
-     * @param  string|null  $exceptColumnId  coluna que está sendo renomeada,
-     *                                       e portanto não colide consigo mesma
-     */
-    private function rejectDuplicateColumnName(int $tableIndex, string $name, ?string $exceptColumnId = null): bool
-    {
-        $duplicate = collect($this->tables[$tableIndex]['columns'])->contains(
-            fn (array $column): bool => $column['id'] !== $exceptColumnId
-                && mb_strtolower($column['name']) === mb_strtolower($name),
-        );
-
-        if ($duplicate) {
-            $this->dispatch('relational-edit-rejected', message: 'Já existe uma coluna com esse nome.');
-
-            return true;
-        }
-
-        return false;
     }
 
     private function columnIdForForeignKey(array $foreignKey, string $end): ?string

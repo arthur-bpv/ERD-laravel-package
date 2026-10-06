@@ -40,6 +40,7 @@ class CardinalityVocabularyTest extends TestCase
     {
         $expected = $this->acceptedByImport();
         sort($expected);
+        $this->assertSame(['cf-one-many', 'cf-one-one', 'cf-zero-many', 'cf-zero-one'], $expected);
 
         $markers = $this->cardinalitiesWithAJsMarker();
         sort($markers);
@@ -52,14 +53,6 @@ class CardinalityVocabularyTest extends TestCase
         $declared = $this->cardinalitiesDeclaredIn(SchemaBoard::class, 'CARDINALIDADES');
         sort($declared);
         $this->assertSame($expected, $declared, 'SchemaBoard::CARDINALIDADES divergiu do servidor.');
-    }
-
-    public function test_a_cardinality_with_no_marker_does_not_come_from_the_import(): void
-    {
-        // Guarda o motivo de a lista ser comparada: `cf-many` era aceito pelo
-        // import e pelo transformador, mas não existia nem no PHP nem no JS.
-        $this->assertContains('cf-many', $this->acceptedByImport());
-        $this->assertContains('cf-many', $this->cardinalitiesWithAJsMarker());
     }
 
     /**

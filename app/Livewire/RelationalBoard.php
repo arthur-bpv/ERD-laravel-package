@@ -31,18 +31,10 @@ class RelationalBoard extends Component
 
     private const TABLE_WIDTH = 380;
 
-    /**
-     * Altura da tabela, por partes.
-     *
-     * Cabeçalho + a linha "＋ Coluna" (que fica sempre visível) + uma linha
-     * por coluna. Fica em constantes porque o layout, o desenho dos nós e o
-     * arranjo automático precisam do mesmo número — e porque a linha de
-     * adicionar coluna não some, ela só troca de lugar quando o formulário
-     * abre, então ela conta uma vez só.
-     */
+    /** Altura do cabeçalho e das linhas de coluna da tabela. */
     private const TABLE_HEADER_HEIGHT = 62;
 
-    private const TABLE_ADD_ROW_HEIGHT = 44;
+    private const TABLE_BODY_PADDING = 12;
 
     private const TABLE_COLUMN_HEIGHT = 44;
 
@@ -220,39 +212,6 @@ class RelationalBoard extends Component
         $this->commitLogicalEdit();
     }
 
-    public function addColumn(string $tableId, string $name, string $type = 'varchar'): void
-    {
-        $name = $this->normalizedName($name);
-        $tableIndex = $this->tableIndex($tableId);
-        $type = in_array($type, DataTypeCatalog::canonicalFor($this->dialect), true) ? $type : 'varchar';
-
-        if ($name === null || $tableIndex === null) {
-            return;
-        }
-
-        if ($this->rejectDuplicateColumnName($tableIndex, $name)) {
-            return;
-        }
-
-        $sequence = 1;
-        $existingIds = array_column($this->tables[$tableIndex]['columns'], 'id');
-        while (in_array($tableId.'.manual_'.$sequence, $existingIds, true)) {
-            $sequence++;
-        }
-
-        $this->tables[$tableIndex]['columns'][] = DataTypeCatalog::normalize($this->dialect, [
-            'id' => $tableId.'.manual_'.$sequence,
-            'name' => $name,
-            'type' => $type,
-            'key' => '',
-            'nullable' => false,
-            'references' => null,
-            'source' => 'manual',
-        ]);
-
-        $this->commitLogicalEdit();
-    }
-
     public function updateColumnType(string $tableId, string $columnId, string $type): void
     {
         $tableIndex = $this->tableIndex($tableId);
@@ -336,70 +295,6 @@ class RelationalBoard extends Component
         $this->commitLogicalEdit();
     }
 
-    public function removeColumn(string $tableId, string $columnId): void
-    {
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
-
-        if ($columnIndex === null) {
-            return;
-        }
-
-        $columnName = $this->tables[$tableIndex]['columns'][$columnIndex]['name'];
-        $pending = [[$tableId, $columnName]];
-        $removedForeignKeys = [];
-        $removedColumns = [];
-
-        while ($pending !== []) {
-            [$currentTableId, $currentColumnName] = array_shift($pending);
-            $columnKey = $currentTableId.'::'.$currentColumnName;
-            if (isset($removedColumns[$columnKey])) {
-                continue;
-            }
-            $removedColumns[$columnKey] = true;
-
-            $currentTableIndex = $this->tableIndex($currentTableId);
-            if ($currentTableIndex === null) {
-                continue;
-            }
-
-            $currentColumnIndex = array_search(
-                $currentColumnName,
-                array_column($this->tables[$currentTableIndex]['columns'], 'name'),
-                true,
-            );
-            if ($currentColumnIndex !== false) {
-                array_splice($this->tables[$currentTableIndex]['columns'], $currentColumnIndex, 1);
-                $this->tables[$currentTableIndex]['primaryKey'] = array_values(array_filter(
-                    $this->tables[$currentTableIndex]['primaryKey'],
-                    fn (string $primary) => $primary !== $currentColumnName,
-                ));
-            }
-
-            foreach ($this->foreignKeys as $foreignKey) {
-                $usesAsSource = $foreignKey['fromTable'] === $currentTableId
-                    && $foreignKey['fromColumn'] === $currentColumnName;
-                $usesAsTarget = $foreignKey['toTable'] === $currentTableId
-                    && $foreignKey['toColumn'] === $currentColumnName;
-
-                if (! $usesAsSource && ! $usesAsTarget) {
-                    continue;
-                }
-
-                $removedForeignKeys[$foreignKey['id']] = true;
-                if ($usesAsTarget) {
-                    $pending[] = [$foreignKey['fromTable'], $foreignKey['fromColumn']];
-                }
-            }
-        }
-
-        $this->foreignKeys = array_values(array_filter(
-            $this->foreignKeys,
-            fn (array $foreignKey) => ! isset($removedForeignKeys[$foreignKey['id']]),
-        ));
-        $this->commitLogicalEdit();
-    }
-
     public function openSqlPreview(RelationalSqlGenerator $generator): void
     {
         $this->showSql = true;
@@ -436,7 +331,7 @@ class RelationalBoard extends Component
         return [
             'width' => self::TABLE_WIDTH,
             'height' => self::TABLE_HEADER_HEIGHT
-                + self::TABLE_ADD_ROW_HEIGHT
+                + self::TABLE_BODY_PADDING
                 + (count($table['columns'] ?? []) * self::TABLE_COLUMN_HEIGHT),
         ];
     }

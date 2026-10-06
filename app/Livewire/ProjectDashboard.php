@@ -8,6 +8,7 @@ use App\Services\RelationalDrift;
 use App\Support\ErDiagramImport;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -28,6 +29,10 @@ class ProjectDashboard extends Component
     public string $importJson = '';
 
     public string $importError = '';
+
+    public ?int $editingProjectId = null;
+
+    public string $editingProjectName = '';
 
     #[Computed]
     public function projects(): Collection
@@ -124,6 +129,53 @@ class ProjectDashboard extends Component
             ->firstOrFail();
 
         $this->redirectRoute('boards.relational', $copy->findOrCreate($source), navigate: true);
+    }
+
+    public function startRename(int $projectId): void
+    {
+        $project = Diagram::query()
+            ->whereKey($projectId)
+            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->firstOrFail();
+
+        $this->editingProjectId = $project->id;
+        $this->editingProjectName = $project->name;
+        $this->resetValidation('editingProjectName');
+    }
+
+    public function cancelRename(): void
+    {
+        $this->editingProjectId = null;
+        $this->editingProjectName = '';
+        $this->resetValidation('editingProjectName');
+    }
+
+    public function renameProject(): void
+    {
+        if ($this->editingProjectId === null) {
+            return;
+        }
+
+        $this->editingProjectName = trim($this->editingProjectName);
+        $this->validate(['editingProjectName' => 'required|string|max:120']);
+
+        $project = Diagram::query()
+            ->whereKey($this->editingProjectId)
+            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->with('relationalDiagram')
+            ->firstOrFail();
+
+        DB::transaction(function () use ($project): void {
+            $oldName = $project->name;
+            $project->update(['name' => $this->editingProjectName]);
+
+            if ($project->relationalDiagram?->name === $oldName.' — Relacional') {
+                $project->relationalDiagram->update(['name' => $this->editingProjectName.' — Relacional']);
+            }
+        });
+
+        $this->cancelRename();
+        unset($this->projects);
     }
 
     public function deleteProject(int $projectId): void

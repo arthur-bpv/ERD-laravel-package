@@ -57,7 +57,7 @@ class ErDiagramImport
                 }
             }
             foreach (['childCard', 'parentCard'] as $card) {
-                if (! in_array($relation[$card] ?? null, ['cf-one-one', 'cf-zero-one', 'cf-one-many', 'cf-zero-many', 'cf-many'], true)) {
+                if (! in_array($relation[$card] ?? null, ['cf-one-one', 'cf-zero-one', 'cf-one-many', 'cf-zero-many'], true)) {
                     throw new InvalidArgumentException("relations[$index].$card tem cardinalidade inválida.");
                 }
             }

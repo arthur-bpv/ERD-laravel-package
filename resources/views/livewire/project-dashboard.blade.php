@@ -124,13 +124,35 @@
                 <div class="grid gap-5 xl:grid-cols-2">
                     @foreach ($this->projects as $project)
                         <article wire:key="project-{{ $project->id }}" class="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 shadow-2xl shadow-black/10">
-                            <div class="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
-                                <div>
-                                    <h3 class="text-lg font-semibold text-white">{{ $project->name }}</h3>
-                                    <p class="mt-1 text-xs text-slate-500">Atualizado {{ $project->updated_at->diffForHumans() }}</p>
+                            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 px-6 py-5 sm:flex-nowrap">
+                                <div class="min-w-0 w-full flex-1 sm:w-auto">
+                                    @if ($editingProjectId === $project->id)
+                                        <form wire:submit="renameProject" class="space-y-2">
+                                            <label for="rename-project-{{ $project->id }}" class="block text-xs font-medium text-slate-300">Nome do projeto</label>
+                                            <input id="rename-project-{{ $project->id }}" wire:model="editingProjectName" type="text" maxlength="120"
+                                                class="w-full rounded-lg border border-indigo-400 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-indigo-400/40">
+                                            @error('editingProjectName') <p class="text-xs text-rose-300" role="alert">{{ $message }}</p> @enderror
+                                            <div class="flex gap-2">
+                                                <button type="submit" wire:loading.attr="disabled" wire:target="renameProject"
+                                                    class="rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-400 disabled:opacity-60">Salvar nome</button>
+                                                <button type="button" wire:click="cancelRename"
+                                                    class="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">Cancelar</button>
+                                            </div>
+                                        </form>
+                                    @else
+                                        <h3 class="truncate text-lg font-semibold text-white">{{ $project->name }}</h3>
+                                        <p class="mt-1 text-xs text-slate-500">Atualizado {{ $project->updated_at->diffForHumans() }}</p>
+                                    @endif
                                 </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex w-full items-center justify-end gap-2 sm:w-auto">
                                     <span class="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">Em andamento</span>
+                                    @if ($editingProjectId !== $project->id)
+                                        <button type="button" wire:click="startRename({{ $project->id }})"
+                                            aria-label="Renomear projeto {{ $project->name }}" title="Renomear projeto"
+                                            class="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-indigo-300/40 hover:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                                            Renomear
+                                        </button>
+                                    @endif
                                     <button
                                         type="button"
                                         wire:click="deleteProject({{ $project->id }})"

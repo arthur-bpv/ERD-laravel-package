@@ -30,7 +30,9 @@ class SchemaBoardTest extends TestCase
         $this->assertContains('relation-r1-attribute-anchor', array_column($nodes, 'id'));
         $this->assertNotContains('relation-r1', array_column($nodes, 'id'));
         $this->assertContains('relation-r1-attr-'.$relation['attributes'][0]['id'], array_column($nodes, 'id'));
-        $this->assertContains('r1:attr:'.$relation['attributes'][0]['id'], array_column($board->instance()->buildEdges(), 'id'));
+        $attributeEdge = collect($board->instance()->buildEdges())->firstWhere('id', 'r1:attr:'.$relation['attributes'][0]['id']);
+        $this->assertNotNull($attributeEdge);
+        $this->assertFalse($attributeEdge['reconnectable']);
         $originalEdge = collect($board->instance()->buildEdges())->firstWhere('id', 'r1');
         $this->assertSame('floating', $originalEdge['type']);
 

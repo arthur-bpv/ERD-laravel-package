@@ -302,7 +302,6 @@ document.addEventListener('alpine:init', () => {
             { m: 'cf-zero-one', s: '○|', t: 'zero ou um' },
             { m: 'cf-one-many', s: '|<', t: 'um ou muitos' },
             { m: 'cf-zero-many', s: '○<', t: 'zero ou muitos' },
-            { m: 'cf-many', s: '<', t: 'muitos' },
         ],
 
         open: false,

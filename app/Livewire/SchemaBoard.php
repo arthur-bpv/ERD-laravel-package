@@ -65,12 +65,10 @@ class SchemaBoard extends Component
      *
      * A lista tem de ser idêntica à de `CARDINALIDADES` em `resources/js/erd/markers.js`:
      * um nome só em um dos lados falha em silêncio (a aresta vira uma seta comum).
-     * `cf-many` ("muitos") é o pé de galinha sem barra, aceito na importação.
      */
     private const CARDINALIDADES = [
         'cf-one-one', 'cf-zero-one',
         'cf-one-many', 'cf-zero-many',
-        'cf-many',
     ];
 
     /** Cor padrão das relações. */
@@ -879,6 +877,7 @@ class SchemaBoard extends Component
             'color' => '#94a3b8',
             'strokeWidth' => 1.25,
             'interactionWidth' => 20,
+            'reconnectable' => false,
             'data' => ['relationId' => $relation['id'], 'isAttributeLink' => true],
         ], $relation['attributes'] ?? []);
     }
@@ -934,7 +933,7 @@ class SchemaBoard extends Component
     /**
      * Descreve um marcador de cardinalidade como array em vez de string.
      *
-     * Passar só o nome ('cf-many') deixaria o AlpineFlow aplicar o recuo padrão
+     * Passar só o nome do marcador deixaria o AlpineFlow aplicar o recuo padrão
      * de 12,5px na ponta da linha, abrindo um vão entre o símbolo e a caixa da
      * entidade. Com o offset explícito em zero, o pé de galinha encosta.
      */

@@ -45,7 +45,6 @@ const CARDINALIDADES = [
     'cf-zero-one',
     'cf-one-many',
     'cf-zero-many',
-    'cf-many',
 ];
 
 // converge = ponta onde as três patas do pé de galinha se encontram.
@@ -101,5 +100,3 @@ registrarCardinalidade('cf-zero-one', crowMarker(bar(-10) + ring(-22)));
 registrarCardinalidade('cf-one-many', crowMarker(foot(-18) + bar(-26)));
 // Zero ou muitos                                →  o<
 registrarCardinalidade('cf-zero-many', crowMarker(foot(-18) + ring(-32)));
-// Muitos                                        →  <
-registrarCardinalidade('cf-many', crowMarker(foot(-18)));

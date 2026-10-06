@@ -612,7 +612,7 @@ class ErToRelationalTransformer
         return match ($marker) {
             'cf-one-one' => ['min' => 1, 'many' => false],
             'cf-zero-one' => ['min' => 0, 'many' => false],
-            'cf-one-many', 'cf-many' => ['min' => 1, 'many' => true],
+            'cf-one-many' => ['min' => 1, 'many' => true],
             default => ['min' => 0, 'many' => true],
         };
     }

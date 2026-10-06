@@ -219,7 +219,7 @@ class RelationalBoardTest extends TestCase
 
         $this->assertSame($organized['left']['y'], $organized['right']['y']);
         $this->assertGreaterThanOrEqual(
-            $organized['left']['y'] + 62 + 140,
+            $organized['left']['y'] + 74 + 140,
             $organized['middle']['y'],
         );
         $this->assertSame($organized->values()->all(), $diagram->fresh()->data['tables']);
@@ -233,20 +233,18 @@ class RelationalBoardTest extends TestCase
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->call('renameTable', 'staff', 'Funcionarios SQL')
             ->call('renameColumn', 'staff', 'staff.id', 'funcionario_id')
-            ->call('addColumn', 'staff', 'criado_em', 'timestamp')
-            ->call('toggleColumnNullable', 'staff', 'staff.manual_1')
+            ->call('toggleColumnNullable', 'clients', 'clients.staff_no')
             ->assertDispatched('flow:fromObject');
 
         $data = $diagram->fresh()->data;
         $staff = collect($data['tables'])->firstWhere('id', 'staff');
-        $manual = collect($staff['columns'])->firstWhere('id', 'staff.manual_1');
+        $client = collect($data['tables'])->firstWhere('id', 'clients');
         $foreignKey = collect($data['foreignKeys'])->firstWhere('toTable', 'staff');
 
         $this->assertSame('Funcionarios SQL', $staff['name']);
         $this->assertSame(['funcionario_id'], $staff['primaryKey']);
         $this->assertSame('funcionario_id', $foreignKey['toColumn']);
-        $this->assertSame('timestamp', $manual['type']);
-        $this->assertTrue($manual['nullable']);
+        $this->assertTrue(collect($client['columns'])->firstWhere('id', 'clients.staff_no')['nullable']);
         $this->assertTrue($data['customized']);
         $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
     }
@@ -254,44 +252,25 @@ class RelationalBoardTest extends TestCase
     public function test_nullable_edit_updates_the_existing_canvas_node_without_replacing_it(): void
     {
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
-            ->call('addColumn', 'staff', 'note')
-            ->call('toggleColumnNullable', 'staff', 'staff.manual_1')
-            ->assertDispatched('flow:updateNode', fn (string $event, array $params): bool => $params['id'] === 'staff'
-                && collect($params['changes']['data']['columns'])->firstWhere('id', 'staff.manual_1')['nullable'] === true,
+            ->call('toggleColumnNullable', 'clients', 'clients.staff_no')
+            ->assertDispatched('flow:updateNode', fn (string $event, array $params): bool => $params['id'] === 'clients'
+                && collect($params['changes']['data']['columns'])->firstWhere('id', 'clients.staff_no')['nullable'] === true,
             )
             ->assertDispatched('flow:fromObject', fn (string $event, array $params): bool => ! array_key_exists('nodes', $params['data']) && array_key_exists('edges', $params['data']),
             );
     }
 
-    public function test_relational_editor_removes_derived_columns_and_cascades_invalid_foreign_keys(): void
-    {
-        $diagram = $this->relationalDiagram();
-        $sourceBefore = $diagram->sourceDiagram->data;
-        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
-            ->call('removeColumn', 'staff', 'staff.id')
-            ->assertDispatched('flow:fromObject');
-
-        $staff = collect($component->get('tables'))->firstWhere('id', 'staff');
-        $clients = collect($component->get('tables'))->firstWhere('id', 'clients');
-
-        $this->assertNotContains('staff.id', array_column($staff['columns'], 'id'));
-        $this->assertSame([], $staff['primaryKey']);
-        $this->assertEmpty($component->get('foreignKeys'));
-        $this->assertNotContains('staffNo', array_column($clients['columns'], 'name'));
-        $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
-    }
-
     public function test_sized_column_types_store_length_precision_and_scale(): void
     {
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
-            ->call('addColumn', 'staff', 'codigo', 'varchar')
-            ->call('updateColumnSize', 'staff', 'staff.manual_1', 120)
-            ->call('addColumn', 'staff', 'valor', 'decimal')
-            ->call('updateColumnSize', 'staff', 'staff.manual_2', 12, 4);
+            ->call('updateColumnType', 'staff', 'staff.id', 'varchar')
+            ->call('updateColumnSize', 'staff', 'staff.id', 120)
+            ->call('updateColumnType', 'clients', 'clients.id', 'decimal')
+            ->call('updateColumnSize', 'clients', 'clients.id', 12, 4);
 
-        $columns = collect(collect($component->get('tables'))->firstWhere('id', 'staff')['columns']);
-        $varchar = $columns->firstWhere('id', 'staff.manual_1');
-        $decimal = $columns->firstWhere('id', 'staff.manual_2');
+        $tables = collect($component->get('tables'));
+        $varchar = collect($tables->firstWhere('id', 'staff')['columns'])->firstWhere('id', 'staff.id');
+        $decimal = collect($tables->firstWhere('id', 'clients')['columns'])->firstWhere('id', 'clients.id');
 
         $this->assertSame(120, $varchar['length']);
         $this->assertNull($varchar['precision']);
@@ -315,17 +294,17 @@ class RelationalBoardTest extends TestCase
     {
         $diagram = $this->relationalDiagram();
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
-            ->call('addColumn', 'staff', 'contador', 'tinyint')
-            ->call('addColumn', 'staff', 'codigo_externo', 'varchar')
-            ->call('updateColumnSize', 'staff', 'staff.manual_2', 8000)
+            ->call('updateColumnType', 'staff', 'staff.id', 'tinyint')
+            ->call('updateColumnType', 'clients', 'clients.id', 'varchar')
+            ->call('updateColumnSize', 'clients', 'clients.id', 8000)
             ->call('setDialect', 'oracle')
             ->assertSet('dialect', 'oracle')
             ->assertDispatched('relational-saved');
 
-        $columns = collect(collect($component->get('tables'))->firstWhere('id', 'staff')['columns']);
+        $tables = collect($component->get('tables'));
 
-        $this->assertSame('smallint', $columns->firstWhere('id', 'staff.manual_1')['type']);
-        $this->assertSame(4000, $columns->firstWhere('id', 'staff.manual_2')['length']);
+        $this->assertSame('smallint', collect($tables->firstWhere('id', 'staff')['columns'])->firstWhere('id', 'staff.id')['type']);
+        $this->assertSame(4000, collect($tables->firstWhere('id', 'clients')['columns'])->firstWhere('id', 'clients.id')['length']);
         $this->assertSame('oracle', $diagram->fresh()->data['dialect']);
 
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram->fresh()])
@@ -379,8 +358,6 @@ class RelationalBoardTest extends TestCase
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->call('renameTable', 'staff', 'Equipe')
             ->call('renameColumn', 'staff', 'staff.id', 'employee_id')
-            ->call('addColumn', 'staff', 'salary', 'decimal')
-            ->call('updateColumnSize', 'staff', 'staff.manual_1', 12, 2)
             ->call('setDialect', 'pgsql')
             ->call('openSqlPreview')
             ->assertSet('showSql', true)
@@ -390,7 +367,6 @@ class RelationalBoardTest extends TestCase
         $sql = $component->get('sqlPreview');
         $this->assertStringContainsString('CREATE TABLE "Equipe"', $sql);
         $this->assertStringContainsString('"employee_id" BIGINT NOT NULL', $sql);
-        $this->assertStringContainsString('"salary" NUMERIC(12, 2) NOT NULL', $sql);
         $this->assertStringContainsString('REFERENCES "Equipe" ("employee_id")', $sql);
         $this->assertSame('pgsql', $diagram->fresh()->data['dialect']);
         $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
@@ -529,36 +505,29 @@ class RelationalBoardTest extends TestCase
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->assertViewHas('isOutdated', true)
             ->assertDontSee('As edições manuais deste quadro também serão substituídas.')
-            ->call('addColumn', 'staff', 'telefone')
+            ->call('renameTable', 'staff', 'Equipe')
             ->assertSee('As edições manuais deste quadro também serão substituídas.');
     }
 
-    /**
-     * A largura/altura da tabela no canvas precisa cobrir a linha "＋ Coluna",
-     * que fica sempre visível — se ela não contar, as tabelas se sobrepõem ao
-     * arrastar e o arranjo automático reserva espaço demais.
-     */
-    public function test_node_height_accounts_for_the_always_visible_add_column_row(): void
+    public function test_node_height_accounts_for_column_rows(): void
     {
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->generatedRelationalDiagram()]);
 
         $nodes = collect($component->instance()->buildNodes())->keyBy('id');
 
-        $before = $nodes['staff']['dimensions']['height'];
-
-        $component->call('addColumn', 'staff', 'telefone');
-
-        $after = collect($component->instance()->buildNodes())->firstWhere('id', 'staff')['dimensions']['height'];
-
-        $this->assertSame(44, $after - $before, 'Uma coluna a mais precisa somar exatamente uma linha.');
+        $staff = collect($component->get('tables'))->firstWhere('id', 'staff');
+        $this->assertSame(74 + count($staff['columns']) * 44, $nodes['staff']['dimensions']['height']);
     }
 
-    /** O quadro oferece os dois controles no HTML, e não só nos testes. */
-    public function test_the_column_editor_offers_adding_and_removing_columns(): void
+    public function test_the_column_editor_has_no_add_or_remove_controls_and_edges_cannot_be_reconnected(): void
     {
+        $this->assertFalse(method_exists(RelationalBoard::class, 'addColumn'));
+        $this->assertFalse(method_exists(RelationalBoard::class, 'removeColumn'));
+
         Livewire::test(RelationalBoard::class, ['diagram' => $this->generatedRelationalDiagram()])
-            ->assertSeeHtml('$wire.addColumn(node.id, draft)')
-            ->assertSeeHtml('$wire.removeColumn(node.id, column.id)');
+            ->assertDontSeeHtml('$wire.addColumn(')
+            ->assertDontSeeHtml('$wire.removeColumn(')
+            ->assertSeeHtml('edgesReconnectable');
     }
 
     private function addEmailToStaff(Diagram $source): void

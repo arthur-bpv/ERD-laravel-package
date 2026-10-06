@@ -36,6 +36,59 @@ class ProjectDashboardTest extends TestCase
         $this->assertNull($diagram->source_diagram_id);
     }
 
+    public function test_project_can_be_renamed_from_the_dashboard(): void
+    {
+        $project = Diagram::create([
+            'name' => 'Biblioteca',
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => [],
+        ]);
+        $relational = Diagram::create([
+            'name' => 'Biblioteca — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $project->id,
+            'data' => [],
+        ]);
+
+        Livewire::test(ProjectDashboard::class)
+            ->assertSee('Renomear projeto Biblioteca')
+            ->call('startRename', $project->id)
+            ->assertSet('editingProjectName', 'Biblioteca')
+            ->set('editingProjectName', '  Acervo  ')
+            ->call('renameProject')
+            ->assertSet('editingProjectId', null)
+            ->assertSee('Acervo');
+
+        $this->assertSame('Acervo', $project->fresh()->name);
+        $this->assertSame('Acervo — Relacional', $relational->fresh()->name);
+    }
+
+    public function test_renaming_rejects_an_empty_name_and_preserves_a_custom_relational_name(): void
+    {
+        $project = Diagram::create([
+            'name' => 'Biblioteca',
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => [],
+        ]);
+        $relational = Diagram::create([
+            'name' => 'Modelo físico',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $project->id,
+            'data' => [],
+        ]);
+
+        Livewire::test(ProjectDashboard::class)
+            ->call('startRename', $project->id)
+            ->set('editingProjectName', '   ')
+            ->call('renameProject')
+            ->assertHasErrors(['editingProjectName' => 'required'])
+            ->set('editingProjectName', 'Acervo')
+            ->call('renameProject');
+
+        $this->assertSame('Acervo', $project->fresh()->name);
+        $this->assertSame('Modelo físico', $relational->fresh()->name);
+    }
+
     public function test_import_name_does_not_block_the_regular_project_form(): void
     {
         Livewire::test(ProjectDashboard::class)

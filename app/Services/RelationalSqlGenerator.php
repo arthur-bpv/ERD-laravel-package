@@ -106,7 +106,10 @@ final class RelationalSqlGenerator
                 .' ('.implode(', ', $toColumns).');';
         }
 
-        return implode("\n\n", $statements)."\n";
+        $projectName = trim((string) ($data['projectName'] ?? ''));
+        $comment = $projectName === '' ? '' : '-- Projeto: '.preg_replace('/[\r\n]+/u', ' ', $projectName)."\n\n";
+
+        return $comment.implode("\n\n", $statements)."\n";
     }
 
     private function columnType(string $dialect, array $column): string

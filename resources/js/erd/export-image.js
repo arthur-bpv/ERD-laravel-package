@@ -2,6 +2,23 @@
 // The full-diagram scope fits every node while preserving their relative positions.
 const exporting = new WeakSet();
 
+export function exportImageSize(nodes) {
+    const visible = nodes.filter((node) => !node.hidden);
+    if (visible.length === 0) return { width: 2560, height: 1440 };
+
+    const left = Math.min(...visible.map((node) => node.position.x));
+    const top = Math.min(...visible.map((node) => node.position.y));
+    const right = Math.max(...visible.map((node) => node.position.x + (node.dimensions?.width || 0)));
+    const bottom = Math.max(...visible.map((node) => node.position.y + (node.dimensions?.height || 0)));
+
+    // Capture the full board at its natural size where possible. AlpineFlow's
+    // 1920×1080 default shrinks large diagrams and softens their text.
+    return {
+        width: Math.min(4096, Math.max(2560, Math.ceil((right - left) * 1.5))),
+        height: Math.min(4096, Math.max(1440, Math.ceil((bottom - top) * 1.5))),
+    };
+}
+
 function download(dataUrl, filename) {
     const link = document.createElement('a');
     link.href = dataUrl;
@@ -48,7 +65,7 @@ window.exportBoardImage = async (button, format) => {
         if (wireIgnore !== null) container.removeAttribute('wire:ignore');
         let png;
         try {
-            png = await flow.toImage({ scope: 'all', background });
+            png = await flow.toImage({ scope: 'all', background, ...exportImageSize(flow.nodes) });
         } finally {
             if (wireIgnore !== null) container.setAttribute('wire:ignore', wireIgnore);
         }

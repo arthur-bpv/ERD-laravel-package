@@ -39,7 +39,7 @@ class RelationalBoardTest extends TestCase
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()]);
         $edge = $component->instance()->buildEdges()[0];
 
-        $this->assertSame('N:1', $edge['label']);
+        $this->assertSame('1:N', $edge['label']);
         $this->assertArrayNotHasKey('markerStart', $edge);
         $this->assertSame('arrowclosed', $edge['markerEnd']);
         $this->assertSame('smoothstep', $edge['type']);
@@ -53,6 +53,25 @@ class RelationalBoardTest extends TestCase
         $this->assertSame('clients.staff_no', $foreignKey['fromColumnId']);
         $this->assertSame('staff.id', $foreignKey['toColumnId']);
         $component->assertSeeHtml('class="rel-column relative"');
+    }
+
+    public function test_cardinality_follows_table_order_without_reversing_the_foreign_key(): void
+    {
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()]);
+        $board = $component->instance();
+
+        foreach (['N:1' => '1:N', '1:N' => 'N:1', '1:1' => '1:1'] as $stored => $reversed) {
+            $board->foreignKeys[0]['cardinality'] = $stored;
+
+            $edge = $board->buildEdges()[0];
+            $this->assertSame($reversed, $edge['label']);
+            $this->assertSame('clients', $edge['source']);
+            $this->assertSame('staff', $edge['target']);
+
+            $board->tables[1]['x'] = -500;
+            $this->assertSame($stored, $board->buildEdges()[0]['label']);
+            $board->tables[1]['x'] = 420;
+        }
     }
 
     public function test_recursive_foreign_key_is_a_visible_loop_instead_of_a_collapsed_dot(): void
@@ -199,7 +218,7 @@ class RelationalBoardTest extends TestCase
 
         $tables = collect($component->get('tables'))->keyBy('id');
 
-        $this->assertSame(80, abs($tables['clients']['x'] - $tables['staff']['x']) - 380);
+        $this->assertSame(48, abs($tables['clients']['x'] - $tables['staff']['x']) - 380);
         $this->assertSame($tables->values()->all(), $diagram->fresh()->data['tables']);
     }
 
@@ -230,7 +249,7 @@ class RelationalBoardTest extends TestCase
 
         $this->assertSame($organized['left']['y'], $organized['right']['y']);
         $this->assertGreaterThanOrEqual(
-            $organized['left']['y'] + 74 + 80,
+            $organized['left']['y'] + 74 + 48,
             $organized['middle']['y'],
         );
         $this->assertSame($organized->values()->all(), $diagram->fresh()->data['tables']);
@@ -265,7 +284,60 @@ class RelationalBoardTest extends TestCase
 
         $this->assertLessThanOrEqual(3, $xs->count());
         $this->assertGreaterThanOrEqual(3, $ys->count());
-        $this->assertLessThan(1400, $xs->max() - $xs->min() + 380);
+        $this->assertLessThan(1340, $xs->max() - $xs->min() + 380);
+        $this->assertSame($organized->all(), $diagram->fresh()->data['tables']);
+
+        foreach ($organized as $left) {
+            foreach ($organized as $right) {
+                if ($left['id'] === $right['id']) {
+                    continue;
+                }
+
+                $this->assertTrue(
+                    $left['x'] + 380 + 48 <= $right['x']
+                    || $right['x'] + 380 + 48 <= $left['x']
+                    || $left['y'] + 74 + 48 <= $right['y']
+                    || $right['y'] + 74 + 48 <= $left['y'],
+                    "As tabelas {$left['id']} e {$right['id']} ficaram próximas demais.",
+                );
+            }
+        }
+    }
+
+    public function test_organizing_a_connected_model_with_different_table_heights_stays_compact(): void
+    {
+        $diagram = $this->relationalDiagram();
+        $columnCounts = [2, 3, 1, 1, 2];
+        $tables = array_map(fn (int $index): array => [
+            'id' => 'table-'.$index,
+            'name' => 'Table '.$index,
+            'kind' => 'entity',
+            'x' => 0,
+            'y' => 0,
+            'columns' => array_map(fn (int $columnIndex): array => [
+                'id' => 'table-'.$index.'.column-'.$columnIndex,
+                'name' => 'column-'.$columnIndex,
+                'type' => 'bigint',
+                'key' => '',
+                'nullable' => false,
+            ], range(0, $columnCounts[$index] - 1)),
+            'primaryKey' => [],
+        ], range(0, 4));
+        $foreignKeys = array_map(fn (array $pair, int $index): array => [
+            'id' => 'fk-'.$index,
+            'fromTable' => 'table-'.$pair[0],
+            'toTable' => 'table-'.$pair[1],
+            'fromColumn' => 'column-0',
+            'toColumn' => 'column-0',
+        ], [[0, 2], [1, 2], [1, 0], [4, 2], [4, 3]], [0, 1, 2, 3, 4]);
+        $diagram->update(['data' => ['tables' => $tables, 'foreignKeys' => $foreignKeys]]);
+
+        $organized = collect(Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('organizeBoard')->get('tables'));
+
+        $bottom = $organized->max(fn (array $table): int => $table['y'] + 74 + 44 * count($table['columns']));
+        $top = $organized->min('y');
+        $this->assertLessThan(800, $bottom - $top);
         $this->assertSame($organized->all(), $diagram->fresh()->data['tables']);
     }
 
@@ -419,6 +491,7 @@ class RelationalBoardTest extends TestCase
             ->assertSee('Baixar .sql');
 
         $sql = $component->get('sqlPreview');
+        $this->assertStringStartsWith("-- Projeto: CRM\n", $sql);
         $this->assertStringContainsString('CREATE TABLE "Staff"', $sql);
         $this->assertStringContainsString('"staffNo" BIGINT NOT NULL', $sql);
         $this->assertStringContainsString('REFERENCES "Staff" ("staffNo")', $sql);
@@ -430,7 +503,11 @@ class RelationalBoardTest extends TestCase
 
     public function test_json_modal_copies_and_downloads_the_relational_model(): void
     {
-        Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()]);
+        $this->assertSame('Projeto: CRM | Modelo: CRM — Relacional',
+            json_decode($component->instance()->getJsonPreviewProperty(), true)['_comment']);
+
+        $component
             ->call('toggleJson')
             ->assertSet('showJson', true)
             // Mesmo componente do quadro ER, mesmo rodapé.

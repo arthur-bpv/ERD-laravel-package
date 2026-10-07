@@ -38,9 +38,9 @@ class RelationalBoard extends Component
 
     private const TABLE_COLUMN_HEIGHT = 44;
 
-    private const LAYOUT_COLUMN_GAP = 80;
+    private const LAYOUT_COLUMN_GAP = 48;
 
-    private const LAYOUT_ROW_GAP = 80;
+    private const LAYOUT_ROW_GAP = 48;
 
     #[Locked]
     public int $diagramId;
@@ -281,6 +281,7 @@ class RelationalBoard extends Component
     private function sqlData(): array
     {
         return [
+            'projectName' => $this->sourceDiagramName,
             'dialect' => $this->dialect,
             'tables' => $this->tables,
             'foreignKeys' => $this->foreignKeys,
@@ -317,15 +318,20 @@ class RelationalBoard extends Component
                 self::LAYOUT_ROW_GAP,
             );
         }
-        $positions = BoardLayout::clearLinkCorridors(
-            $this->tables,
-            $links,
-            $positions,
-            fn (array $table): int => $this->tableDimensions($table)['height'],
-            self::TABLE_WIDTH,
-            self::LAYOUT_ROW_GAP,
-            24,
-        );
+        if (count($positions) < 4) {
+            // Em grades maiores, este passo pode deslocar repetidamente as
+            // mesmas tabelas por causa de conexões que cruzam outras linhas.
+            // A grade compacta já evita sobreposição entre tabelas.
+            $positions = BoardLayout::clearLinkCorridors(
+                $this->tables,
+                $links,
+                $positions,
+                fn (array $table): int => $this->tableDimensions($table)['height'],
+                self::TABLE_WIDTH,
+                self::LAYOUT_ROW_GAP,
+                24,
+            );
+        }
 
         foreach ($this->tables as &$table) {
             if (isset($positions[$table['id']])) {
@@ -343,6 +349,7 @@ class RelationalBoard extends Component
     public function getJsonPreviewProperty(): string
     {
         return json_encode([
+            '_comment' => 'Projeto: '.$this->sourceDiagramName.' | Modelo: '.$this->diagramName,
             'tables' => $this->tables,
             'foreignKeys' => $this->foreignKeys,
             'warnings' => $this->warnings,
@@ -392,15 +399,22 @@ class RelationalBoard extends Component
             $relationshipName = trim((string) ($foreignKey['relationshipName'] ?? ''));
             $pairKey = $foreignKey['fromTable'].'::'.$foreignKey['toTable'];
             $isParallel = ! $isRecursive && ($pairTotals[$pairKey] ?? 0) > 1;
+            $from = $tablePositions[$foreignKey['fromTable']] ?? ['x' => 0, 'y' => 0];
+            $to = $tablePositions[$foreignKey['toTable']] ?? ['x' => 0, 'y' => 0];
+            // O rótulo é lido da esquerda para a direita; a FK continua sendo
+            // a origem da seta, mesmo quando sua tabela está à direita.
+            $displayCardinality = ! $isRecursive && $from['x'] > $to['x']
+                ? implode(':', array_reverse(explode(':', $cardinality)))
+                : $cardinality;
 
             $edge = [
                 'id' => $foreignKey['id'],
                 'source' => $foreignKey['fromTable'],
                 'target' => $foreignKey['toTable'],
                 'label' => match (true) {
-                    $isRecursive && $relationshipName !== '' => $relationshipName.' · '.$cardinality,
-                    $isParallel => $foreignKey['fromColumn'].' · '.$cardinality,
-                    default => $cardinality,
+                    $isRecursive && $relationshipName !== '' => $relationshipName.' · '.$displayCardinality,
+                    $isParallel => $foreignKey['fromColumn'].' · '.$displayCardinality,
+                    default => $displayCardinality,
                 },
                 'color' => '#38bdf8',
                 'strokeWidth' => 1.6,
@@ -429,8 +443,6 @@ class RelationalBoard extends Component
                 ]);
             }
 
-            $from = $tablePositions[$foreignKey['fromTable']] ?? ['x' => 0, 'y' => 0];
-            $to = $tablePositions[$foreignKey['toTable']] ?? ['x' => 0, 'y' => 0];
             $side = $to['x'] >= $from['x'] ? 'right' : 'left';
             $tablesOverlapHorizontally = abs($to['x'] - $from['x']) < self::TABLE_WIDTH;
             $opposite = $tablesOverlapHorizontally

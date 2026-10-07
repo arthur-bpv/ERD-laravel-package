@@ -738,6 +738,7 @@ class SchemaBoardTest extends TestCase
         );
 
         $this->assertArrayHasKey('entities', $json);
+        $this->assertSame('Projeto: Diagrama sem nome | Modelo: ER', $json['_comment']);
         $this->assertArrayHasKey('relations', $json);
         $this->assertArrayNotHasKey('tables', $json);
     }

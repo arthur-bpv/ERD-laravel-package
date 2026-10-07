@@ -2064,6 +2064,7 @@ class SchemaBoard extends Component
     public function getJsonPreviewProperty(): string
     {
         return json_encode([
+            '_comment' => 'Projeto: '.$this->diagramName.' | Modelo: ER',
             'entities' => $this->entities,
             'relations' => $this->relations,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

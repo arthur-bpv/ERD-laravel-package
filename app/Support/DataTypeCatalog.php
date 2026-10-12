@@ -73,6 +73,25 @@ class DataTypeCatalog
                 'uuid' => 'UNIQUEIDENTIFIER', 'json' => 'NVARCHAR(MAX)', 'xml' => 'XML',
             ],
         ],
+
+        'sqlite' => [
+            'label' => 'SQLite',
+            'precision' => 38,
+            'limits' => ['char' => 255, 'varchar' => 65535],
+            'types' => [
+                // Inteiros (afinidade INTEGER)
+                'integer' => 'INTEGER', 'bigint' => 'BIGINT',
+                // Decimais (REAL e NUMERIC)
+                'decimal' => 'DECIMAL', 'numeric' => 'NUMERIC', 'float' => 'REAL', 'double' => 'DOUBLE',
+                'boolean' => 'BOOLEAN',
+                // Texto (afinidade TEXT)
+                'char' => 'CHAR', 'varchar' => 'VARCHAR', 'text' => 'TEXT',
+                // Data e hora (o SQLite guarda como TEXT, REAL ou INTEGER)
+                'date' => 'DATE', 'datetime' => 'DATETIME', 'timestamp' => 'TIMESTAMP',
+                // Binário e outros
+                'blob' => 'BLOB', 'json' => 'JSON',
+            ],
+        ],
     ];
 
     /** Se o banco não tem o tipo, tenta estes na ordem. */
@@ -108,9 +127,8 @@ class DataTypeCatalog
     /** Tipos canônicos disponíveis no dialeto. */
     public static function canonicalFor(string $dialect): array
     {
-        return array_keys(self::DIALECTS[$dialect]['types'] ?? []);
+        return array_keys(self::typesFor($dialect));
     }
-
     /** 'length', 'decimal' ou null. */
     public static function kind(string $type): ?string
     {
@@ -158,7 +176,11 @@ class DataTypeCatalog
             $column['precision'] = null;
             $column['scale'] = null;
         }
-
+                if ($type === 'custom') {
+            $column['customType'] = mb_substr(trim((string) ($column['customType'] ?? '')), 0, 60);
+        } else {
+            $column['customType'] = null;
+        }
         return $column;
     }
 
@@ -172,12 +194,16 @@ class DataTypeCatalog
             $kinds[$t] = 'decimal';
         }
 
-        return collect(self::DIALECTS)->map(fn ($d) => [
-            'label' => $d['label'],
-            'types' => $d['types'],
-            'limits' => $d['limits'],
-            'precision' => $d['precision'],
-            'kinds' => $kinds,
-        ])->all();
+        return collect(self::DIALECTS)->map(fn ($d, $key) => [
+        'label' => $d['label'],
+        'types' => self::typesFor($key),
+        'limits' => $d['limits'],
+        'precision' => $d['precision'],
+        'kinds' => $kinds,
+    ])->all();
+    }
+    private static function typesFor(string $dialect): array
+    {
+        return (self::DIALECTS[$dialect]['types'] ?? []) + ['custom' => 'Personalizado'];
     }
 }

@@ -205,22 +205,28 @@ class RelationalBoard extends Component
     }
 
     public function setDialect(string $dialect): void
-    {
-        if (! DataTypeCatalog::has($dialect) || $dialect === $this->dialect) {
-            return;
-        }
-
-        $this->dialect = $dialect;
-
-        foreach ($this->tables as $tableIndex => $table) {
-            foreach ($table['columns'] as $columnIndex => $column) {
-                $column['type'] = DataTypeCatalog::resolve($dialect, $column['type'] ?? 'varchar');
-                $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($dialect, $column);
-            }
-        }
-
-        $this->commitLogicalEdit();
+{
+    if (! DataTypeCatalog::has($dialect) || $dialect === $this->dialect) {
+        return;
     }
+
+    $this->dialect = $dialect;
+
+    foreach ($this->tables as $t => $table) {
+        foreach ($table['columns'] as $c => $column) {
+            $column['type'] = DataTypeCatalog::resolve($dialect, $column['type'] ?? 'varchar');
+            $this->tables[$t]['columns'][$c] = DataTypeCatalog::normalize($dialect, $column);
+        }
+    }
+
+    $this->commitLogicalEdit();
+
+    $this->dispatch(
+        'relational-dialect-warning',
+        message: 'Banco alterado para '.DataTypeCatalog::DIALECTS[$dialect]['label']
+            .'. Alguns tipos podem ter sido ajustados, revise as colunas.',
+    );
+}
 
     public function toggleColumnNullable(string $tableId, string $columnId): void
     {
@@ -493,6 +499,13 @@ class RelationalBoard extends Component
         $this->warnings = array_values($data['warnings'] ?? []);
         $this->isCustomized = (bool) ($data['customized'] ?? false);
         $this->dialect = DataTypeCatalog::has($data['dialect'] ?? '') ? $data['dialect'] : 'mysql';
+
+        foreach ($this->tables as $t => $table) {
+            foreach ($table['columns'] as $c => $column) {
+                $column['type'] = DataTypeCatalog::resolve($this->dialect, $column['type'] ?? 'varchar');
+                $this->tables[$t]['columns'][$c] = DataTypeCatalog::normalize($this->dialect, $column);
+            }
+        }
     }
 
     private function persistCurrentData(bool $markCustomized = false): void
@@ -586,5 +599,32 @@ class RelationalBoard extends Component
         }
 
         return null;
+    }
+    public function updateColumnCustomType(string $tableId, string $columnId, string $value): void
+    {
+        $tableIndex = $this->tableIndex($tableId);
+        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
+
+        if ($columnIndex === null) {
+            return;
+        }
+
+        $column = $this->tables[$tableIndex]['columns'][$columnIndex];
+        if (($column['type'] ?? '') !== 'custom') {
+            return;
+        }
+
+        $value = trim($value);
+
+        // Só letras, números, espaço, _ ( ) , . — evita lixo/injeção se um dia gerar DDL.
+        if ($value === '' || mb_strlen($value) > 60 || ! preg_match('/^[\p{L}0-9_ (),.]+$/u', $value)) {
+            $this->dispatch('relational-edit-rejected', message: 'Tipo inválido. Use letras, números, espaço, _ ( ) , . (máx. 60).');
+
+            return;
+        }
+
+        $column['customType'] = $value;
+        $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
+        $this->commitLogicalEdit();
     }
 }

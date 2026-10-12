@@ -1,31 +1,39 @@
 <main class="relational-board flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100"
-    x-data="{
-        dialect: @js($dialect),
-        catalog: @js(\App\Support\DataTypeCatalog::forJs()),
-        typeKind(type) { return this.catalog[this.dialect].kinds[type] ?? null; },
-        guideOpen: false,
-        notice: '',
-        noticeKind: 'success',
-        noticeTimer: null,
-        showNotice(message, kind = 'success') {
-            this.notice = message;
-            this.noticeKind = kind;
-            window.clearTimeout(this.noticeTimer);
-            this.noticeTimer = window.setTimeout(() => this.notice = '', 2800);
-        },
-        typeGroups: [
-            { label: 'Inteiros', types: ['tinyint', 'smallint', 'integer', 'bigint'] },
-            { label: 'Decimais', types: ['decimal', 'numeric', 'float', 'double', 'money'] },
-            { label: 'Texto', types: ['char', 'varchar', 'nchar', 'nvarchar', 'text', 'mediumtext', 'longtext'] },
-            { label: 'Data e hora', types: ['date', 'time', 'datetime', 'timestamp'] },
-            { label: 'Binário', types: ['binary', 'varbinary', 'blob'] },
-            { label: 'Outros', types: ['boolean', 'uuid', 'json', 'xml'] },
-        ],
-    }"
+x-data="{
+    dialect: @js($dialect),
+    catalog: @js(\App\Support\DataTypeCatalog::forJs()),
+    typeKind(type) { return this.catalog[this.dialect].kinds[type] ?? null; },
+    guideOpen: false,
+    notice: '',
+    noticeKind: 'success',
+    noticeTimer: null,
+    showNotice(message, kind = 'success') {
+        this.notice = message;
+        this.noticeKind = kind;
+        window.clearTimeout(this.noticeTimer);
+        this.noticeTimer = window.setTimeout(() => this.notice = '', 2800);
+    },
+    dialectNotice: '',
+    dialectTimer: null,
+    showDialectNotice(message) {
+        this.dialectNotice = message;
+        window.clearTimeout(this.dialectTimer);
+        this.dialectTimer = window.setTimeout(() => this.dialectNotice = '', 7000);
+    },
+    typeGroups: [
+        { label: 'Inteiros', types: ['tinyint', 'smallint', 'integer', 'bigint'] },
+        { label: 'Decimais', types: ['decimal', 'numeric', 'float', 'double', 'money'] },
+        { label: 'Texto', types: ['char', 'varchar', 'nchar', 'nvarchar', 'text', 'mediumtext', 'longtext'] },
+        { label: 'Data e hora', types: ['date', 'time', 'datetime', 'timestamp'] },
+        { label: 'Binário', types: ['binary', 'varbinary', 'blob'] },
+        { label: 'Outros', types: ['boolean', 'uuid', 'json', 'xml', 'custom'] },
+    ],
+}"
     x-init="$nextTick(() => window.installRelationalConnections($el.querySelector('.flow-container')))"
     @relational-saved.window="showNotice('Alteração salva apenas no modelo Relacional.')"
     @relational-regenerated.window="showNotice('Modelo Relacional regenerado a partir do ER.')"
-    @relational-edit-rejected.window="showNotice($event.detail.message, 'warning')">
+    @relational-edit-rejected.window="showNotice($event.detail.message, 'warning')"
+    @relational-dialect-warning.window="showDialectNotice($event.detail.message)">
     <x-board-header mode="relational" :diagram-name="$diagramName" :source-diagram-id="$sourceDiagramId"
         :source-diagram-name="$sourceDiagramName" :tables-count="count($tables)"
         :columns-count="collect($tables)->sum(fn (array $table) => count($table['columns']))"
@@ -111,6 +119,12 @@
         <p x-text="notice"></p>
     </div>
 
+    <div x-show="dialectNotice" x-cloak x-transition class="rel-notice rel-notice-stack is-warning" role="status" aria-live="polite">
+    <span>!</span>
+    <p x-text="dialectNotice"></p>
+    </div>
+
+
     @if ($warnings)
         <aside class="z-10 border-b border-amber-400/15 bg-amber-400/5 px-5 py-2 text-xs text-amber-200">
             <details>
@@ -173,6 +187,13 @@
                                                 </optgroup>
                                             </template>
                                         </select>
+
+                                        <input x-show="column.type === 'custom'" type="text" maxlength="60"
+                                            placeholder="ex: GEOMETRY"
+                                            :value="column.customType ?? ''"
+                                            @pointerdown.stop @click.stop @keydown.enter.stop.prevent="$event.target.blur()"
+                                            @change="$wire.updateColumnCustomType(node.id, column.id, $event.target.value)"
+                                            aria-label="Tipo personalizado" title="Digite o tipo (ex: GEOMETRY, MONEY, VARCHAR(20))">
 
                                         <input x-show="typeKind(column.type) === 'length'" class="rel-size-input" type="number" min="1" step="1" inputmode="numeric"
                                             :max="catalog[dialect].limits[column.type]"

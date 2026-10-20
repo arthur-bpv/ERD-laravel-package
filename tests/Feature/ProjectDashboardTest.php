@@ -6,7 +6,7 @@ use App\Livewire\ProjectDashboard;
 use App\Livewire\SchemaBoard;
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
-use App\Support\ErDiagramImport;
+use App\Support\ErDiagramImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -171,7 +171,7 @@ class ProjectDashboardTest extends TestCase
             ->where('name', 'Análise de alternativas ER → relacional')
             ->count());
         $this->assertCount(41, Diagram::latest('id')->first()->data['relations']);
-        $this->assertCount(41, ErDiagramImport::parse(
+        $this->assertCount(41, ErDiagramImporter::parse(
             file_get_contents(public_path('examples/er-conversion-cases.json')),
         )['relations']);
     }

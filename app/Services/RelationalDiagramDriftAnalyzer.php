@@ -16,7 +16,7 @@ use App\Support\DataTypeCatalog;
  * ER mudou. O resto — nome da tabela, colunas, tipos, chaves, nulabilidade,
  * tamanho, chaves primárias e chaves estrangeiras — é conteúdo do modelo.
  */
-class RelationalDrift
+class RelationalDiagramDriftAnalyzer
 {
     /** Rótulos de `kind`: a mudança de tipo de uma tabela também é uma mudança. */
     private const KIND_LABELS = [

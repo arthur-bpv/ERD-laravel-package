@@ -434,7 +434,7 @@ class SchemaBoardTest extends TestCase
      * SVG sem reavaliar o marcador (bug de reatividade da lib, confirmado
      * reproduzindo com chamadas puramente client-side). Em vez disso,
      * despachamos um único evento `erd-rebuild-edge` com a aresta pronta, e
-     * o JS (erd/edge-editor.js) faz remove → aguarda um frame real do
+     * o JS (erd/relationship-editor.js) faz remove → aguarda um frame real do
      * navegador → add, forçando o elemento a ser reconstruído do zero.
      */
     public function test_setting_cardinality_keeps_the_edge_selected(): void

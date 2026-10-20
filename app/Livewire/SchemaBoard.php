@@ -2,13 +2,13 @@
 
 namespace App\Livewire;
 
-use App\Livewire\Concerns\InterageComJson;
+use App\Livewire\Concerns\HandlesDiagramJsonExport;
 use App\Models\Diagram;
-use App\Services\RelationalCopy;
-use App\Services\RelationalDrift;
+use App\Services\RelationalDiagramCreator;
+use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
-use App\Support\ErRelationshipAttributeLayout;
+use App\Support\ErRelationshipAttributePositioner;
 use App\Support\ErRelationshipEdgeProjector;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
@@ -43,7 +43,7 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class SchemaBoard extends Component
 {
-    use InterageComJson;
+    use HandlesDiagramJsonExport;
 
     // A trait WithWireFlow permite enviar comandos JavaScript granulares e diretos
     // para a biblioteca de diagramas do frontend, evitando renderizações pesadas do Livewire.
@@ -482,7 +482,7 @@ class SchemaBoard extends Component
         $anchor = $this->relationshipAttributeAnchorPosition($relation);
         $nodes = [];
         foreach (array_values($relation['attributes'] ?? []) as $index => $attribute) {
-            $default = (new ErRelationshipAttributeLayout)->defaultOffset($index);
+            $default = (new ErRelationshipAttributePositioner)->defaultOffset($index);
             $offsetX = $attribute['offsetX'] ?? $default['x'];
             $offsetY = $attribute['offsetY'] ?? $default['y'];
 
@@ -493,8 +493,8 @@ class SchemaBoard extends Component
                     'y' => $anchor['y'] + $offsetY,
                 ],
                 'dimensions' => [
-                    'width' => ErRelationshipAttributeLayout::RELATION_ATTRIBUTE_WIDTH,
-                    'height' => ErRelationshipAttributeLayout::RELATION_ATTRIBUTE_HEIGHT,
+                    'width' => ErRelationshipAttributePositioner::RELATION_ATTRIBUTE_WIDTH,
+                    'height' => ErRelationshipAttributePositioner::RELATION_ATTRIBUTE_HEIGHT,
                 ],
                 'data' => [
                     'kind' => 'relationship-attribute',
@@ -567,7 +567,7 @@ class SchemaBoard extends Component
             fn (array $relation): array => $this->relationshipAttributeAnchorPosition($relation),
             $this->relations,
         );
-        $this->relations = (new ErRelationshipAttributeLayout)->place($bounds, $this->relations, $anchors);
+        $this->relations = (new ErRelationshipAttributePositioner)->place($bounds, $this->relations, $anchors);
     }
 
     private function relationshipAttributeEdgesFor(array $relation): array
@@ -1334,7 +1334,7 @@ class SchemaBoard extends Component
      *
      * Por isso despachamos um único evento customizado (`erd-rebuild-edge`)
      * e quem faz o remove → aguarda dois frames → add é o JS, em
-     * erd/edge-editor.js. O servidor continua sendo autoridade do dado; só
+     * erd/relationship-editor.js. O servidor continua sendo autoridade do dado; só
      * a orquestração de timing do redesenho passou para o cliente.
      */
     private function mutateRelation(string $id, callable $fn, bool $manterSelecionada = true): void
@@ -1683,7 +1683,7 @@ class SchemaBoard extends Component
      * Assim a conversão nunca usa um snapshot antigo nem exige voltar antes
      * ao dashboard para encontrar o botão da Etapa 2.
      */
-    public function convertToRelational(RelationalCopy $copy): void
+    public function convertToRelational(RelationalDiagramCreator $copy): void
     {
         $source = $this->persistDiagram();
 
@@ -1698,7 +1698,7 @@ class SchemaBoard extends Component
      * A comparação usa o estado em memória (`entities`/`relations`), inclusive
      * antes de salvar. É chamada uma vez por renderização do quadro ER.
      */
-    private function refreshRelationalSignal(RelationalDrift $drift, Diagram $source): void
+    private function refreshRelationalSignal(RelationalDiagramDriftAnalyzer $drift, Diagram $source): void
     {
         $relational = $source->relationalDiagram()->first();
 
@@ -1757,7 +1757,7 @@ class SchemaBoard extends Component
     /**
      * Renderiza o template Blade do componente, injetando as coleções iniciais.
      */
-    public function render(RelationalDrift $drift): View
+    public function render(RelationalDiagramDriftAnalyzer $drift): View
     {
         if ($this->diagramId !== null) {
             $source = Diagram::query()

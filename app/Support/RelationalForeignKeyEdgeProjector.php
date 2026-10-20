@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /** Builds the WireFlow edge payload from the saved relational model. */
-final class RelationalEdgeProjector
+final class RelationalForeignKeyEdgeProjector
 {
     private const RECURSIVE_SIDES = ['right', 'left'];
 

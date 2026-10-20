@@ -5,7 +5,7 @@ namespace App\Support;
 use InvalidArgumentException;
 use JsonException;
 
-class ErDiagramImport
+class ErDiagramImporter
 {
     public static function parse(string $json): array
     {

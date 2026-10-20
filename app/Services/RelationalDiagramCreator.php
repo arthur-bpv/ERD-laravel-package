@@ -16,7 +16,7 @@ use App\Models\Diagram;
  * decide sobre a defasagem é o quadro Relacional, porque só ele conhece as
  * edições manuais que uma regeneração desfaria.
  */
-class RelationalCopy
+class RelationalDiagramCreator
 {
     public function __construct(private ErToRelationalTransformer $transformer) {}
 

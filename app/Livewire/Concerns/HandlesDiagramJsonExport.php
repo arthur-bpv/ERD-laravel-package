@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Vive em `Livewire\Concerns` porque só os componentes Livewire a usam, e é o
  * mesmo desenho das traits do pacote de canvas (`WireFlow\Concerns`).
  */
-trait InterageComJson
+trait HandlesDiagramJsonExport
 {
     /** Abre/fecha o modal. O Blade do componente só lê esta chave. */
     public bool $showJson = false;

@@ -15,7 +15,7 @@
     `getJsonPreviewProperty` estar exposta no payload do Livewire.
 
     O botão de baixar chama sempre `downloadJson`: os dois quadros implementam
-    esse mesmo nome (ver a trait `InterageComJson`), então não há o que
+    esse mesmo nome (ver a trait `HandlesDiagramJsonExport`), então não há o que
     parametrizar aqui.
 --}}
 <div x-show="$wire.showJson" x-cloak class="rel-modal"

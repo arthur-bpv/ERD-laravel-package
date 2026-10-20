@@ -3,18 +3,18 @@
 namespace Tests\Unit\Services;
 
 use App\Services\ErToRelationalTransformer;
-use App\Services\RelationalDrift;
+use App\Services\RelationalDiagramDriftAnalyzer;
 use PHPUnit\Framework\TestCase;
 
-class RelationalDriftTest extends TestCase
+class RelationalDiagramDriftAnalyzerTest extends TestCase
 {
-    private RelationalDrift $drift;
+    private RelationalDiagramDriftAnalyzer $drift;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->drift = new RelationalDrift(new ErToRelationalTransformer);
+        $this->drift = new RelationalDiagramDriftAnalyzer(new ErToRelationalTransformer);
     }
 
     public function test_a_generated_model_is_never_reported_as_outdated(): void

@@ -1,8 +1,8 @@
 import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import AlpineFlow from '../../vendor/getartisanflow/wireflow/dist/alpineflow.bundle.esm.js';
 import './erd/markers';
-import './erd/erd-canvas';
-import './erd/edge-editor';
+import './erd/canvas-controller';
+import './erd/relationship-editor';
 import './erd/node-measurement';
 import './erd/export-image';
 import { relationalSelfLoopPath } from './erd/relational-self-loop';

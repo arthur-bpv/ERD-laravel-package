@@ -2,15 +2,15 @@
 
 namespace App\Livewire;
 
-use App\Livewire\Concerns\InterageComJson;
+use App\Livewire\Concerns\HandlesDiagramJsonExport;
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
-use App\Services\RelationalColumnEditor;
-use App\Services\RelationalDrift;
+use App\Services\RelationalColumnUpdater;
+use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Services\RelationalSqlGenerator;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
-use App\Support\RelationalEdgeProjector;
+use App\Support\RelationalForeignKeyEdgeProjector;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +23,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 #[Layout('layouts.app')]
 class RelationalBoard extends Component
 {
-    use InterageComJson;
+    use HandlesDiagramJsonExport;
     use WithWireFlow;
 
     #[Locked]
@@ -157,7 +157,7 @@ class RelationalBoard extends Component
 
     public function updateColumnType(string $tableId, string $columnId, string $type): void
     {
-        $this->applyColumnEdit((new RelationalColumnEditor)->type($this->tables, $this->dialect, $tableId, $columnId, $type));
+        $this->applyColumnEdit((new RelationalColumnUpdater)->type($this->tables, $this->dialect, $tableId, $columnId, $type));
     }
 
     public function updateColumnSize(
@@ -166,7 +166,7 @@ class RelationalBoard extends Component
         int|string|null $size,
         int|string|null $scale = null,
     ): void {
-        $this->applyColumnEdit((new RelationalColumnEditor)->size($this->tables, $this->dialect, $tableId, $columnId, $size, $scale));
+        $this->applyColumnEdit((new RelationalColumnUpdater)->size($this->tables, $this->dialect, $tableId, $columnId, $size, $scale));
     }
 
     public function setDialect(string $dialect): void
@@ -176,7 +176,7 @@ class RelationalBoard extends Component
         }
 
         $this->dialect = $dialect;
-        $this->tables = (new RelationalColumnEditor)->dialect($this->tables, $dialect);
+        $this->tables = (new RelationalColumnUpdater)->dialect($this->tables, $dialect);
         $this->persistDialectOnSource();
         $this->commitLogicalEdit();
 
@@ -189,7 +189,7 @@ class RelationalBoard extends Component
 
     public function toggleColumnNullable(string $tableId, string $columnId): void
     {
-        $tables = (new RelationalColumnEditor)->toggleNullable($this->tables, $tableId, $columnId);
+        $tables = (new RelationalColumnUpdater)->toggleNullable($this->tables, $tableId, $columnId);
         if ($tables === null) {
             $this->dispatch('relational-edit-rejected', message: 'Uma chave primária não pode aceitar NULL.');
 
@@ -354,10 +354,10 @@ class RelationalBoard extends Component
 
     public function buildEdges(): array
     {
-        return (new RelationalEdgeProjector)->build($this->tables, $this->foreignKeys, self::TABLE_WIDTH);
+        return (new RelationalForeignKeyEdgeProjector)->build($this->tables, $this->foreignKeys, self::TABLE_WIDTH);
     }
 
-    public function render(RelationalDrift $drift): View
+    public function render(RelationalDiagramDriftAnalyzer $drift): View
     {
         $report = $drift->report($this->sourceDiagramData(), [
             'dialect' => $this->dialect,
@@ -392,7 +392,7 @@ class RelationalBoard extends Component
         $this->isCustomized = (bool) ($data['customized'] ?? false);
         $this->dialect = DataTypeCatalog::has($data['dialect'] ?? '') ? $data['dialect'] : 'mysql';
 
-        $this->tables = (new RelationalColumnEditor)->dialect($this->tables, $this->dialect);
+        $this->tables = (new RelationalColumnUpdater)->dialect($this->tables, $this->dialect);
     }
 
     private function persistCurrentData(bool $markCustomized = false): void
@@ -469,7 +469,7 @@ class RelationalBoard extends Component
     public function updateColumnCustomType(string $tableId, string $columnId, string $value): void
     {
         try {
-            $tables = (new RelationalColumnEditor)->customType($this->tables, $this->dialect, $tableId, $columnId, $value);
+            $tables = (new RelationalColumnUpdater)->customType($this->tables, $this->dialect, $tableId, $columnId, $value);
         } catch (InvalidArgumentException $exception) {
             $this->dispatch('relational-edit-rejected', message: $exception->getMessage());
 
@@ -481,6 +481,6 @@ class RelationalBoard extends Component
 
     public function updateColumnEnumValues(string $tableId, string $columnId, string $value): void
     {
-        $this->applyColumnEdit((new RelationalColumnEditor)->enumValues($this->tables, $this->dialect, $tableId, $columnId, $value));
+        $this->applyColumnEdit((new RelationalColumnUpdater)->enumValues($this->tables, $this->dialect, $tableId, $columnId, $value));
     }
 }

@@ -6,7 +6,7 @@ use App\Support\DataTypeCatalog;
 use InvalidArgumentException;
 
 /** Applies column edits to a copy of the relational tables. */
-final class RelationalColumnEditor
+final class RelationalColumnUpdater
 {
     public function type(array $tables, string $dialect, string $tableId, string $columnId, string $type): ?array
     {

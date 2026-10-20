@@ -38,12 +38,12 @@ As portas 8000 e 5173 precisam estar acessíveis ao navegador. Consulte `docker 
 
 | Etapa | Arquivos principais |
 | --- | --- |
-| Editar ER | `app/Livewire/SchemaBoard.php`, `resources/views/livewire/schema-board.blade.php`, `resources/js/erd/erd-canvas.js` e `resources/js/erd/edge-editor.js`. |
-| Posicionar elementos | `app/Support/BoardLayout.php` e `app/Support/ErRelationshipAttributeLayout.php`. |
-| Converter ER para relacional | `app/Services/ErToRelationalTransformer.php` e `app/Services/ForeignKeyBuilder.php`. |
-| Editar e desenhar o modelo relacional | `app/Livewire/RelationalBoard.php`, `app/Services/RelationalColumnEditor.php` e `app/Support/RelationalEdgeProjector.php`. |
-| Detectar mudanças no ER e gerar SQL | `app/Services/RelationalDrift.php` e `app/Services/RelationalSqlGenerator.php`. |
-| Importar JSON | `app/Support/ErDiagramImport.php`. |
+| Editar ER | `app/Livewire/SchemaBoard.php`, `resources/views/livewire/schema-board.blade.php`, `resources/js/erd/canvas-controller.js` e `resources/js/erd/relationship-editor.js`. |
+| Posicionar elementos | `app/Support/BoardLayout.php` e `app/Support/ErRelationshipAttributePositioner.php`. |
+| Converter ER para relacional | `app/Services/ErToRelationalTransformer.php` e `app/Services/ReferencedKeyCopier.php`. |
+| Editar e desenhar o modelo relacional | `app/Livewire/RelationalBoard.php`, `app/Services/RelationalColumnUpdater.php` e `app/Support/RelationalForeignKeyEdgeProjector.php`. |
+| Detectar mudanças no ER e gerar SQL | `app/Services/RelationalDiagramDriftAnalyzer.php` e `app/Services/RelationalSqlGenerator.php`. |
+| Importar JSON | `app/Support/ErDiagramImporter.php`. |
 
 O estado do diagrama fica no servidor. As ações Livewire atualizam entidades, relações, tabelas e posições; o WireFlow recebe comandos para atualizar o canvas. O editor ER não usa sincronização bidirecional automática do canvas. A transformação é determinística e grava `sourceFingerprint`; a cópia relacional só é regenerada quando o usuário decide. As regras de cardinalidade e seus limites estão em [docs/conversao-er-relacional.md](docs/conversao-er-relacional.md).
 

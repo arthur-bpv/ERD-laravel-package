@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /** Positions ER relationship attribute balloons around their anchors. */
-final class ErRelationshipAttributeLayout
+final class ErRelationshipAttributePositioner
 {
     public const RELATION_ATTRIBUTE_WIDTH = 136.0;
 

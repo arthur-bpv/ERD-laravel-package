@@ -48,7 +48,7 @@ class CardinalityVocabularyTest extends TestCase
 
         $options = $this->cardinalitiesOfferedByTheEdgeEditor();
         sort($options);
-        $this->assertSame($expected, $options, 'resources/js/erd/edge-editor.js divergiu do servidor.');
+        $this->assertSame($expected, $options, 'resources/js/erd/relationship-editor.js divergiu do servidor.');
 
         $declared = $this->cardinalitiesDeclaredIn(SchemaBoard::class, 'CARDINALIDADES');
         sort($declared);
@@ -56,13 +56,13 @@ class CardinalityVocabularyTest extends TestCase
     }
 
     /**
-     * Nomes que o import aceita (App\Support\ErDiagramImport).
+     * Nomes que o import aceita (App\Support\ErDiagramImporter).
      *
      * @return array<int, string>
      */
     private function acceptedByImport(): array
     {
-        $source = file_get_contents((string) app_path('Support/ErDiagramImport.php'));
+        $source = file_get_contents((string) app_path('Support/ErDiagramImporter.php'));
 
         preg_match_all("/'(cf-[a-z-]+)'/", (string) $source, $matches);
 
@@ -104,7 +104,7 @@ class CardinalityVocabularyTest extends TestCase
      */
     private function cardinalitiesOfferedByTheEdgeEditor(): array
     {
-        $source = file_get_contents(resource_path('js/erd/edge-editor.js'));
+        $source = file_get_contents(resource_path('js/erd/relationship-editor.js'));
 
         preg_match_all("/m: '(cf-[a-z-]+)'/", (string) $source, $matches);
 

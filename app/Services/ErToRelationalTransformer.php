@@ -9,7 +9,7 @@ class ErToRelationalTransformer
 {
     private array $warnings = [];
 
-    private ForeignKeyBuilder $foreignKeyBuilder;
+    private ReferencedKeyCopier $foreignKeyBuilder;
 
     private array $relationshipAttributeUsage = [];
 
@@ -42,7 +42,7 @@ class ErToRelationalTransformer
             $tables[$tableId] = $this->tableFromEntity($entity, $index);
         }
 
-        $this->foreignKeyBuilder = new ForeignKeyBuilder($entityKinds, $this->warnings);
+        $this->foreignKeyBuilder = new ReferencedKeyCopier($entityKinds, $this->warnings);
 
         foreach ($relations as $relation) {
             $this->mapRelation($tables, $entityTable, $relation);
@@ -73,7 +73,7 @@ class ErToRelationalTransformer
      * Impressão digital do ER de origem.
      *
      * É gravada junto com o modelo gerado para que a cópia Relacional saiba,
-     * depois, se o ER que a originou ainda é o mesmo (ver `RelationalDrift`).
+     * depois, se o ER que a originou ainda é o mesmo (ver `RelationalDiagramDriftAnalyzer`).
      * A comparação usa `updated_at` justamente porque ele não serve aqui: a
      * cópia Relacional é salva toda vez que o usuário arrasta ou edita uma
      * tabela, então o timestamp dela avança mesmo sem nenhuma mudança no ER.

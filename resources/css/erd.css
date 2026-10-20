@@ -405,7 +405,7 @@
 
 /*
  * Painel flutuante próprio (não é mais x-flow-context-menu): a posição vem
- * de left/top inline, calculados a partir do clique em erd/edge-editor.js.
+ * de left/top inline, calculados a partir do clique em erd/relationship-editor.js.
  */
 .er-edge-editor {
     position: fixed;

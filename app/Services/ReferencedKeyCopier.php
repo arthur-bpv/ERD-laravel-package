@@ -5,7 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Str;
 
 /** Copies referenced keys into relational tables and records missing-key warnings. */
-final class ForeignKeyBuilder
+final class ReferencedKeyCopier
 {
     private array $warnings;
 

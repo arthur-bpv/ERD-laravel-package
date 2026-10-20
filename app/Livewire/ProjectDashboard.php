@@ -3,9 +3,9 @@
 namespace App\Livewire;
 
 use App\Models\Diagram;
-use App\Services\RelationalCopy;
-use App\Services\RelationalDrift;
-use App\Support\ErDiagramImport;
+use App\Services\RelationalDiagramCreator;
+use App\Services\RelationalDiagramDriftAnalyzer;
+use App\Support\ErDiagramImporter;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +58,7 @@ class ProjectDashboard extends Component
      *
      * @return array<int, int>
      */
-    public function getOutdatedRelationalProperty(RelationalDrift $drift): array
+    public function getOutdatedRelationalProperty(RelationalDiagramDriftAnalyzer $drift): array
     {
         return $this->projects
             ->filter(fn (Diagram $project): bool => $project->relationalDiagram !== null
@@ -92,7 +92,7 @@ class ProjectDashboard extends Component
         $this->validateOnly('importProjectName');
 
         try {
-            $data = ErDiagramImport::parse($this->importJson);
+            $data = ErDiagramImporter::parse($this->importJson);
         } catch (InvalidArgumentException $exception) {
             $this->importError = $exception->getMessage();
 
@@ -113,7 +113,7 @@ class ProjectDashboard extends Component
         $diagram = Diagram::create([
             'name' => 'Análise de alternativas ER → relacional',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
-            'data' => ErDiagramImport::parse(
+            'data' => ErDiagramImporter::parse(
                 file_get_contents(public_path('examples/er-conversion-cases.json')),
             ),
         ]);
@@ -121,7 +121,7 @@ class ProjectDashboard extends Component
         $this->redirectRoute('boards.er', $diagram, navigate: true);
     }
 
-    public function createRelational(int $sourceDiagramId, RelationalCopy $copy): void
+    public function createRelational(int $sourceDiagramId, RelationalDiagramCreator $copy): void
     {
         $source = Diagram::query()
             ->whereKey($sourceDiagramId)

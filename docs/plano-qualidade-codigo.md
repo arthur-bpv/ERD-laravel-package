@@ -83,3 +83,13 @@ Verificação desta etapa: **153 testes PHP** (1.049 assertions), **8 testes Jav
 - O editor de relacionamento teve os nomes internos `tipo` e `campo` migrados para inglês junto das expressões Blade que os usam. A revisão preservou os eventos e o escopo Alpine.
 
 As tarefas 2 e 3 cobrem os conjuntos coesos identificados nesta revisão; os componentes ainda podem crescer com novas funcionalidades, mas não será criada uma classe por ação só para reduzir linhas. O próximo trabalho é concluir o item 4, traduzindo comentários e identificadores restantes por diretório e rodando as suítes após cada lote. Depois, reavaliar o alerta remanescente e a adoção do Sloppy no CI (item 5).
+
+### Migração de idioma em andamento
+
+Os identificadores internos de conexão, cardinalidade, geometria e edição tocados nesta branch passaram para inglês. Os comentários já foram convertidos em `RelationalBoard`, transformação e comparação de diagramas, importação, layout, catálogo de tipos, cópia de chaves, balões, marcadores e editor do canvas. Os textos mostrados ao usuário permanecem em português por decisão de escopo.
+
+Sequência restante para concluir o item 4:
+
+1. Traduzir os comentários e docblocks de `SchemaBoard.php` em blocos de responsabilidade, verificando cada referência a métodos já extraídos. Revisar os comentários de `ProjectDashboard.php` e dos testes feature, sobretudo `SchemaBoardTest.php`.
+2. Fazer uma busca final por identificadores e comentários em português no código PHP, JavaScript e Blade. Distinguir os textos de interface, exemplos salvos e mensagens de validação, que devem continuar em português.
+3. Rodar PHP tests, JavaScript tests, build, Pint e Sloppy após a tradução. Avaliar o `SL102` restante de `SchemaBoard` por responsabilidade efetiva, sem criar classes artificiais; decidir a integração de `sloppy diff` no CI depois da revisão.

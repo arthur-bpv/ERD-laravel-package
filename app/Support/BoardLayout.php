@@ -205,9 +205,8 @@ final class BoardLayout
                 $direction = $side === 'left' ? -1 : 1;
 
                 foreach ($nodeIds as $index => $nodeId) {
-                    // Ramificações na mesma profundidade não precisam formar
-                    // uma coluna perfeitamente reta. Um desnível discreto
-                    // abre espaço entre os trechos verticais dos conectores.
+                    // Stagger branches at the same depth to separate their
+                    // vertical connector segments.
                     $staggerX = $index % 2 === 0 ? 0 : min(80, $columnGap / 2);
                     $positions[$nodeId] = [
                         'x' => (int) round($centerX + ($direction * $depth * $stepX) + $staggerX),
@@ -222,9 +221,8 @@ final class BoardLayout
     }
 
     /**
-     * Verdadeiro quando há uma ligação extra num componente conectado.
-     * Árvores não precisam da etapa cara de abrir corredores: as arestas já
-     * podem ser roteadas sem atravessar outro ramo.
+     * True when a connected component has an extra edge. Trees can route
+     * their edges without the cost of clearing link corridors.
      *
      * @param  array<int, array{id:string}>  $nodes
      * @param  array<int, array{source:string,target:string}>  $links
@@ -420,12 +418,8 @@ final class BoardLayout
             }
         }
 
-        // Um nó removido de um corredor pode acabar sobre outro segmento. Sem
-        // este limite ele é deslocado de novo em cada passagem e, em grafos
-        // com muitos caminhos (como o exemplo Marketplace), a altura cresce
-        // sem controle até tirar tabelas inteiras da tela. Uma única remoção
-        // por nó preserva o corredor mais relevante sem transformar o canvas
-        // num layout vertical interminável.
+        // Limit corridor moves to one per node. Moving the same node on each
+        // pass can make dense graphs grow vertically without bound.
         $movedNodeIds = [];
 
         for ($pass = 0; $pass < max(1, count($nodesById) * 2); $pass++) {

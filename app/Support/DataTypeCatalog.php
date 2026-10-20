@@ -4,14 +4,14 @@ namespace App\Support;
 
 class DataTypeCatalog
 {
-    /** Tipos com tamanho (char/varchar/binário) e com precisão/escala. */
+    /** Types with length or precision and scale. */
     public const LENGTH_TYPES = ['char', 'varchar', 'nchar', 'nvarchar', 'binary', 'varbinary'];
 
     public const DECIMAL_TYPES = ['decimal', 'numeric'];
 
     /**
-     * canônico => nome nativo. Ausente = o banco não tem o tipo (usa FALLBACKS).
-     * limits = tamanho máximo dos tipos com length; precision = precisão máxima.
+     * Canonical type to native name. Missing types use FALLBACKS.
+     * limits and precision define the dialect's maximum supported values.
      */
     public const DIALECTS = [
         'mysql' => [
@@ -86,15 +86,15 @@ class DataTypeCatalog
                 'boolean' => 'BOOLEAN',
                 // Texto (afinidade TEXT)
                 'char' => 'CHAR', 'varchar' => 'VARCHAR', 'text' => 'TEXT',
-                // Data e hora (o SQLite guarda como TEXT, REAL ou INTEGER)
+                // Date and time (SQLite stores these as TEXT, REAL, or INTEGER)
                 'date' => 'DATE', 'datetime' => 'DATETIME', 'timestamp' => 'TIMESTAMP',
-                // Binário e outros
+                // Binary and other types
                 'blob' => 'BLOB', 'json' => 'JSON',
             ],
         ],
     ];
 
-    /** Se o banco não tem o tipo, tenta estes na ordem. */
+    /** Try these types in order when the dialect lacks the requested type. */
     private const FALLBACKS = [
         'tinyint' => ['smallint', 'integer'],
         'smallint' => ['integer'],
@@ -124,12 +124,13 @@ class DataTypeCatalog
         return isset(self::DIALECTS[$dialect]);
     }
 
-    /** Tipos canônicos disponíveis no dialeto. */
+    /** Canonical types available for this dialect. */
     public static function canonicalFor(string $dialect): array
     {
         return array_keys(self::typesFor($dialect));
     }
-    /** 'length', 'decimal' ou null. */
+
+    /** 'length', 'decimal', or null. */
     public static function kind(string $type): ?string
     {
         return match (true) {
@@ -139,7 +140,7 @@ class DataTypeCatalog
         };
     }
 
-    /** Devolve o tipo em si, ou o equivalente mais próximo disponível no dialeto. */
+    /** Resolve a type to itself or the closest available equivalent. */
     public static function resolve(string $dialect, string $type): string
     {
         $available = self::canonicalFor($dialect);
@@ -177,8 +178,7 @@ class DataTypeCatalog
             $column['scale'] = null;
         }
         if ($type === 'custom') {
-            // Um tipo personalizado é texto livre: o usuário pode trabalhar
-            // com extensões e tipos ainda desconhecidos pelo catálogo.
+            // Custom types are free text for extensions and unknown types.
             $column['customType'] = trim((string) ($column['customType'] ?? ''));
         } else {
             $column['customType'] = null;
@@ -205,13 +205,14 @@ class DataTypeCatalog
         }
 
         return collect(self::DIALECTS)->map(fn ($d, $key) => [
-        'label' => $d['label'],
-        'types' => self::typesFor($key),
-        'limits' => $d['limits'],
-        'precision' => $d['precision'],
-        'kinds' => $kinds,
-    ])->all();
+            'label' => $d['label'],
+            'types' => self::typesFor($key),
+            'limits' => $d['limits'],
+            'precision' => $d['precision'],
+            'kinds' => $kinds,
+        ])->all();
     }
+
     private static function typesFor(string $dialect): array
     {
         return (self::DIALECTS[$dialect]['types'] ?? []) + [

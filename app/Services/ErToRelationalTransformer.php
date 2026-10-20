@@ -52,13 +52,10 @@ class ErToRelationalTransformer
             $this->mapMultivaluedAttributes($tables, $entityTable, $entity);
         }
 
-        // A saída é determinística de propósito: dois ERs iguais produzem payloads
-        // byte a byte iguais. Por isso nada de `generatedAt` aqui — um carimbo de
-        // tempo só mudaria o resultado sem acrescentar informação. Quem precisa saber
-        // de qual ER o modelo veio lê `sourceFingerprint`.
+        // Equal ER models must produce byte for byte equal output. A timestamp
+        // would break that guarantee; sourceFingerprint records the source.
         return [
-            // O dialeto faz parte do projeto, e não apenas da tela Relacional.
-            // Assim, um ER exportado/importado volta a gerar o mesmo DDL.
+            // Keep the dialect with the project so imports reproduce the DDL.
             'dialect' => DataTypeCatalog::has((string) ($diagram['dialect'] ?? ''))
                 ? $diagram['dialect']
                 : 'mysql',
@@ -70,24 +67,21 @@ class ErToRelationalTransformer
     }
 
     /**
-     * Impressão digital do ER de origem.
+     * Fingerprint of the source ER model.
      *
-     * É gravada junto com o modelo gerado para que a cópia Relacional saiba,
-     * depois, se o ER que a originou ainda é o mesmo (ver `RelationalDiagramDriftAnalyzer`).
-     * A comparação usa `updated_at` justamente porque ele não serve aqui: a
-     * cópia Relacional é salva toda vez que o usuário arrasta ou edita uma
-     * tabela, então o timestamp dela avança mesmo sem nenhuma mudança no ER.
+     * Stored with the generated model so RelationalDiagramDriftAnalyzer can
+     * detect source changes. The relational copy's updated_at also advances
+     * after manual edits, so it cannot serve as the source fingerprint.
      *
-     * Coordenadas de entidades, losangos e atributos também ficam fora da
-     * assinatura: mover elementos no canvas não muda o modelo lógico. A ordem
-     * das chaves não pode mudar o resultado.
+     * Canvas coordinates are excluded. Moving a shape does not change the
+     * logical model, and object key order must not affect the result.
      */
     public function fingerprint(array $diagram): string
     {
         return 'v2:'.md5((string) json_encode($this->canonicalize($this->withoutLayout($diagram))));
     }
 
-    /** Assinatura usada pelas cópias criadas antes de separar dados e posições. */
+    /** Fingerprint used by copies created before layout was excluded. */
     public function legacyFingerprint(array $diagram): string
     {
         return md5((string) json_encode($this->canonicalize($diagram)));
@@ -95,8 +89,7 @@ class ErToRelationalTransformer
 
     private function withoutLayout(array $value): array
     {
-        // O dialeto já é replicado para a cópia Relacional; ele não muda a
-        // estrutura ER e não deve fazê-la parecer defasada depois de salvar.
+        // Dialect is copied separately and does not change ER structure.
         foreach (['x', 'y', 'diamondX', 'diamondY', 'offsetX', 'offsetY', 'dialect'] as $field) {
             unset($value[$field]);
         }
@@ -252,9 +245,8 @@ class ErToRelationalTransformer
 
     private function mapOneToOne(array &$tables, string $fromId, string $toId, array $relation, array $fromCard, array $toCard): void
     {
-        // Os marcadores indicam quantos registros existem na ponta oposta.
-        // 1:1: a entidade que exige um parceiro recebe a FK; com ambas opcionais,
-        // preservamos a direção desenhada (to = pai, from = filho).
+        // Markers describe counts at the opposite end. In 1:1, the side that
+        // requires a partner receives the FK; otherwise keep the drawn direction.
         if ($toCard['min'] === 1 && $fromCard['min'] === 0) {
             [$childId, $parentId] = [$fromId, $toId];
         } elseif ($fromCard['min'] === 1 && $toCard['min'] === 0) {
@@ -322,12 +314,10 @@ class ErToRelationalTransformer
     }
 
     /**
-     * Autorrelacionamento 1:N, N:1 ou N:N mapeado na própria tabela.
+     * Recursive 1:N, N:1, or N:N relationship mapped into its own table.
      *
-     * O chamador já descartou o caso 1:1 (que vira tabela dedicada), então
-     * aqui uma das pontas é sempre "muitos": a PK é copiada para a mesma tabela
-     * com o papel da ponta oposta e, quando a ponta oposta admite zero linhas,
-     * sai anulável.
+     * The caller handles 1:1 separately. One end here is always "many". Copy
+     * the PK with the opposite role and allow null when that end is optional.
      */
     private function mapRecursiveRelation(array &$table, array $relation, array $fromCard, array $toCard): void
     {

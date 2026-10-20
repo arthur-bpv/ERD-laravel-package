@@ -5,16 +5,13 @@ namespace App\Services;
 use App\Models\Diagram;
 
 /**
- * Cria a cópia Relacional de um diagrama ER.
+ * Creates a relational copy of an ER diagram.
  *
- * A regra é uma só e morava escrita em dois lugares — o botão "Etapa 2" do
- * dashboard e o "Converter para relacional" do quadro ER — que precisam
- * concordar no nome, no tipo e no conteúdo, senão o mesmo projeto ganharia
- * duas cópias diferentes conforme o caminho usado para chegar nele.
+ * The dashboard and ER editor share the same creation rule so they produce
+ * the same name, type, and content for a project.
  *
- * Não sobrescreve: se a cópia já existe, ela é devolvida como está. Quem
- * decide sobre a defasagem é o quadro Relacional, porque só ele conhece as
- * edições manuais que uma regeneração desfaria.
+ * Existing copies are returned unchanged. The relational board decides when
+ * to regenerate because it knows which manual edits that would replace.
  */
 class RelationalDiagramCreator
 {

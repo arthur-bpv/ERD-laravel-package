@@ -13,10 +13,8 @@ export function exportImageSize(nodes) {
     const right = Math.max(...visible.map((node) => node.position.x + (node.dimensions?.width || 0)));
     const bottom = Math.max(...visible.map((node) => node.position.y + (node.dimensions?.height || 0)));
 
-    // AlpineFlow rasteriza o SVG do quadro. Exportar em 2× preserva a leitura
-    // de texto e linhas finas; 8K é o maior lado ainda suportado de forma
-    // confiável pelos canvases modernos sem criar uma imagem desnecessariamente
-    // pesada para diagramas pequenos.
+    // Render at 2x to keep text and thin lines readable. Cap the longest side
+    // at 8K for reliable canvas support and reasonable image size.
     return {
         width: Math.min(MAX_EXPORT_EDGE, Math.max(2560, Math.ceil((right - left) * EXPORT_SCALE))),
         height: Math.min(MAX_EXPORT_EDGE, Math.max(1440, Math.ceil((bottom - top) * EXPORT_SCALE))),

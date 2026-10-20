@@ -16,12 +16,11 @@ final class ErRelationshipAttributePositioner
     private const RELATION_ATTRIBUTE_ROWS = [0, 120, -120, 240, -240, 360, -360];
 
     /**
-     * Ponto de partida do balão ainda não posicionado pelo usuário.
+     * Initial position for a balloon the user has not placed yet.
      *
-     * O candidato é o canto superior esquerdo do balão; a âncora é o centro do
-     * balão desejado, então o meio é descontado. A primeira opção fica abaixo
-     * da linha — o corredor entre duas entidades é horizontal, e é o único
-     * lugar livre que sobra quando o quadro é organizado.
+     * The candidate is the balloon's top left corner. Subtract half its size
+     * from the desired center. Prefer below the edge, where the horizontal
+     * corridor between entities usually leaves free space.
      *
      * @return array{x:int,y:int}
      */
@@ -37,20 +36,16 @@ final class ErRelationshipAttributePositioner
     }
 
     /**
-     * Candidatos de posição do balão, do mais para o menos desejável.
+     * Balloon positions from most to least desirable.
      *
-     * A ordem é a parte que importa, e ela é por DISTÂNCIA à âncora — não por
-     * faixa. Ordenar por faixa (esvaziar toda a linha de baixo, depois a de
-     * cima, depois as laterais) fazia o balão aceitar um ponto a 450px de lado
-     * antes mesmo de testar o ponto logo acima da linha, que estava livre: o
-     * balão acabava do outro lado do quadro e a linha de ligação apontava
-     * para lugar nenhum. Aqui o mais próximo sempre vem antes, então o
-     * vinculo com o relacionamento é o mais curto possível.
+     * Order by distance from the anchor, not by bands. Band ordering can
+     * select a distant side position before a nearby free position above
+     * the edge, making the balloon look disconnected from its relationship.
      *
      * O desempate prefere a faixa de baixo (a que sobra livre num corredor
      * horizontal) e, dentro dela, o menor deslocamento lateral.
      *
-     * @return array<int, array{x:int,y:int}> candidatos relativos ao centro da âncora
+     * @return array<int, array{x:int,y:int}> candidates relative to the anchor center
      */
     private function relationshipAttributeOffsetCandidates(): array
     {
@@ -85,13 +80,10 @@ final class ErRelationshipAttributePositioner
     }
 
     /**
-     * Recoloca os balões de atributo depois que as entidades mudaram de lugar.
+     * Reposition attribute balloons after entities move.
      *
-     * Só o offset é reescrito — ele continua medido a partir da âncora do
-     * próprio relacionamento, então o balão não "desgruda": ele só troca o
-     * ponto do offset que não está mais livre. Gravar o offset (e não a
-     * posição absoluta) é o que faz o arranjo sobreviver a um reload e a
-     * arrastar a entidade de novo.
+     * Rewrite only the offset relative to the relationship anchor. This
+     * preserves the attachment through reloads and later entity moves.
      */
     public function place(array $entityBounds, array $relations, array $anchors): array
     {
@@ -115,8 +107,7 @@ final class ErRelationshipAttributePositioner
                     $occupied,
                 );
 
-                // O candidato escolhido não pode ser reaproveitado por outro
-                // balão: sai da lista e entra como área ocupada.
+                // Reserve the chosen area so another balloon cannot use it.
                 $candidatesLeft = array_values(array_filter(
                     $candidatesLeft,
                     fn (array $candidate): bool => $candidate !== $offset,
@@ -156,8 +147,8 @@ final class ErRelationshipAttributePositioner
             }
         }
 
-        // Nenhum ponto livre: mantém o último candidato em vez de devolver
-        // zero, que esconderia o balão exatamente em cima da âncora.
+        // Keep the last candidate if none is free; zero would hide the balloon
+        // directly on top of its anchor.
         return $candidates === [] ? ['x' => 0, 'y' => 120] : end($candidates);
     }
 

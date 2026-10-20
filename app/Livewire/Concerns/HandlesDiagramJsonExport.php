@@ -5,47 +5,41 @@ namespace App\Livewire\Concerns;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * O modal de JSON que o quadro ER e o Relacional compartilham.
+ * JSON modal shared by the ER and relational boards.
  *
- * Os dois quadros têm o mesmo componente (`<x-json-modal>`), a mesma chave
- * `showJson` e o mesmo botão `downloadJson` — o que os difere é apenas o
- * conteúdo que entra no preview e o nome do arquivo baixado. Essas duas
- * peças ficam a cargo de quem usa a trait; o resto (abrir/fechar, baixar) é
- * escrito uma vez só aqui.
+ * Both boards use <x-json-modal>, `showJson`, and `downloadJson`. Each board
+ * supplies its preview content and filename; this trait handles the modal.
  *
- * Vive em `Livewire\Concerns` porque só os componentes Livewire a usam, e é o
- * mesmo desenho das traits do pacote de canvas (`WireFlow\Concerns`).
+ * Only Livewire components use this trait.
  */
 trait HandlesDiagramJsonExport
 {
-    /** Abre/fecha o modal. O Blade do componente só lê esta chave. */
+    /** The Blade view reads this modal state. */
     public bool $showJson = false;
 
     /**
-     * JSON do modelo, já formatado.
+     * Formatted JSON of the model.
      *
-     * Implementada pelo quadro, porque cada um tem um formato diferente
-     * (entidades/relacionamentos, ou tabelas/chaves estrangeiras).
+     * Each board implements its own ER or relational format.
      */
     abstract public function getJsonPreviewProperty(): string;
 
     /**
-     * Nome do arquivo no download.
+     * Filename for the download.
      *
-     * É um método e não uma propriedade porque o PHP proíbe redeclarar uma
-     * propriedade vinda de trait com outro valor padrão — e o valor padrão é
-     * justamente o que muda entre os dois quadros.
+     * This is a method because PHP cannot redeclare a trait property with a
+     * different default value in each board.
      */
     abstract protected function jsonFileName(): string;
 
-    /** Alterna a exibição do modal com o JSON do diagrama. */
+    /** Toggle the diagram JSON modal. */
     public function toggleJson(): void
     {
         $this->showJson = ! $this->showJson;
     }
 
     /**
-     * Baixa o JSON exibido no modal — o mesmo conteúdo de `jsonPreview`.
+     * Download the JSON shown in the modal.
      */
     public function downloadJson(): StreamedResponse
     {

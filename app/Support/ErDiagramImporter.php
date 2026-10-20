@@ -14,8 +14,7 @@ class ErDiagramImporter
         self::validateRelations($data['relations'], $entities);
 
         return array_filter([
-            // Arquivos antigos continuam compatíveis; nos novos, o valor é
-            // preservado para que a conversão Relacional use o banco correto.
+            // Keep old files compatible and preserve the target dialect in new ones.
             'dialect' => $data['dialect'] ?? null,
             'entities' => array_values($data['entities']),
             'relations' => array_values($data['relations']),

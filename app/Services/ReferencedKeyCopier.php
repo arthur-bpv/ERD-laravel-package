@@ -60,9 +60,8 @@ final class ReferencedKeyCopier
         $existingIsPrimary = $existingIndex !== null
             && in_array($child['columns'][$existingIndex]['name'], $child['primaryKey'], true);
 
-        // Em 1:N, reutilizar a PK do lado N transformaria a relação em
-        // 1:1 por acidente. Uma PK existente só pode servir como FK no
-        // caso de chave primária compartilhada (1:1 obrigatório).
+        // Reusing the many side's PK in 1:N would accidentally produce 1:1.
+        // A shared primary key is valid only for mandatory 1:1.
         if ($existingIsPrimary && (! $unique || $nullable)) {
             $existingIndex = null;
             $existingIsPrimary = false;

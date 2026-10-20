@@ -5,20 +5,18 @@ namespace App\Services;
 use App\Support\DataTypeCatalog;
 
 /**
- * Diz se a cópia Relacional ainda corresponde ao ER que a originou.
+ * Checks whether a relational copy still matches its source ER model.
  *
- * A assinatura do ER detecta mudanças semânticas desde a geração; a comparação
- * das tabelas e FKs descreve o que a regeneração alteraria. Timestamps não
- * servem porque a cópia Relacional também é salva após edições manuais.
+ * The ER fingerprint detects semantic changes since generation. Comparing
+ * tables and foreign keys explains what regeneration would change. Timestamps
+ * also advance after manual edits, so they cannot detect source drift.
  *
- * As posições das tabelas (`x`/`y`) entram de fora da comparação: arrastar uma
- * tabela no quadro Relacional é uma escolha do usuário, não um sinal de que o
- * ER mudou. O resto — nome da tabela, colunas, tipos, chaves, nulabilidade,
- * tamanho, chaves primárias e chaves estrangeiras — é conteúdo do modelo.
+ * Table positions are excluded because dragging does not change the logical
+ * model. Names, columns, types, keys, nullability, and sizes are compared.
  */
 class RelationalDiagramDriftAnalyzer
 {
-    /** Rótulos de `kind`: a mudança de tipo de uma tabela também é uma mudança. */
+    /** User facing labels for table kinds in the change report. */
     private const KIND_LABELS = [
         'strong' => 'entidade',
         'weak' => 'entidade fraca',
@@ -31,13 +29,12 @@ class RelationalDiagramDriftAnalyzer
     public function __construct(private ErToRelationalTransformer $transformer) {}
 
     /**
-     * Só o booleano, sem montar a lista de mudanças.
+     * Return only the drift flag without constructing the change list.
      *
-     * Para quem só precisa saber se o aviso aparece (a aba do quadro ER, o card
-     * do dashboard) sem transformar o modelo completo a cada render.
+     * Used by views that only need the warning state on each render.
      *
-     * @param  array  $source  `data` do diagrama ER
-     * @param  array  $relational  `data` do diagrama Relacional
+     * @param  array  $source  ER diagram data
+     * @param  array  $relational  Relational diagram data
      */
     public function isOutdated(array $source, array $relational): bool
     {
@@ -51,10 +48,10 @@ class RelationalDiagramDriftAnalyzer
     }
 
     /**
-     * Estado da verificação, pronto para a view.
+     * Drift state ready for the view.
      *
-     * @param  array  $source  `data` do diagrama ER
-     * @param  array  $relational  `data` do diagrama Relacional
+     * @param  array  $source  ER diagram data
+     * @param  array  $relational  Relational diagram data
      * @return array{outdated: bool, changes: array<int, string>}
      */
     public function report(array $source, array $relational): array
@@ -62,11 +59,8 @@ class RelationalDiagramDriftAnalyzer
         $changes = $this->changes($source, $relational);
         $fingerprint = $relational['sourceFingerprint'] ?? null;
 
-        // Sem impressão digital (modelos gerados antes dela existir) só é
-        // possível afirmar que o modelo está velho quando ele nunca recebeu
-        // edição manual: sem `customized`, toda diferença para o ER atual
-        // só pode ter vindo do próprio ER. Com edições manuais, a diferença
-        // é delas, e acusar o ER seria mentira.
+        // Without a fingerprint, differences prove source drift only if the
+        // relational copy has no manual edits. Otherwise their source is unclear.
         $outdated = is_string($fingerprint) && $fingerprint !== ''
             ? $this->sourceHasChanged($source, $fingerprint)
             : empty($relational['customized']) && $changes !== [];
@@ -83,14 +77,14 @@ class RelationalDiagramDriftAnalyzer
 
     private function sourceHasChanged(array $source, string $fingerprint): bool
     {
-        // Cópias antigas guardavam também as coordenadas na assinatura.
-        // Quando ainda coincidem com o ER atual, não precisam de regeneração.
+        // Older fingerprints included coordinates. Accept either format so
+        // those copies do not appear outdated after an upgrade.
         return ! hash_equals($fingerprint, $this->transformer->fingerprint($source))
             && ! hash_equals($fingerprint, $this->transformer->legacyFingerprint($source));
     }
 
     /**
-     * O que uma regeneração mudaria, em uma linha por mudança.
+     * Describe each change that regeneration would make.
      *
      * @return array<int, string>
      */
@@ -175,9 +169,8 @@ class RelationalDiagramDriftAnalyzer
     }
 
     /**
-     * Colunas são casadas pelo NOME: é o que o usuário lê no quadro, e um
-     * atributo renomeado no ER precisa aparecer como "removida + adicionada"
-     * em vez de sumir sem explicação.
+     * Match columns by displayed name. A rename should appear as one removal
+     * and one addition in the change report.
      *
      * @return array<int, string>
      */
@@ -262,7 +255,7 @@ class RelationalDiagramDriftAnalyzer
     }
 
     /**
-     * Tamanho e precisão: só interessam quando o tipo realmente os usa.
+     * Report length and precision only for types that use them.
      *
      * @return array<int, string>
      */
@@ -361,9 +354,7 @@ class RelationalDiagramDriftAnalyzer
         $columns = [];
 
         foreach ($table['columns'] ?? [] as $column) {
-            // Normalizar os dois lados com o mesmo dialeto é o que permite
-            // comparar um `length` gravado pela edição manual com um `length`
-            // que o transformador nem escreveu.
+            // Normalize both sides with the same dialect before comparison.
             $column = DataTypeCatalog::normalize($dialect, $column);
             $columns[(string) ($column['name'] ?? '')] = $column;
         }

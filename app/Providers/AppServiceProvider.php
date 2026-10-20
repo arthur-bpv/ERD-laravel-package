@@ -12,13 +12,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Os assets do Livewire vêm do bundle do Vite (app.js), então não deixamos
-        // o Livewire injetar os dele (evita carregar duas vezes).
+        // Vite bundles Livewire assets, so disable Livewire's own injection.
         config(['livewire.inject_assets' => false]);
 
-        // Reforço de HTTPS: mesmo com TrustProxies, o Cloud Workstations nem sempre
-        // repassa o X-Forwarded-Proto de forma detectável. Sem https, o navegador
-        // bloqueia assets como "mixed content" e gera URLs http:// inalcançáveis.
+        // Cloud Workstations may hide X-Forwarded-Proto even with TrustProxies.
+        // Force HTTPS to avoid mixed content and unreachable asset URLs.
         $host = (string) request()->getHost();
 
         if (request()->server('HTTP_X_FORWARDED_HOST')

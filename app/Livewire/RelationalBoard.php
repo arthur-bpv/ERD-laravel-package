@@ -30,7 +30,7 @@ class RelationalBoard extends Component
     #[Locked]
     public string $dialect = 'mysql';
 
-    /** Espaço para ler nomes, tipos e FKs antes de pensar em compactar. */
+    /** Leave enough room to read names, types, and foreign keys. */
     private const LAYOUT_COLUMN_GAP = 130;
 
     private const LAYOUT_ROW_GAP = 40;
@@ -60,10 +60,9 @@ class RelationalBoard extends Component
     public bool $isCustomized = false;
 
     /**
-     * Impressão digital do ER no momento da última geração.
+     * Fingerprint of the ER model at the last generation.
      *
-     * Vive aqui para que a verificação de defasagem não dependa de `$this->tables`
-     * (que a edição manual também mexe): o que decide se o ER mudou é o ER.
+     * Drift detection depends on the source ER, not manually edited tables.
      */
     #[Locked]
     public ?string $sourceFingerprint = null;
@@ -257,9 +256,8 @@ class RelationalBoard extends Component
             self::LAYOUT_COLUMN_GAP,
             self::LAYOUT_ROW_GAP,
         );
-        // Árvores, como o marketplace, já têm um caminho único entre duas
-        // tabelas. Abrir corredores nelas só cria altura vazia; a proteção é
-        // necessária apenas quando a topologia contém ciclos.
+        // A tree already has a unique path between tables. Clear corridors
+        // only when cycles could cause edges to cross other tables.
         if (BoardLayout::hasUndirectedCycle($this->tables, $links)) {
             $positions = BoardLayout::clearLinkCorridors(
                 $this->tables,
@@ -305,7 +303,7 @@ class RelationalBoard extends Component
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
-    /** Nome do arquivo baixado pelo botão "Baixar .json" do modal. */
+    /** Filename used by the modal's JSON download action. */
     protected function jsonFileName(): string
     {
         return 'modelo-relacional.json';
@@ -384,7 +382,7 @@ class RelationalBoard extends Component
         $this->dispatch('relational-saved');
     }
 
-    /** Mantém o dialeto no ER, que é o JSON exportável/importável do projeto. */
+    /** Store the dialect on the ER source that the project exports. */
     private function persistDialectOnSource(): void
     {
         $source = Diagram::query()
@@ -398,9 +396,8 @@ class RelationalBoard extends Component
 
     private function syncCanvas(?array $previousTableIds = null): void
     {
-        // fromObject substitui os nós e o template x-for mantém a referência
-        // antiga para IDs iguais. Atualizar cada nó preserva a reatividade dos
-        // controles dentro dele, incluindo NULL, nome, tipo e tamanho.
+        // Replacing all nodes leaves x-for with old references for unchanged IDs.
+        // Update those nodes individually to keep their controls reactive.
         $nodes = $this->buildNodes();
         $previousTableIds ??= array_column($this->tables, 'id');
         $currentTableIds = array_column($nodes, 'id');
@@ -425,8 +422,8 @@ class RelationalBoard extends Component
             ]);
         }
 
-        // As arestas podem mudar de handle ou desaparecer quando uma coluna
-        // é renomeada/removida; restaurá-las sem `nodes` preserva os nós vivos.
+        // Edges may change handles or disappear after a column edit. Restore
+        // them without replacing the live nodes.
         $this->flowFromObject(['edges' => $this->buildEdges()]);
     }
 

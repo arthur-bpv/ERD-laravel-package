@@ -3,26 +3,17 @@ import { Alpine } from '../../../vendor/livewire/livewire/dist/livewire.esm';
 document.addEventListener('alpine:init', () => {
     /*
      * ---------------------------------------------------------------------
-     * Editor de relacionamento: abre com o clique ESQUERDO sobre a relação,
-     * flutuando perto do cursor.
+     * Open the relationship editor near a left click on an edge.
      *
-     * x-flow-context-menu (usado antes) só reage a botão direito — é assim
-     * que o componente da biblioteca funciona, não existe prop para trocar o
-     * gatilho. Em vez dele, ouvimos o evento nativo `edge-click` direto no
-     * store do AlpineFlow (mesmo mecanismo que erdCanvas já usa para
-     * `connect`) e controlamos posição/visibilidade do painel aqui.
+     * x-flow-context-menu only handles right clicks. Listen for edge clicks
+     * on the flow container and manage this panel's position and visibility.
      *
-     * A troca de cardinalidade NÃO tenta prever o resultado no cliente:
-     * quem recria a aresta com o marcador novo é sempre o servidor
-     * (setCardinality → mutateRelation), como já é a autoridade de estado
-     * declarada no SchemaBoard. Uma versão anterior aplicava a troca
-     * otimisticamente no cliente e DEPOIS o servidor recriava a aresta de
-     * novo — dois remove+add concorrentes na mesma aresta, e o resultado
-     * visual dependia de qual dos dois "vencia" a corrida.
+     * The server owns cardinality changes and sends the new edge. Optimistic
+     * client updates caused competing remove/add operations on the same edge.
      * ---------------------------------------------------------------------
      */
     Alpine.data('erdEdgeEditor', () => ({
-        // paleta de cardinalidade (pé de galinha / notação IE)
+        // Crow's foot cardinality palette (IE notation).
         options: [
             { m: 'cf-one-one', s: '‖', t: 'um e só um' },
             { m: 'cf-zero-one', s: '○|', t: 'zero ou um' },
@@ -43,8 +34,7 @@ document.addEventListener('alpine:init', () => {
         tab: 'relationship',
         attributeName: '',
 
-        // Ver nota em erdCanvas: $flow não tem .on() — os eventos chegam como
-        // CustomEvent `flow-<evento>` despachados no elemento `.flow-container`.
+        // $flow has no .on(); events arrive as flow-* CustomEvents on the container.
         init() {
             const container = this.$el.closest('.flow-container');
             if (!container) return;
@@ -69,9 +59,7 @@ document.addEventListener('alpine:init', () => {
             container.addEventListener('erd-open-relation', (ev) => {
                 const { relationId, relationship, x, y } = ev.detail;
 
-                // O AlpineFlow também identifica o losango como node. Abrir
-                // na microtask garante que o flow-node-click do mesmo gesto
-                // termine antes de exibirmos o editor da relação.
+                // Open after the diamond's node click from the same gesture.
                 queueMicrotask(() => {
                     const edge = this.$flow?.edges.find(
                         (item) => this.relationId(item) === relationId,
@@ -104,8 +92,7 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
-        // Ancora perto do cursor, mas sem deixar o painel estourar a borda
-        // direita/inferior da tela (250x~340px é o tamanho real do painel).
+        // Anchor near the cursor while keeping the panel inside the viewport.
         _positionAt(x, y) {
             const PANEL_W = 280;
             const PANEL_H = 420;
@@ -126,11 +113,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         /**
-         * A relação aberta no painel.
+         * Relationship currently open in the panel.
          *
-         * Guardamos só o id porque trocar um marcador recria a aresta — um
-         * retrato do objeto ficaria velho no segundo clique. Relemos o
-         * estado vivo do $flow a cada acesso.
+         * Store only its ID. Recreating an edge would make a stored object
+         * stale, so read the current edge from $flow on each access.
          */
         get e() {
             if (!this.activeEdgeId) {

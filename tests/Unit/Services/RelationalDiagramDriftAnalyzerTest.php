@@ -162,7 +162,7 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
 
         $changed = $this->library();
         $changed['relations'] = [];
-        unset($changed['entities'][1]['attributes'][1]); // a FK também nasce no ER
+        unset($changed['entities'][1]['attributes'][1]); // The FK also originates in the ER model.
 
         $report = $this->drift->report($changed, $relational);
 
@@ -219,8 +219,8 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
         $relational['customized'] = true;
         $relational['tables'][0]['columns'][1]['length'] = 120;
 
-        // O tamanho editado à mão aparece entre as mudanças que a regeneração
-        // desfaria, ainda que ele não esteja no ER (lá não existe tamanho).
+        // Regeneration would overwrite the manually edited size even though
+        // the ER source has no size field.
         $relational['tables'][0]['columns'][1]['nullable'] = true;
 
         $changed = $source;

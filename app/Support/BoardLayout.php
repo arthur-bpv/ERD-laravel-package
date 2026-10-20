@@ -275,8 +275,8 @@ final class BoardLayout
     }
 
     /**
-     * Alinha um ramo terminal à tabela de origem, preservando a leitura
-     * horizontal de tabelas auxiliares, como atributos multivalorados.
+     * Align a terminal branch with its source table, keeping auxiliary tables
+     * such as multivalued attributes readable horizontally.
      *
      * @param  array<int, array{id:string}>  $nodes
      * @param  array<int, array{source:string,target:string}>  $links

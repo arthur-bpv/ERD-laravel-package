@@ -45,16 +45,14 @@ class ProjectDashboard extends Component
     }
 
     /**
-     * IDs dos projetos cuja cópia Relacional já não corresponde ao ER.
+     * IDs of projects whose relational copy no longer matches the ER source.
      *
-     * Só sinaliza: o quadro Relacional é quem oferece a regeneração, porque só
-     * ele conhece as edições manuais que ela substituiria.
+     * The relational board offers regeneration because it knows which manual
+     * edits would be replaced.
      *
-     * Usa `isOutdated` e não `report` porque aqui a lista de mudanças não é
-     * usada — e ela custa um transform do ER por projeto a cada render.
+     * isOutdated avoids transforming each project merely to build a change list.
      *
-     * É uma computed property no formato legado (`get...Property`) porque,
-     * ao contrário de `#[Computed]`, ela aceita a dependência injetada.
+     * The legacy computed property form accepts dependency injection.
      *
      * @return array<int, int>
      */

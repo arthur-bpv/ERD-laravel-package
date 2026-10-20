@@ -28,7 +28,7 @@ class SchemaBoardInlineAttributeEditorTest extends TestCase
         $blade = file_get_contents(resource_path('views/livewire/schema-board.blade.php'));
 
         preg_match(
-            '/{{-- nome do atributo --}}(?<editor>[\s\S]*?){{-- excluir atributo --}}/',
+            '/(?<editor><input\b[^>]*class="er-attr-name-input nodrag"[\s\S]*?\n\s*>)/',
             $blade,
             $matches,
         );

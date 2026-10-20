@@ -71,8 +71,7 @@
                     <span wire:loading wire:target="openSqlPreview">Gerando…</span>
                 </button>
             @endunless
-            {{-- Mesmo botão nos dois quadros: a confirmação de "Salvar" é um aviso
-                 flutuante, emitido pelo quadro que trata `saved`/`relational-saved`. --}}
+            {{-- Both boards use this save button and display confirmation through their own saved event. --}}
             <button type="button" class="board-toolbar-button board-toolbar-save" wire:click="save" wire:loading.attr="disabled" wire:target="save">
                 <span wire:loading.remove wire:target="save">Salvar</span>
                 <span wire:loading wire:target="save">Salvando…</span>

@@ -6,12 +6,10 @@ use App\Livewire\SchemaBoard;
 use Tests\TestCase;
 
 /**
- * A cardinalidade atravessa três linguagens: o servidor valida no import, o
- * `SchemaBoard` barra valor vindo do cliente, e o JS registra o marcador SVG.
+ * Cardinality spans import validation, SchemaBoard, and JavaScript SVG markers.
  *
- * Um nome aceito em uma lista e ausente em outra falha em silêncio — a
- * relação vira uma seta comum, sem erro no console. Estes testes existem para
- * essa divergência não voltar.
+ * A name missing from one list silently becomes an ordinary arrow. These
+ * tests keep the three declarations synchronized.
  */
 class CardinalityVocabularyTest extends TestCase
 {
@@ -21,18 +19,15 @@ class CardinalityVocabularyTest extends TestCase
 
         $this->assertNotSame([], $accepted);
 
-        // O SchemaBoard barra valor fora da lista, então um nome que ele
-        // recusa nunca chega a ser desenhado.
+        // SchemaBoard rejects unknown markers before drawing them.
         $rendered = $this->cardinalitiesDeclaredIn(SchemaBoard::class, 'CARDINALITY_MARKERS');
 
         $this->assertSame([], array_diff($accepted, $rendered), 'O SchemaBoard rejeita uma cardinalidade que o import aceita.');
 
-        // O transformador precisa saber converter todas, senão a cópia
-        // relacional nasce com cardinalidade errada.
+        // The transformer must convert every accepted cardinality.
         $this->assertSame([], array_diff($accepted, $this->cardinalitiesKnownToTheTransformer()));
 
-        // E o JS precisa ter marcador para todas, senão o AlpineFlow cai no
-        // fallback de seta fechada.
+        // JavaScript must register every marker to avoid arrow fallback.
         $this->assertSame([], array_diff($accepted, $this->cardinalitiesWithAJsMarker()));
     }
 
@@ -56,7 +51,7 @@ class CardinalityVocabularyTest extends TestCase
     }
 
     /**
-     * Nomes que o import aceita (App\Support\ErDiagramImporter).
+     * Names accepted by ErDiagramImporter.
      *
      * @return array<int, string>
      */
@@ -70,7 +65,7 @@ class CardinalityVocabularyTest extends TestCase
     }
 
     /**
-     * Nomes que o transformador sabe converter para min/many.
+     * Names the transformer can convert to min/many.
      *
      * @return array<int, string>
      */
@@ -90,15 +85,14 @@ class CardinalityVocabularyTest extends TestCase
     {
         $source = file_get_contents(resource_path('js/erd/markers.js'));
 
-        // Só as chamadas que registram de fato um marcador, e não a lista de
-        // conferência que o próprio arquivo mantém.
+        // Match registrations, not the file's verification list.
         preg_match_all("/registerCardinality\('(cf-[a-z-]+)'/", (string) $source, $matches);
 
         return array_values(array_unique($matches[1]));
     }
 
     /**
-     * As opções que o painel flutuante de relacionamento oferece.
+     * Options offered by the floating relationship editor.
      *
      * @return array<int, string>
      */

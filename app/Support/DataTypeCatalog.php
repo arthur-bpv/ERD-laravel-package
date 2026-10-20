@@ -154,7 +154,7 @@ class DataTypeCatalog
         return 'varchar';
     }
 
-    /** Ajusta length/precision/scale da coluna ao tipo e aos limites do dialeto. */
+    /** Fit column length, precision, and scale to the dialect's type limits. */
     public static function normalize(string $dialect, array $column): array
     {
         $type = $column['type'] ?? 'varchar';

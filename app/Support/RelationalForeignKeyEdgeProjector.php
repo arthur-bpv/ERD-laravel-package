@@ -48,8 +48,7 @@ final class RelationalForeignKeyEdgeProjector
         $isParallel = ! $isRecursive && ($pairTotals[$pairKey] ?? 0) > 1;
         $from = $tablePositions[$foreignKey['fromTable']] ?? ['x' => 0, 'y' => 0];
         $to = $tablePositions[$foreignKey['toTable']] ?? ['x' => 0, 'y' => 0];
-        // O rótulo é lido da esquerda para a direita; a FK continua sendo
-        // a origem da seta, mesmo quando sua tabela está à direita.
+        // Read the label left to right while keeping the FK as the arrow source.
         $displayCardinality = ! $isRecursive && $from['x'] > $to['x']
             ? implode(':', array_reverse(explode(':', $cardinality)))
             : $cardinality;
@@ -68,7 +67,7 @@ final class RelationalForeignKeyEdgeProjector
             'markerEnd' => 'arrowclosed',
         ];
 
-        // Toda aresta parte da linha FK e termina na linha que ela referencia.
+        // Every edge starts at an FK row and ends at its referenced row.
         $fromColumnId = $this->columnIdForForeignKey($tables, $foreignKey, 'from');
         $toColumnId = $this->columnIdForForeignKey($tables, $foreignKey, 'to');
 

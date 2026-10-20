@@ -7,7 +7,7 @@ use Tests\TestCase;
 class HealthTest extends TestCase
 {
     /**
-     * A endpoint de health deve responder 200 com status "ok".
+     * The health endpoint should respond 200 with status "ok".
      */
     public function test_health_endpoint_returns_ok(): void
     {

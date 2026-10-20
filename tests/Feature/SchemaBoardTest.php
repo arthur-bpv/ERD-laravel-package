@@ -11,11 +11,10 @@ use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * Cobre o modelo Entidade-Relacionamento do SchemaBoard.
+ * Covers the ER model managed by SchemaBoard.
  *
- * O foco é o que quebrava antes: relações criadas com o mouse pertenciam só ao
- * cliente, então a limpeza em cascata não as alcançava e um reload as perdia.
- * Agora toda aresta nasce aqui no servidor, com id próprio.
+ * Relationships drawn by mouse now receive server IDs, allowing cascade
+ * deletion and reload to preserve the same model.
  */
 class SchemaBoardTest extends TestCase
 {
@@ -75,7 +74,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame(-40, $relation['attributes'][0]['offsetY']);
     }
 
-    /** Localiza uma relação pelo id dentro do estado do componente. */
+    /** Find a relationship by ID in component state. */
     private function findRelation(array $relations, string $id): ?array
     {
         foreach ($relations as $r) {
@@ -87,7 +86,7 @@ class SchemaBoardTest extends TestCase
         return null;
     }
 
-    /** A página /schema deve carregar com o canvas montado. */
+    /** The schema page should load with its canvas mounted. */
     public function test_schema_page_loads(): void
     {
         $response = $this->get('/schema');
@@ -131,9 +130,7 @@ class SchemaBoardTest extends TestCase
     }
 
     /**
-     * Toda aresta sai daqui como `floating` — é isso que faz a linha encostar
-     * na borda da entidade e deslizar quando a caixa é arrastada, em vez de
-     * ficar presa a um ponto fixo.
+     * Floating edges follow entity borders while nodes are dragged.
      */
     public function test_completed_relationships_between_distinct_entities_are_floating(): void
     {
@@ -147,34 +144,31 @@ class SchemaBoardTest extends TestCase
     }
 
     /**
-     * O pé de galinha tem de encostar na caixa da entidade.
+     * Crow's foot markers must touch the entity border.
      *
-     * O `offset` empurra a ponta da linha para FORA do nó e o símbolo é
-     * desenhado dali para trás — então qualquer valor acima de zero vira um vão
-     * visível. Deixar o marcador como string reativa o padrão de 12,5px da
-     * biblioteca, que era exatamente o afastamento reclamado.
+     * Positive offsets create a visible gap. A string marker restores the
+     * library's default 12.5px offset, so require an explicit zero offset.
      */
     public function test_cardinality_markers_sit_flush_against_the_entity(): void
     {
         $edges = Livewire::test(SchemaBoard::class)->instance()->buildEdges();
 
         foreach ($edges as $edge) {
-            foreach (['markerStart', 'markerEnd'] as $ponta) {
-                if (! isset($edge[$ponta])) {
+            foreach (['markerStart', 'markerEnd'] as $end) {
+                if (! isset($edge[$end])) {
                     continue;
                 }
-                $this->assertIsArray($edge[$ponta], "{$ponta} não pode ser string");
-                $this->assertArrayHasKey('offset', $edge[$ponta]);
-                $this->assertSame(0, $edge[$ponta]['offset']);
+                $this->assertIsArray($edge[$end], "{$end} must not be a string");
+                $this->assertArrayHasKey('offset', $edge[$end]);
+                $this->assertSame(0, $edge[$end]['offset']);
             }
         }
     }
 
     /**
-     * A faixa de clique precisa ser bem maior que o traço.
+     * The click target must be wider than the stroke.
      *
-     * Uma linha de 1,6px é um alvo minúsculo para o mouse — era por isso que
-     * clicar na relação às vezes não pegava.
+     * A 1.6px line alone is too narrow for reliable clicking.
      */
     public function test_edges_have_a_generous_click_target(): void
     {
@@ -185,7 +179,7 @@ class SchemaBoardTest extends TestCase
         }
     }
 
-    /** Em uma relação completa, o losango volta a ser o label fixo da linha. */
+    /** A complete relationship shows its diamond as an edge label. */
     public function test_completed_relationship_name_becomes_the_edge_diamond(): void
     {
         $component = Livewire::test(SchemaBoard::class);
@@ -281,9 +275,8 @@ class SchemaBoardTest extends TestCase
     }
 
     /**
-     * Uma entidade só pode receber relacionamento se tiver identificador.
-     * É esse dado que o x-flow-handle-connectable lê no Blade — foi o que
-     * substituiu a contagem de handles ocupados.
+     * An entity needs an identifier to receive a relationship. Blade reads
+     * that state through x-flow-handle-connectable.
      */
     public function test_nodes_publish_whether_they_can_be_referenced(): void
     {
@@ -293,15 +286,15 @@ class SchemaBoardTest extends TestCase
             $this->assertTrue($node['data']['canBeParent']);
         }
 
-        // posts.user_id e posts.id participam de relações do seed
+        // Both attributes participate in the demo relationships.
         $posts = collect($nodes)->firstWhere('id', 'posts');
         $this->assertContains('posts.user_id', $posts['data']['usedAttrs']);
         $this->assertContains('posts.id', $posts['data']['usedAttrs']);
     }
 
     /**
-     * Conexão desenhada no canvas vira relação do servidor, com id próprio
-     * ("r4") — não com o id aleatório que o AlpineFlow gera no cliente.
+     * A drawn connection receives a stable server ID rather than AlpineFlow's
+     * temporary client ID.
      */
     public function test_drawing_a_connection_creates_a_server_owned_relation(): void
     {
@@ -313,7 +306,7 @@ class SchemaBoardTest extends TestCase
         $this->assertCount(4, $relations);
 
         $newRelation = $this->findRelation($relations, 'r4');
-        $this->assertNotNull($newRelation, 'a relação deveria ter recebido o id do servidor');
+        $this->assertNotNull($newRelation, 'The relationship should have a server ID.');
         $this->assertSame('comments', $newRelation['from']);
         $this->assertSame('comments', $newRelation['to']);
         $this->assertSame('comments.id', $newRelation['toAttr']);
@@ -321,7 +314,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('papel_destino', $newRelation['toRole']);
     }
 
-    /** O modelo conceitual não inventa uma FK; isso pertence à etapa relacional. */
+    /** The conceptual model leaves FK creation to the relational stage. */
     public function test_connecting_does_not_create_a_foreign_key_column(): void
     {
         $component = Livewire::test(SchemaBoard::class)
@@ -376,26 +369,24 @@ class SchemaBoardTest extends TestCase
         $this->assertArrayNotHasKey('targetHandle', $edges[1]);
     }
 
-    /** Sem PK nem UQ no destino, não há o que referenciar — a conexão é recusada. */
+    /** Reject a connection when the target has no PK or UQ. */
     public function test_connecting_to_an_entity_without_an_identifier_is_refused(): void
     {
         $component = Livewire::test(SchemaBoard::class)
-            ->call('createEntity')                                  // nasce como "e4", com PK
-            ->call('cycleKey', 'e4', 'e4.id')                       // PK  → FK
-            ->call('cycleKey', 'e4', 'e4.id')                       // FK  → UQ
-            ->call('cycleKey', 'e4', 'e4.id')                       // UQ  → (vazio)
+            ->call('createEntity')
+            ->call('cycleKey', 'e4', 'e4.id')
             ->call('onConnect', 'users', 'e4');
 
-        $this->assertCount(3, $component->get('relations'), 'nenhuma relação nova deveria existir');
+        $this->assertCount(3, $component->get('relations'), 'No new relationship should exist.');
 
         $nodes = $component->instance()->buildNodes();
-        $orfa = collect($nodes)->firstWhere('id', 'e4');
-        $this->assertFalse($orfa['data']['canBeParent']);
+        $unidentifiedNode = collect($nodes)->firstWhere('id', 'e4');
+        $this->assertFalse($unidentifiedNode['data']['canBeParent']);
     }
 
     /**
-     * Excluir a entidade tem de levar junto TODA relação que a toca — inclusive
-     * as desenhadas com o mouse, que antes sobreviviam órfãs na tela.
+     * Deleting an entity also removes every connected relationship, including
+     * those drawn with the mouse.
      */
     public function test_deleting_an_entity_cascades_to_hand_drawn_relations(): void
     {
@@ -405,13 +396,13 @@ class SchemaBoardTest extends TestCase
             ->assertDispatched('flow:removeEdges')
             ->assertDispatched('flow:removeNodes');
 
-        // Sobra só r2 (comments → posts): r1 e r3 tocavam users, r4 também.
+        // Only r2 remains; r1, r3, and r4 touched users.
         $relations = $component->get('relations');
         $this->assertCount(1, $relations);
         $this->assertSame('r2', $relations[0]['id']);
     }
 
-    /** Apagar a coluna derruba as relações que dependiam dela. */
+    /** Deleting an attribute removes relationships that depend on it. */
     public function test_removing_an_attribute_cascades_to_its_relations(): void
     {
         $component = Livewire::test(SchemaBoard::class)
@@ -423,19 +414,12 @@ class SchemaBoardTest extends TestCase
     }
 
     /**
-     * Trocar a cardinalidade redesenha a aresta E a mantém selecionada.
+     * Changing cardinality redraws the edge and keeps it selected.
      *
-     * Trocar um marcador exige recriar a linha, e a nova nascia sem seleção —
-     * o editor, que só existe enquanto há aresta selecionada, se fechava a cada
-     * clique. Era isso que parecia "a troca não funcionou".
+     * The editor needs the recreated edge to remain selected after each click.
      *
-     * O redesenho não usa mais flowRemoveEdges+flowAddEdges direto: os dois
-     * chegam na mesma resposta HTTP e o AlpineFlow reaproveita o elemento
-     * SVG sem reavaliar o marcador (bug de reatividade da lib, confirmado
-     * reproduzindo com chamadas puramente client-side). Em vez disso,
-     * despachamos um único evento `erd-rebuild-edge` com a aresta pronta, e
-     * o JS (erd/relationship-editor.js) faz remove → aguarda um frame real do
-     * navegador → add, forçando o elemento a ser reconstruído do zero.
+     * A single erd-rebuild-edge event lets canvas-controller.js wait two
+     * animation frames between removing and adding the server supplied edge.
      */
     public function test_setting_cardinality_keeps_the_edge_selected(): void
     {
@@ -450,7 +434,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('cf-one-many', $this->findRelation($component->get('relations'), 'r1')['childCard']);
     }
 
-    /** Cardinalidade inventada pelo cliente é ignorada. */
+    /** Ignore cardinalities unknown to the server. */
     public function test_unknown_cardinality_is_rejected(): void
     {
         $component = Livewire::test(SchemaBoard::class)
@@ -459,7 +443,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('cf-one-many', $this->findRelation($component->get('relations'), 'r1')['childCard']);
     }
 
-    /** Inverter muda a ponta visual e escolhe uma PK válida na nova origem. */
+    /** Swapping a relationship reselects a valid key for the new direction. */
     public function test_swapping_a_relation_moves_cardinalities_and_reselects_its_columns(): void
     {
         $component = Livewire::test(SchemaBoard::class)->call('swapRelation', 'r1');
@@ -516,7 +500,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame(['Destino', 'Origem'], $labels);
     }
 
-    /** Renomear o relacionamento troca o texto do losango via patch, sem recriar a linha. */
+    /** Renaming a relationship patches the diamond label without rebuilding the edge. */
     public function test_renaming_a_relation_patches_the_label(): void
     {
         $component = Livewire::test(SchemaBoard::class)
@@ -526,7 +510,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('publica', $this->findRelation($component->get('relations'), 'r1')['name']);
     }
 
-    /** Nome vazio não apaga o losango. */
+    /** A blank name does not erase the diamond label. */
     public function test_renaming_a_relation_to_blank_is_ignored(): void
     {
         $component = Livewire::test(SchemaBoard::class)->call('renameRelation', 'r1', '   ');
@@ -534,7 +518,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('escreve', $this->findRelation($component->get('relations'), 'r1')['name']);
     }
 
-    /** Arrastar a entidade persiste a posição, para o layout sobreviver a um reload. */
+    /** Persist dragged positions so the layout survives reloads. */
     public function test_dragging_a_node_persists_its_position(): void
     {
         $component = Livewire::test(SchemaBoard::class)
@@ -692,16 +676,10 @@ class SchemaBoardTest extends TestCase
     }
 
     /**
-     * O `fitView` do AlpineFlow aborta em silêncio quando UM único node
-     * publicado vem sem `dimensions`: ele tenta 10 quadros de animação e
-     * simplesmente não reenquadra. O sintoma era o "Organizar quadro" redesenhar
-     * o arranjo e deixar parte dos balões fora da vista, parecendo que só o F5
-     * consertava. Como a falha não gera erro nem aviso, o único jeito de não
-     * reintroduzi-la é garantir a invariante aqui.
+     * AlpineFlow's fitView silently fails if any published node lacks
+     * dimensions. Require them for every node kind.
      *
-     * O cenário monta de propósito todos os tipos de node: entidade, losango de
-     * relação comum, losango de autorrelação com as duas portas, âncora e
-     * balão de atributo de relacionamento.
+     * Cover entities, diamonds, recursive ports, anchors, and balloons.
      */
     public function test_every_published_node_declares_its_dimensions(): void
     {
@@ -710,13 +688,11 @@ class SchemaBoardTest extends TestCase
             ->call('createSelfRelation', 'comments')
             ->call('addRelationAttribute', 'r4', 'approved_by', 'string');
 
-        // Entidade é o único node sem `kind` no payload (o JS usa essa ausência
-        // para identificá-lo). Rótulos de papel, não ids: o objetivo é garantir
-        // que todo tipo de node passou pela função que declara as dimensões.
+        // Entities are the only nodes without kind. Check every visual kind.
         $kinds = collect($component->instance()->buildNodes())
             ->map(fn (array $node) => $node['data']['kind'] ?? 'entity');
 
-        // Guarda contra o cenário deixar de cobrir algum tipo de node.
+        // Ensure the scenario still includes all expected node kinds.
         $this->assertEqualsCanonicalizing(
             ['entity', 'relationship', 'relationship-attribute', 'relationship-attribute-anchor', 'relationship-port'],
             $kinds->unique()->sort()->values()->all(),
@@ -750,7 +726,7 @@ class SchemaBoardTest extends TestCase
             ->assertSet('showJson', false)
             ->call('toggleJson')
             ->assertSet('showJson', true)
-            // Mesmo componente do quadro Relacional, mesmo rodapé.
+            // Both boards share the same modal and footer.
             ->assertSeeHtml('class="rel-modal"')
             ->assertSeeHtml('class="rel-modal-actions"')
             ->assertSee('Copiar')

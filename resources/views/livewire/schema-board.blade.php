@@ -41,21 +41,20 @@
         </div>
         <button type="button" @click="guideOpen = false" aria-label="Fechar guia">✕</button>
     </div>
-    {{-- ================= MODAL: JSON DO DIAGRAMA ================= --}}
-    {{-- Mesmo componente usado pelo quadro Relacional, com o mesmo rodapé de copiar/baixar. --}}
+    {{-- Diagram JSON modal. --}}
+    {{-- The ER and relational boards share this component and its download footer. --}}
     <x-json-modal title="JSON do diagrama" />
 
-    {{-- Aviso flutuante: mesma marcação e mesmo ciclo do quadro Relacional. --}}
+    {{-- Floating notice uses the same lifecycle as the relational board. --}}
     <div x-show="notice" x-cloak x-transition class="er-notice" :class="{ 'is-warning': noticeKind === 'warning' }" role="status" aria-live="polite">
         <span x-text="noticeKind === 'warning' ? '!' : '✓'"></span>
         <p x-text="notice"></p>
     </div>
 
-    {{-- ===================== CANVAS ===================== --}}
+    {{-- Canvas. --}}
     <div class="relative min-h-0 flex-1 overflow-hidden">
 
-        {{-- wire:ignore: o morph do Livewire não pode destruir o DOM do AlpineFlow.
-             Sem :sync — o estado é do servidor e as mudanças chegam por comandos WireFlow. --}}
+        {{-- wire:ignore protects AlpineFlow DOM. Server state reaches it through WireFlow commands, without :sync. --}}
         <x-flow
             wire:ignore
             :nodes="$nodes"
@@ -65,23 +64,16 @@
             background="dots"
             default-edge-type="floating"
             :config="[
-                // easyConnect: segurando Alt dá para arrastar de QUALQUER ponto do
-                // corpo da entidade — o AlpineFlow acha o handle mais próximo. É o
-                // que dispensa ter um ponto de conexão fixo por coluna.
+                // Alt drag can start anywhere on an entity; AlpineFlow finds
+                // the nearest handle without one handle per attribute.
                 'easyConnect' => true,
                 'easyConnectKey' => 'alt',
 
-                // loose: qualquer handle conecta em qualquer handle, então a rigidez
-                // origem-à-direita / destino-à-esquerda deixa de existir.
+                // Loose mode allows connections between handles on any side.
                 'connectionMode' => 'loose',
 
-                // Raio de detecção do handle mais próximo no SOLTAR (drop), não
-                // tem relação com o traçado da linha (esse é calculado à parte,
-                // pela borda da entidade, por causa do tipo `floating`).
-                // 60px só alcança bem perto do pontinho de 13px em si — soltar
-                // no meio de uma caixa de 232px de largura ficava fora do raio
-                // e a conexão simplesmente não se formava. 160px cobre soltar
-                // em qualquer ponto do corpo de uma entidade típica.
+                // Snap radius applies on drop, independent of floating edge
+                // routing. 160px covers a typical 232px wide entity box.
                 'connectionSnapRadius' => 160,
 
                 'connectionLineType' => 'smoothstep',
@@ -96,9 +88,7 @@
             style="width: 100%; height: 100%;"
         >
             <x-slot:node>
-                {{-- Autorrelacionamento: é um nó real e externo à entidade. Assim,
-                     cada papel ocupa uma linha independente e nenhuma curva
-                     atravessa o conteúdo da tabela. --}}
+                {{-- A recursive relationship is a separate node outside its entity, keeping role edges clear of table content. --}}
                 <template x-if="node.data.kind === 'relationship'">
                     <div class="er-relationship" :class="{ 'is-associative': node.data.associative, 'is-self': node.data.isSelf }" :data-id="node.id">
                         <div
@@ -150,52 +140,17 @@
     </div>
 </template>
 
-                {{-- ================= ENTIDADE ================= --}}
+                {{-- Entity node. --}}
                 <template x-if="!node.data.kind">
                 <div class="er-node" :data-id="node.id" x-erd-measure-node="node">
 
-                    {{--
-                        8 pontos de conexão: 4 `source` nos lados (iniciam o
-                        arrasto) + 4 `target` nos cantos (recebem o solto).
-
-                        Duas tentativas anteriores erraram aqui:
-
-                        1ª: um par source+target empilhado exatamente na mesma
-                        posição em cada lado. O `target` vinha depois no DOM e
-                        ficava por cima, roubando todo clique — e um handle
-                        `target` sozinho só reage quando já existe uma conexão
-                        pendente (clique-para-completar). Sem isso, o clique
-                        atravessava pro node e arrastava a entidade inteira.
-
-                        2ª: um único handle `source` por lado, apostando que
-                        `connectionMode: 'loose'` bastaria para ele também
-                        servir de destino. A busca de proximidade (Vt, usada
-                        durante o arrasto) até respeita loose e acha handles
-                        `source` como alvo — mas o CÓDIGO DE SOLTAR tem um
-                        fallback (`elementFromPoint(...).closest('[data-flow-
-                        handle-type="target"]')`) fixo em "target", ignorando
-                        loose. Sem handle target nenhum, essa via de finalizar
-                        a conexão nunca encontra nada.
-
-                        A saída é manter os dois tipos, só que em posições
-                        DIFERENTES: `source` no meio de cada lado (top/right/
-                        bottom/left), `target` nos 4 cantos (a diretiva aceita
-                        dois modificadores de posição juntos — `.top.left`
-                        vira o canto "top-left"). Nada mais se sobrepõe.
-
-                        `connectable.end` só entra nos `target`: lê
-                        node.data.canBeParent — entidade sem PK/UQ recusa a
-                        conexão antes mesmo de ir ao servidor.
-                    --}}
-                    {{-- escritos um a um porque o modificador de posição (.top, .right...)
-                         faz parte do nome da diretiva — Alpine não aceita modificador
-                         vindo de variável, então um x-for não daria conta. --}}
+                    {{-- Source handles sit at the middle of each side; target handles sit at corners. Separate positions prevent overlapping hit targets. Target connectability follows data.canBeParent. The library's drop fallback requires target handles even with loose connection mode. --}}
+                    {{-- Declare handles individually because Alpine directive position modifiers cannot be supplied by x-for. --}}
                     <div class="er-anchor er-anchor-top"    x-flow-handle:source.top="'top'"></div>
                     <div class="er-anchor er-anchor-right"  x-flow-handle:source.right="'right'"></div>
                     <div class="er-anchor er-anchor-bottom" x-flow-handle:source.bottom="'bottom'"></div>
                     <div class="er-anchor er-anchor-left"   x-flow-handle:source.left="'left'"></div>
-                    {{-- Âncora estrutural do autorrelacionamento. Não participa
-                         do gesto manual e fixa a saída no vértice superior direito. --}}
+                    {{-- Structural handles for recursive relationships are separate from manual connection targets. --}}
                     <div class="er-self-anchor er-self-anchor-top" x-flow-handle:target.top="'self-top'"></div>
                     <div class="er-self-anchor er-self-anchor-right" x-flow-handle:target.right="'self-right'"></div>
                     <div class="er-self-anchor er-self-anchor-bottom" x-flow-handle:target.bottom="'self-bottom'"></div>
@@ -206,7 +161,7 @@
                     <div class="er-anchor er-anchor-bl" x-flow-handle:target.bottom.left="'bl'"  x-flow-handle-connectable.end="node.data.canBeParent"></div>
                     <div class="er-anchor er-anchor-br" x-flow-handle:target.bottom.right="'br'" x-flow-handle-connectable.end="node.data.canBeParent"></div>
 
-                    {{-- cabeçalho: nome da entidade --}}
+                    {{-- Entity header and name. --}}
                     <div class="er-head" :class="{ 'is-orphan': !node.data.canBeParent }">
                         <span class="er-head-icon">▦</span>
                         <div
@@ -247,12 +202,12 @@
                         >✕</button>
                     </div>
 
-                    {{-- aviso: sem identificador a entidade não pode receber relação --}}
+                    {{-- An entity without an identifier cannot be a relationship target. --}}
                     <div class="er-warn" x-show="!node.data.canBeParent" x-cloak>
                         sem PK/UQ — não pode ser referenciada
                     </div>
 
-                    {{-- linhas: atributos --}}
+                    {{-- Attribute rows. --}}
                     <div class="er-rows">
                         <template x-for="attr in node.data.attributes" :key="attr.id">
                             <div class="er-row"
@@ -261,7 +216,7 @@
                                      'is-used': node.data.usedAttrs.includes(attr.id),
                                  }">
 
-                                {{-- coluna curta de chave (PK/FK/UQ) --}}
+                                {{-- Narrow key column (PK/FK/UQ). --}}
                                 <button
                                     class="er-key nodrag"
                                     :class="'k-' + (attr.key || 'none').toLowerCase()"
@@ -272,7 +227,7 @@
                                     <span x-show="attr.key !== 'PK'" class="er-key-empty">•</span>
                                 </button>
 
-                                {{-- nome do atributo --}}
+                                {{-- Attribute name. --}}
                                 <input
                                     type="text"
                                     class="er-attr-name-input nodrag"
@@ -295,7 +250,7 @@
 
 
 
-                                {{-- excluir atributo --}}
+                                {{-- Delete attribute. --}}
                                 <button
                                     class="er-attr-del nodrag"
                                     title="Remover coluna"
@@ -305,7 +260,7 @@
                         </template>
                     </div>
 
-                    {{-- rodapé: criar atributo DENTRO da caixa da entidade --}}
+                    {{-- Create an attribute inside the entity box. --}}
                     <div class="er-foot nodrag" x-data="{ open: false, n: '', k: '' }">
                         <button class="er-add-toggle" @click="open = !open" x-text="open ? '− cancelar' : '+ atributo'"></button>
 
@@ -324,28 +279,12 @@
                 </template>
             </x-slot:node>
 
-            {{--
-                Painel invisível que só existe para hospedar o erdCanvas.
-
-                Ele precisa estar DENTRO do <x-flow> porque se inscreve no store do
-                AlpineFlow ($flow.on) para descartar a aresta provisória criada pelo
-                arrasto — quem grava a relação de verdade é o servidor.
-            --}}
+            {{-- This hidden panel hosts erdCanvas inside x-flow so it can access the flow store and discard temporary edges. The server creates definitive relationships. --}}
             <x-flow-panel position="top-left" class="er-hidden-host" x-data="erdCanvas"></x-flow-panel>
             <x-board-background-picker model="ER" />
 
-            {{-- ================= EDITOR DE RELACIONAMENTO ================= --}}
-            {{--
-                Clique ESQUERDO sobre a relação abre este painel flutuante,
-                ancorado no cursor.
-
-                `x-flow-context-menu` (usado antes) só reage a botão direito —
-                é assim que a biblioteca implementa esse componente, não dá pra
-                trocar por prop. Em vez dele, ouvimos o evento nativo
-                `edge-click` direto no store do AlpineFlow (mesmo mecanismo
-                que erdCanvas já usa para `connect`) e controlamos a posição e
-                a visibilidade do painel nós mesmos.
-            --}}
+            {{-- Relationship editor. --}}
+            {{-- Open near a left click on a relationship. The library context menu only handles right clicks, so the editor listens for edge-click events. --}}
             <div
                 x-data="erdEdgeEditor"
                 x-show="open"
@@ -368,7 +307,7 @@
                         </div>
                         <div x-show="tab === 'relationship'">
 
-                        {{-- nome que aparece dentro do losango --}}
+                        {{-- Name displayed inside the diamond. --}}
                         <button class="er-ee-name nodrag" @click="$refs.relationName.focus(); $refs.relationName.select()" title="Editar nome">
                             <span class="er-ee-diamond" x-text="e.data?.relationName || e.label || 'sem nome'"></span>
                         </button>
@@ -398,7 +337,7 @@
                         </form>
 
 
-                        {{-- ponta ORIGEM (filho / FK) = markerStart --}}
+                        {{-- Source end (child/FK) uses markerStart. --}}
                         <div class="er-ee-end">
                             <div class="er-ee-label" x-text="isSelf ? roleLabel(e.data?.fromRole, 'Origem') : (e.data?.sourceName || e.source)">
                             </div>
@@ -415,7 +354,7 @@
                             </div>
                         </div>
 
-                        {{-- ponta DESTINO (pai / PK) = markerEnd --}}
+                        {{-- Target end (parent/PK) uses markerEnd. --}}
                         <div class="er-ee-end">
                             <div class="er-ee-label" x-text="isSelf ? roleLabel(e.data?.toRole, 'Destino') : (e.data?.targetName || e.target)">
                             </div>

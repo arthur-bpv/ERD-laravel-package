@@ -99,12 +99,11 @@ class ErBoardOrganizerTest extends TestCase
         $balloon = collect($component->instance()->buildNodes())
             ->firstWhere('id', 'relation-r1-attr-'.$attribute['id']);
 
-        // O balão é a âncora do seu relacionamento mais um offset: é esse
-        // offset que o mantém preso ao relacionamento quando o quadro muda.
+        // The saved offset keeps the balloon attached to its anchor.
         $this->assertSame($anchor['position']['x'] + $attribute['offsetX'], $balloon['position']['x']);
         $this->assertSame($anchor['position']['y'] + $attribute['offsetY'], $balloon['position']['y']);
 
-        // E o arranjo sobrevive ao reload, já que o offset foi gravado.
+        // The saved offset also preserves the layout after reload.
         $saved = Diagram::query()->findOrFail($component->get('diagramId'));
         $this->assertSame(
             $attribute['offsetX'],
@@ -164,8 +163,7 @@ class ErBoardOrganizerTest extends TestCase
         $diamond = $nodes->firstWhere('id', 'relation-r4');
         $balloon = $nodes->firstWhere('data.kind', 'relationship-attribute');
 
-        // O losango padrão é derivado da entidade, então o arranjo tem que
-        // levá-lo junto — e o balão que dele pende junto também.
+        // The derived diamond and its balloon move with the entity.
         $this->assertSame($entity['x'] + 56, $diamond['position']['x']);
         $this->assertSame($diamond['position']['x'], $balloon['position']['x'] - $balloon['data']['offsetX']);
         $this->assertSame($diamond['position']['y'], $balloon['position']['y'] - $balloon['data']['offsetY']);
@@ -177,8 +175,7 @@ class ErBoardOrganizerTest extends TestCase
             ->call('createSelfRelation', 'comments')
             ->call('organizeBoard');
 
-        // Sem folga, o losango de uma autorrelação é preso no topo do quadro
-        // e não sobra ponto livre ao redor dele para o balão.
+        // Headroom prevents the recursive diamond from hitting the top edge.
         $this->assertGreaterThanOrEqual(
             220,
             collect($component->get('entities'))->firstWhere('id', 'comments')['y'],
@@ -219,9 +216,7 @@ class ErBoardOrganizerTest extends TestCase
             );
             $distances[$balloon['data']['relationId']][] = $distance;
 
-            // Ordenar os candidatos por faixa (e não por distância) mandava o
-            // balão para 450px de lado da relação; por distância o vínculo
-            // visual se mantém.
+            // Distance ordering keeps the balloon visually near its relation.
             $this->assertLessThanOrEqual(
                 280,
                 $distance,
@@ -229,8 +224,7 @@ class ErBoardOrganizerTest extends TestCase
             );
         }
 
-        // E o grupo inteiro fica no anel mais interno possível: a espera só
-        // deve aumentar quando o entorno do relacionamento está ocupado.
+        // Keep the group in the nearest available ring.
         foreach ($distances as $relationId => $relationDistances) {
             $close = count(array_filter($relationDistances, fn (float $d): bool => $d <= 250));
             $this->assertGreaterThanOrEqual(
@@ -251,10 +245,8 @@ class ErBoardOrganizerTest extends TestCase
         $from = $entities[$relation['from']];
         $to = $entities[$relation['to']];
 
-        // O cliente ancora no meio do trecho visível da linha, na altura do
-        // centro de cada entidade. Usar uma altura fixa aqui deixava a âncora
-        // dezenas de pixels fora do lugar, e a escolha do ponto do balão era
-        // validada contra uma posição que ninguém veria.
+        // The client anchors at the visible edge midpoint, using the actual
+        // center height of each entity.
         $fromCenter = $from['y'] + ((84 + (count($from['attributes']) * 24.5)) / 2);
         $toCenter = $to['y'] + ((84 + (count($to['attributes']) * 24.5)) / 2);
 

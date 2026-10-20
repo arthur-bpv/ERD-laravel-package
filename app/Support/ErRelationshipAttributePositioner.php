@@ -42,8 +42,7 @@ final class ErRelationshipAttributePositioner
      * select a distant side position before a nearby free position above
      * the edge, making the balloon look disconnected from its relationship.
      *
-     * O desempate prefere a faixa de baixo (a que sobra livre num corredor
-     * horizontal) e, dentro dela, o menor deslocamento lateral.
+     * Ties prefer the lower band and then the smaller horizontal offset.
      *
      * @return array<int, array{x:int,y:int}> candidates relative to the anchor center
      */

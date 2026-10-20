@@ -77,7 +77,7 @@ document.addEventListener('alpine:init', () => {
                 });
             });
 
-            // clicar no canvas vazio ou em outra entidade fecha o painel
+            // Close the panel when the user clicks empty canvas or another entity.
             container.addEventListener('flow-pane-click', () => this.close());
             container.addEventListener('flow-node-click', () => this.close());
             container.addEventListener('erd-relation-synced', (ev) => {

@@ -292,10 +292,10 @@ class RelationalBoardTest extends TestCase
                 }
 
                 $this->assertTrue(
-                    $left['x'] + 380 + 130 <= $right['x']
-                    || $right['x'] + 380 + 130 <= $left['x']
-                    || $left['y'] + 74 + 40 <= $right['y']
-                    || $right['y'] + 74 + 40 <= $left['y'],
+                    $right['x'] >= $left['x'] + 380 + 130
+                    || $left['x'] >= $right['x'] + 380 + 130
+                    || $right['y'] >= $left['y'] + 74 + 40
+                    || $left['y'] >= $right['y'] + 74 + 40,
                     "As tabelas {$left['id']} e {$right['id']} ficaram próximas demais.",
                 );
             }
@@ -550,7 +550,7 @@ class RelationalBoardTest extends TestCase
         $component
             ->call('toggleJson')
             ->assertSet('showJson', true)
-            // Mesmo componente do quadro ER, mesmo rodapé.
+            // Both boards share the same component and footer.
             ->assertSeeHtml('class="rel-modal"')
             ->assertSeeHtml('class="rel-modal-actions"')
             ->assertSee('Copiar')
@@ -665,10 +665,10 @@ class RelationalBoardTest extends TestCase
             ->assertSee('Este modelo Relacional está desatualizado')
             ->assertSee('Nada foi regravado')
             ->assertSee('Regenerar do ER')
-            // O texto já vem escapado da Blade, daí o escape: false.
+            // Blade already escaped the text; avoid escaping it again.
             ->assertSee('Coluna &quot;email&quot; foi adicionada em &quot;Staff&quot;.', escape: false);
 
-        // O aviso não pode gravar nada: a cópia continua sem a coluna nova.
+        // Displaying the warning must not save the new column.
         $staff = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'staff');
         $this->assertNotContains('email', array_column($staff['columns'], 'name'));
     }

@@ -40,9 +40,7 @@ x-data="{
         :foreign-keys-count="count($foreignKeys)" />
 
     @if ($isOutdated)
-        {{-- Aviso de defasagem: o ER mudou depois da última geração e nada foi
-             reescrito sozinho. O botão reaproveita o mesmo regenerate (e a mesma
-             confirmação) que já existia no menu "Mais". --}}
+        {{-- The ER source changed after generation. Show drift and reuse the existing regeneration action and confirmation. --}}
         <aside class="rel-drift" role="status" aria-live="polite">
             <span class="rel-drift-icon" aria-hidden="true">!</span>
 

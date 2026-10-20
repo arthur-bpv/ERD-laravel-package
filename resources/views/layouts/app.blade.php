@@ -13,10 +13,10 @@
                 document.documentElement.classList.toggle('dark', theme === 'dark');
             }
 
-            // Roda no carregamento inicial
+            // Apply the theme on initial load.
             applyErdTheme();
 
-            // Roda de novo a cada navegação via wire:navigate
+            // Reapply it after wire:navigate changes the page.
             document.addEventListener('livewire:navigated', applyErdTheme);
 
             window.setErdTheme = (theme) => {

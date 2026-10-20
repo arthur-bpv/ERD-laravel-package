@@ -1,6 +1,8 @@
 // Capture the same AlpineFlow DOM used by both editors, including its nodes and edges.
 // The full-diagram scope fits every node while preserving their relative positions.
 const exporting = new WeakSet();
+const EXPORT_SCALE = 2;
+const MAX_EXPORT_EDGE = 8192;
 
 export function exportImageSize(nodes) {
     const visible = nodes.filter((node) => !node.hidden);
@@ -11,11 +13,13 @@ export function exportImageSize(nodes) {
     const right = Math.max(...visible.map((node) => node.position.x + (node.dimensions?.width || 0)));
     const bottom = Math.max(...visible.map((node) => node.position.y + (node.dimensions?.height || 0)));
 
-    // Capture the full board at its natural size where possible. AlpineFlow's
-    // 1920×1080 default shrinks large diagrams and softens their text.
+    // AlpineFlow rasteriza o SVG do quadro. Exportar em 2× preserva a leitura
+    // de texto e linhas finas; 8K é o maior lado ainda suportado de forma
+    // confiável pelos canvases modernos sem criar uma imagem desnecessariamente
+    // pesada para diagramas pequenos.
     return {
-        width: Math.min(4096, Math.max(2560, Math.ceil((right - left) * 1.5))),
-        height: Math.min(4096, Math.max(1440, Math.ceil((bottom - top) * 1.5))),
+        width: Math.min(MAX_EXPORT_EDGE, Math.max(2560, Math.ceil((right - left) * EXPORT_SCALE))),
+        height: Math.min(MAX_EXPORT_EDGE, Math.max(1440, Math.ceil((bottom - top) * EXPORT_SCALE))),
     };
 }
 

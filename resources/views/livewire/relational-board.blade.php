@@ -26,7 +26,7 @@ x-data="{
         { label: 'Texto', types: ['char', 'varchar', 'nchar', 'nvarchar', 'text', 'mediumtext', 'longtext'] },
         { label: 'Data e hora', types: ['date', 'time', 'datetime', 'timestamp'] },
         { label: 'Binário', types: ['binary', 'varbinary', 'blob'] },
-        { label: 'Outros', types: ['boolean', 'uuid', 'json', 'xml', 'custom'] },
+        { label: 'Outros', types: ['boolean', 'uuid', 'json', 'xml', 'enum', 'custom'] },
     ],
 }"
     x-init="$nextTick(() => window.installRelationalConnections($el.querySelector('.flow-container')))"
@@ -163,7 +163,24 @@ x-data="{
                         </header>
                         <div class="rel-columns">
                             <template x-for="column in node.data.columns" :key="column.id">
-                                <div class="rel-column relative">
+                                <div class="rel-column relative" x-data="{
+                                    enumEditorOpen: false,
+                                    enumDraft: '',
+                                    addEnumValue() {
+                                        const value = this.enumDraft.trim();
+                                        const values = [...(column.enumValues ?? [])];
+                                        if (!value || values.includes(value)) return;
+                                        values.push(value);
+                                        column.enumValues = values;
+                                        this.enumDraft = '';
+                                        $wire.updateColumnEnumValues(node.id, column.id, values.join(','));
+                                    },
+                                    removeEnumValue(index) {
+                                        const values = (column.enumValues ?? []).filter((_, valueIndex) => valueIndex !== index);
+                                        column.enumValues = values;
+                                        $wire.updateColumnEnumValues(node.id, column.id, values.join(','));
+                                    },
+                                }">
                                     <div class="rel-col-handle rel-col-handle-top" aria-hidden="true" x-flow-handle:source.top="'col-' + column.id + '-top'"></div>
                                     <div class="rel-col-handle rel-col-handle-top" aria-hidden="true" x-flow-handle:target.top="'col-' + column.id + '-top'"></div>
                                     <div class="rel-col-handle rel-col-handle-right" aria-hidden="true" x-flow-handle:source.right="'col-' + column.id + '-right'"></div>
@@ -177,7 +194,7 @@ x-data="{
                                     <div class="rel-column-definition nodrag">
                                         <select class="rel-column-type"
                                             @pointerdown.stop @click.stop
-                                            @change="column.type = $event.target.value; if (typeKind(column.type) === 'length') column.length ??= (['char', 'nchar', 'binary'].includes(column.type) ? 1 : 255); if (typeKind(column.type) === 'decimal') { column.precision ??= 10; column.scale ??= 2; } $wire.updateColumnType(node.id, column.id, column.type)"
+                                            @change="column.type = $event.target.value; if (typeKind(column.type) === 'length') column.length ??= (['char', 'nchar', 'binary'].includes(column.type) ? 1 : 255); if (typeKind(column.type) === 'decimal') { column.precision ??= 10; column.scale ??= 2; } enumEditorOpen = column.type === 'enum'; $wire.updateColumnType(node.id, column.id, column.type)"
                                             :title="catalog[dialect].types[column.type]" aria-label="Tipo da coluna">
                                             <template x-for="group in typeGroups" :key="dialect + group.label">
                                                 <optgroup :label="group.label" x-show="group.types.some(type => type in catalog[dialect].types)">
@@ -188,12 +205,22 @@ x-data="{
                                             </template>
                                         </select>
 
-                                        <input x-show="column.type === 'custom'" type="text" maxlength="60"
+                                        <button x-show="column.type === 'enum'" x-cloak type="button" class="rel-enum-toggle"
+                                            @pointerdown.stop @click.stop="enumEditorOpen = !enumEditorOpen"
+                                            :aria-expanded="enumEditorOpen.toString()"
+                                            title="Editar valores permitidos">
+                                            <span x-text="enumEditorOpen ? '−' : '+'"></span>
+                                            <span>valores</span>
+                                            <small x-text="(column.enumValues ?? []).length"></small>
+                                        </button>
+
+                                        <input x-show="column.type === 'custom'" type="text"
                                             placeholder="ex: GEOMETRY"
-                                            :value="column.customType ?? ''"
+                                            x-model="column.customType"
                                             @pointerdown.stop @click.stop @keydown.enter.stop.prevent="$event.target.blur()"
-                                            @change="$wire.updateColumnCustomType(node.id, column.id, $event.target.value)"
-                                            aria-label="Tipo personalizado" title="Digite o tipo (ex: GEOMETRY, MONEY, VARCHAR(20))">
+                                            @input.debounce.350ms="$wire.updateColumnCustomType(node.id, column.id, column.customType ?? '')"
+                                            @change="$wire.updateColumnCustomType(node.id, column.id, column.customType ?? '')"
+                                            aria-label="Tipo personalizado" title="Digite qualquer tipo SQL (ex: GEOMETRY, MONEY, VARCHAR(20))">
 
                                         <input x-show="typeKind(column.type) === 'length'" class="rel-size-input" type="number" min="1" step="1" inputmode="numeric"
                                             :max="catalog[dialect].limits[column.type]"
@@ -207,6 +234,30 @@ x-data="{
                                             <span>,</span>
                                             <input type="number" min="0" step="1" inputmode="numeric" :max="Math.min(column.precision ?? 10, 30)" x-model.number="column.scale"
                                                 @pointerdown.stop @click.stop @change="if ($event.target.validity.valid) $wire.updateColumnSize(node.id, column.id, column.precision ?? 10, $event.target.value)" aria-label="Escala" title="Escala">
+                                        </div>
+                                    </div>
+                                    <div x-show="column.type === 'enum' && enumEditorOpen" x-cloak x-transition.opacity
+                                        class="rel-enum-editor nodrag" @pointerdown.stop @click.stop>
+                                        <label :for="'enum-value-' + column.id">
+                                            Valores permitidos
+                                            <small>adicione uma opção por vez</small>
+                                        </label>
+                                        <div class="rel-enum-entry">
+                                            <input class="rel-enum-input" type="text"
+                                                :id="'enum-value-' + column.id"
+                                                x-model="enumDraft"
+                                                @keydown.enter.prevent="addEnumValue()"
+                                                placeholder="Ex.: pendente"
+                                                aria-label="Novo valor permitido">
+                                            <button type="button" class="rel-enum-add" @click="addEnumValue()">Adicionar</button>
+                                        </div>
+                                        <div class="rel-enum-list" x-show="(column.enumValues ?? []).length" x-cloak>
+                                            <template x-for="(value, index) in (column.enumValues ?? [])" :key="column.id + '-' + value + '-' + index">
+                                                <span class="rel-enum-value">
+                                                    <span x-text="value"></span>
+                                                    <button type="button" @click="removeEnumValue(index)" :aria-label="'Remover ' + value" title="Remover valor">🗑</button>
+                                                </span>
+                                            </template>
                                         </div>
                                     </div>
                                     <button type="button" class="rel-null nodrag" :class="{ 'is-active': column.nullable }"

@@ -7,6 +7,9 @@ use App\Models\Diagram;
 use App\Services\RelationalCopy;
 use App\Services\RelationalDrift;
 use App\Support\BoardLayout;
+use App\Support\DataTypeCatalog;
+use App\Support\ErRelationshipAttributeLayout;
+use App\Support\ErRelationshipEdgeProjector;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
@@ -41,6 +44,7 @@ use Livewire\Component;
 class SchemaBoard extends Component
 {
     use InterageComJson;
+
     // A trait WithWireFlow permite enviar comandos JavaScript granulares e diretos
     // para a biblioteca de diagramas do frontend, evitando renderizações pesadas do Livewire.
     use WithWireFlow;
@@ -58,8 +62,6 @@ class SchemaBoard extends Component
      * a 0 em x), então com offset 0 a ponta encosta na borda e o desenho corre
      * por cima da linha, sem sobrar espaço nem invadir a entidade.
      */
-    private const MARKER_OFFSET = 0;
-
     /**
      * Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente.
      *
@@ -71,59 +73,19 @@ class SchemaBoard extends Component
         'cf-one-many', 'cf-zero-many',
     ];
 
-    /** Cor padrão das relações. */
-    private const COR_RELACAO = '#64748b';
-
     private const ENTITY_WIDTH = 232.0;
 
     private const ENTITY_BASE_HEIGHT = 84.0;
 
     private const ENTITY_ROW_HEIGHT = 24.5;
 
-    /**
-     * Tamanho do balão de atributo de relacionamento (`.er-relation-attr` no
-     * CSS). O servidor precisa conhecê-lo para escolher um ponto que não caia
-     * por cima de uma entidade quando o quadro é organizado — e para declarar
-     * as dimensões do nó, senão o `fitView` do canvas desiste de reenquadrar
-     * (ver a nota de `dimensions` em `relationshipNodeFor`).
-     */
-    private const RELATION_ATTRIBUTE_WIDTH = 136.0;
-
-    private const RELATION_ATTRIBUTE_HEIGHT = 58.0;
-
     /** Tamanho do losango de relacionamento (`.er-relationship` no CSS). */
     private const RELATIONSHIP_WIDTH = 120.0;
 
     private const RELATIONSHIP_HEIGHT = 44.0;
 
-    /**
-     * Tamanho dos nós invisíveis: âncora de atributos e portas do
-     * autorrelacionamento. Não aparecem, mas também precisam de `dimensions`.
-     */
+    /** Nós invisíveis: âncora de atributos e portas do autorrelacionamento. */
     private const RELATION_ANCHOR_SIZE = 2.0;
-
-    /**
-     * Folga entre o balão e o que ele não pode cobrir: entidades e outros
-     * balões. Também é o respiro entre dois balões vizinhos, e por isso que
-     * os passos da grade têm de respeitar largura/altura + 2*folga.
-     */
-    private const RELATION_ATTRIBUTE_PADDING = 28.0;
-
-    /**
-     * Passos horizontais tentados ao redor da âncora, em px.
-     *
-     * Precisam ser >= largura + 2*folga (136 + 56 = 192). Com um passo menor,
-     * dois balões vizinhos se bloqueavam sozinhos e a busca pulava direto para
-     * o anel de fora, espalhando o grupo pelo quadro.
-     */
-    private const RELATION_ATTRIBUTE_COLUMNS = [0, 200, -200, 400, -400, 600, -600];
-
-    /**
-     * Passos verticais tentados ao redor da âncora, em px.
-     *
-     * Mesma conta: altura + 2*folga = 58 + 56 = 114.
-     */
-    private const RELATION_ATTRIBUTE_ROWS = [0, 120, -120, 240, -240, 360, -360];
 
     /**
      * Folga reservada acima de uma entidade que tem losango.
@@ -178,6 +140,10 @@ class SchemaBoard extends Component
 
     public string $diagramName = 'Diagrama sem nome';
 
+    /** Banco de destino salvo junto ao ER para sobreviver a exportações. */
+    #[Locked]
+    public string $dialect = 'mysql';
+
     public function mount($diagram = null): void
     {
         if ($diagram) {
@@ -187,6 +153,9 @@ class SchemaBoard extends Component
 
             $this->diagramId = $diagram->id;
             $this->diagramName = $diagram->name;
+            $this->dialect = DataTypeCatalog::has($diagram->data['dialect'] ?? '')
+                ? $diagram->data['dialect']
+                : 'mysql';
 
             // Um projeto recém-criado possui `data: []`. Isso representa um
             // quadro realmente vazio, não um pedido para carregar o exemplo.
@@ -422,104 +391,7 @@ class SchemaBoard extends Component
 
     private function edgesForRelation(array $relation): array
     {
-        if (! $this->usesRelationshipNode($relation)) {
-            return [$this->completedRelationshipEdgeFor($relation)];
-        }
-
-        $source = $relation['from'] ? $this->findEntity($relation['from']) : null;
-        $target = $relation['to'] ? $this->findEntity($relation['to']) : null;
-        $diamondId = $this->relationshipNodeId($relation['id']);
-        $isSelfRelationship = $this->isSelfRelationship($relation);
-        $selfPorts = $isSelfRelationship ? $this->selfRelationshipPortNodeIds($relation['id']) : null;
-        $data = [
-            'relationId' => $relation['id'],
-            'relationName' => $relation['name'],
-            'fromAttr' => $relation['fromAttr'],
-            'toAttr' => $relation['toAttr'],
-            'sourceName' => $source['name'] ?? 'não conectada',
-            'targetName' => $target['name'] ?? 'não conectada',
-            'isSelf' => $isSelfRelationship,
-            'fromRole' => $relation['fromRole'] ?? null,
-            'toRole' => $relation['toRole'] ?? null,
-            'attributes' => $relation['attributes'] ?? [],
-        ];
-        $base = [
-            'type' => 'straight',
-            'pathType' => 'straight',
-            'color' => self::COR_RELACAO,
-            'strokeWidth' => 1.6,
-            'interactionWidth' => 34,
-            'data' => $data,
-        ];
-
-        $edges = [];
-        if ($source) {
-            $edges[] = $base + [
-                'id' => $relation['id'].':out',
-                'source' => $isSelfRelationship ? $selfPorts['entityOut'] : $relation['from'],
-                'target' => $isSelfRelationship ? $selfPorts['diamondOut'] : $diamondId,
-                ...($isSelfRelationship ? ['label' => $this->selfRoleLabel($relation['fromRole'] ?? null, 'Origem')] : []),
-                'labelStart' => $this->nomeCurto($relation['fromAttr']),
-                'markerStart' => $this->marker($relation['childCard']),
-            ];
-        }
-        if ($target) {
-            $edges[] = $base + [
-                'id' => $relation['id'].':in',
-                'source' => $isSelfRelationship ? $selfPorts['diamondIn'] : $diamondId,
-                'target' => $isSelfRelationship ? $selfPorts['entityIn'] : $relation['to'],
-                ...($isSelfRelationship ? ['label' => $this->selfRoleLabel($relation['toRole'] ?? null, 'Destino')] : []),
-                'labelEnd' => $this->nomeCurto($relation['toAttr']),
-                'markerEnd' => $this->marker($relation['parentCard']),
-            ];
-        }
-
-        return $edges;
-    }
-
-    private function selfRoleLabel(?string $role, string $fallback): string
-    {
-        return match ($role) {
-            null, '' => $fallback,
-            'papel_origem' => 'Origem',
-            'papel_destino' => 'Destino',
-            default => $role,
-        };
-    }
-
-    private function completedRelationshipEdgeFor(array $relation): array
-    {
-        $source = $this->findEntity($relation['from']);
-        $target = $this->findEntity($relation['to']);
-
-        return [
-            'id' => $relation['id'],
-            'source' => $relation['from'],
-            'target' => $relation['to'],
-            'type' => 'floating',
-            'pathType' => 'smoothstep',
-            'color' => self::COR_RELACAO,
-            'strokeWidth' => 1.6,
-            'interactionWidth' => 34,
-            'label' => $relation['name'],
-            'labelStart' => $this->nomeCurto($relation['fromAttr']),
-            'labelEnd' => $this->nomeCurto($relation['toAttr']),
-            'markerStart' => $this->marker($relation['childCard']),
-            'markerEnd' => $this->marker($relation['parentCard']),
-            'data' => [
-                'relationId' => $relation['id'],
-                'relationName' => $relation['name'],
-                'fromAttr' => $relation['fromAttr'],
-                'toAttr' => $relation['toAttr'],
-                'sourceName' => $source['name'] ?? $relation['from'],
-                'targetName' => $target['name'] ?? $relation['to'],
-                'isSelf' => false,
-                'fromRole' => $relation['fromRole'] ?? null,
-                'toRole' => $relation['toRole'] ?? null,
-                'attributes' => $relation['attributes'] ?? [],
-                'associative' => $this->isAssociative($relation),
-            ],
-        ];
+        return (new ErRelationshipEdgeProjector($this->entities))->relationEdges($relation);
     }
 
     private function isAssociative(array $relation): bool
@@ -610,7 +482,7 @@ class SchemaBoard extends Component
         $anchor = $this->relationshipAttributeAnchorPosition($relation);
         $nodes = [];
         foreach (array_values($relation['attributes'] ?? []) as $index => $attribute) {
-            $default = $this->defaultRelationshipAttributeOffset($index);
+            $default = (new ErRelationshipAttributeLayout)->defaultOffset($index);
             $offsetX = $attribute['offsetX'] ?? $default['x'];
             $offsetY = $attribute['offsetY'] ?? $default['y'];
 
@@ -621,8 +493,8 @@ class SchemaBoard extends Component
                     'y' => $anchor['y'] + $offsetY,
                 ],
                 'dimensions' => [
-                    'width' => self::RELATION_ATTRIBUTE_WIDTH,
-                    'height' => self::RELATION_ATTRIBUTE_HEIGHT,
+                    'width' => ErRelationshipAttributeLayout::RELATION_ATTRIBUTE_WIDTH,
+                    'height' => ErRelationshipAttributeLayout::RELATION_ATTRIBUTE_HEIGHT,
                 ],
                 'data' => [
                     'kind' => 'relationship-attribute',
@@ -636,75 +508,6 @@ class SchemaBoard extends Component
         }
 
         return $nodes;
-    }
-
-    /**
-     * Ponto de partida do balão ainda não posicionado pelo usuário.
-     *
-     * O candidato é o canto superior esquerdo do balão; a âncora é o centro do
-     * balão desejado, então o meio é descontado. A primeira opção fica abaixo
-     * da linha — o corredor entre duas entidades é horizontal, e é o único
-     * lugar livre que sobra quando o quadro é organizado.
-     *
-     * @return array{x:int,y:int}
-     */
-    private function defaultRelationshipAttributeOffset(int $index): array
-    {
-        $candidates = $this->relationshipAttributeOffsetCandidates();
-        $candidate = $candidates[min($index, count($candidates) - 1)];
-
-        return [
-            'x' => (int) round($candidate['x'] - (self::RELATION_ATTRIBUTE_WIDTH / 2)),
-            'y' => (int) round($candidate['y'] - (self::RELATION_ATTRIBUTE_HEIGHT / 2)),
-        ];
-    }
-
-    /**
-     * Candidatos de posição do balão, do mais para o menos desejável.
-     *
-     * A ordem é a parte que importa, e ela é por DISTÂNCIA à âncora — não por
-     * faixa. Ordenar por faixa (esvaziar toda a linha de baixo, depois a de
-     * cima, depois as laterais) fazia o balão aceitar um ponto a 450px de lado
-     * antes mesmo de testar o ponto logo acima da linha, que estava livre: o
-     * balão acabava do outro lado do quadro e a linha de ligação apontava
-     * para lugar nenhum. Aqui o mais próximo sempre vem antes, então o
-     * vinculo com o relacionamento é o mais curto possível.
-     *
-     * O desempate prefere a faixa de baixo (a que sobra livre num corredor
-     * horizontal) e, dentro dela, o menor deslocamento lateral.
-     *
-     * @return array<int, array{x:int,y:int}> candidatos relativos ao centro da âncora
-     */
-    private function relationshipAttributeOffsetCandidates(): array
-    {
-        static $candidates = null;
-
-        if ($candidates !== null) {
-            return $candidates;
-        }
-
-        $candidates = [];
-        foreach (self::RELATION_ATTRIBUTE_ROWS as $row) {
-            foreach (self::RELATION_ATTRIBUTE_COLUMNS as $column) {
-                if ($row === 0 && $column === 0) {
-                    continue;
-                }
-
-                $candidates[] = ['x' => $column, 'y' => $row];
-            }
-        }
-
-        usort($candidates, fn (array $left, array $right): int => [
-            ($left['x'] ** 2) + ($left['y'] ** 2),
-            $left['y'] < 0 ? 1 : 0,
-            abs($left['x']),
-        ] <=> [
-            ($right['x'] ** 2) + ($right['y'] ** 2),
-            $right['y'] < 0 ? 1 : 0,
-            abs($right['x']),
-        ]);
-
-        return $candidates;
     }
 
     /**
@@ -747,135 +550,29 @@ class SchemaBoard extends Component
         return $positions;
     }
 
-    /**
-     * Recoloca os balões de atributo depois que as entidades mudaram de lugar.
-     *
-     * Só o offset é reescrito — ele continua medido a partir da âncora do
-     * próprio relacionamento, então o balão não "desgruda": ele só troca o
-     * ponto do offset que não está mais livre. Gravar o offset (e não a
-     * posição absoluta) é o que faz o arranjo sobreviver a um reload e a
-     * arrastar a entidade de novo.
-     */
     private function placeRelationshipAttributes(): void
     {
-        $occupied = [];
+        $bounds = [];
         foreach ($this->entities as $entity) {
             $dimensions = $this->entityDimensions($entity);
-            $occupied[] = $this->paddedRectangle(
-                $entity['x'],
-                $entity['y'],
-                $dimensions['width'],
-                $dimensions['height'],
-            );
+            $bounds[] = [
+                'x' => $entity['x'],
+                'y' => $entity['y'],
+                'width' => $dimensions['width'],
+                'height' => $dimensions['height'],
+            ];
         }
 
-        $candidates = $this->relationshipAttributeOffsetCandidates();
-
-        foreach ($this->relations as $relationIndex => $relation) {
-            $anchor = $this->relationshipAttributeAnchorPosition($relation);
-            $candidatesLeft = $candidates;
-
-            foreach ($relation['attributes'] ?? [] as $index => $attribute) {
-                $offset = $this->firstFreeRelationshipAttributeOffset(
-                    $anchor,
-                    $candidatesLeft,
-                    $occupied,
-                );
-
-                // O candidato escolhido não pode ser reaproveitado por outro
-                // balão: sai da lista e entra como área ocupada.
-                $candidatesLeft = array_values(array_filter(
-                    $candidatesLeft,
-                    fn (array $candidate): bool => $candidate !== $offset,
-                ));
-                $occupied[] = $this->paddedRectangle(
-                    $anchor['x'] + $offset['x'],
-                    $anchor['y'] + $offset['y'],
-                    self::RELATION_ATTRIBUTE_WIDTH,
-                    self::RELATION_ATTRIBUTE_HEIGHT,
-                );
-
-                $this->relations[$relationIndex]['attributes'][$index]['offsetX'] = $offset['x'];
-                $this->relations[$relationIndex]['attributes'][$index]['offsetY'] = $offset['y'];
-            }
-        }
-    }
-
-    /**
-     * @param  array<int, array{x:int,y:int}>  $candidates  offsets candidatos, em coordenadas de canto superior esquerdo
-     * @param  array<int, array{left:float,right:float,top:float,bottom:float}>  $occupied
-     * @return array{x:int,y:int}
-     */
-    private function firstFreeRelationshipAttributeOffset(array $anchor, array $candidates, array $occupied): array
-    {
-        foreach ($candidates as $candidate) {
-            $rectangle = $this->paddedRectangle(
-                $anchor['x'] + $candidate['x'],
-                $anchor['y'] + $candidate['y'],
-                self::RELATION_ATTRIBUTE_WIDTH,
-                self::RELATION_ATTRIBUTE_HEIGHT,
-            );
-
-            if (! $this->overlapsAny($rectangle, $occupied)) {
-                return $candidate;
-            }
-        }
-
-        // Nenhum ponto livre: mantém o último candidato em vez de devolver
-        // zero, que esconderia o balão exatamente em cima da âncora.
-        return $candidates === [] ? ['x' => 0, 'y' => 120] : end($candidates);
-    }
-
-    /**
-     * @param  array<int, array{left:float,right:float,top:float,bottom:float}>  $rectangles
-     * @return array{left:float,right:float,top:float,bottom:float}
-     */
-    private function paddedRectangle(float $x, float $y, float $width, float $height): array
-    {
-        $padding = self::RELATION_ATTRIBUTE_PADDING;
-
-        return [
-            'left' => $x - $padding,
-            'right' => $x + $width + $padding,
-            'top' => $y - $padding,
-            'bottom' => $y + $height + $padding,
-        ];
-    }
-
-    /**
-     * @param  array{left:float,right:float,top:float,bottom:float}  $rectangle
-     * @param  array<int, array{left:float,right:float,top:float,bottom:float}>  $rectangles
-     */
-    private function overlapsAny(array $rectangle, array $rectangles): bool
-    {
-        foreach ($rectangles as $other) {
-            if ($rectangle['left'] < $other['right']
-                && $rectangle['right'] > $other['left']
-                && $rectangle['top'] < $other['bottom']
-                && $rectangle['bottom'] > $other['top']) {
-                return true;
-            }
-        }
-
-        return false;
+        $anchors = array_map(
+            fn (array $relation): array => $this->relationshipAttributeAnchorPosition($relation),
+            $this->relations,
+        );
+        $this->relations = (new ErRelationshipAttributeLayout)->place($bounds, $this->relations, $anchors);
     }
 
     private function relationshipAttributeEdgesFor(array $relation): array
     {
-        return array_map(fn ($attribute) => [
-            'id' => $relation['id'].':attr:'.$attribute['id'],
-            'source' => $this->usesAttributeAnchor($relation)
-                ? $this->relationshipAttributeAnchorId($relation['id'])
-                : $this->relationshipNodeId($relation['id']),
-            'target' => $this->relationshipAttributeNodeId($relation['id'], $attribute['id']),
-            'type' => 'straight',
-            'pathType' => 'straight',
-            'color' => '#94a3b8',
-            'strokeWidth' => 1.25,
-            'interactionWidth' => 20,
-            'reconnectable' => false,
-            'data' => ['relationId' => $relation['id'], 'isAttributeLink' => true],
-        ], $relation['attributes'] ?? []);
+        return (new ErRelationshipEdgeProjector($this->entities))->attributeEdges($relation);
     }
 
     /**
@@ -924,30 +621,6 @@ class SchemaBoard extends Component
             edges: $this->relationshipVisualEdgesFor($after),
             relationId: $after['id'],
         );
-    }
-
-    /**
-     * Descreve um marcador de cardinalidade como array em vez de string.
-     *
-     * Passar só o nome do marcador deixaria o AlpineFlow aplicar o recuo padrão
-     * de 12,5px na ponta da linha, abrindo um vão entre o símbolo e a caixa da
-     * entidade. Com o offset explícito em zero, o pé de galinha encosta.
-     */
-    private function marker(string $tipo): array
-    {
-        return [
-            'type' => $tipo,
-            'offset' => self::MARKER_OFFSET,
-            'color' => self::COR_RELACAO,
-        ];
-    }
-
-    /** 'posts.user_id' → 'user_id' (o que aparece na ponta da linha). */
-    private function nomeCurto(string $attrId): string
-    {
-        $pos = strrpos($attrId, '.');
-
-        return $pos === false ? $attrId : substr($attrId, $pos + 1);
     }
 
     // ---------------------------------------------------------------------
@@ -1947,8 +1620,11 @@ class SchemaBoard extends Component
             $links,
             fn (array $entity): float => $this->entityDimensions($entity)['height'],
             self::ENTITY_WIDTH,
-            300,
-            160,
+            // O ER privilegia a leitura do domínio. Os balões de atributos
+            // podem receber pequenos ajustes manuais depois, mas as entidades
+            // e relações precisam nascer com corredores amplos.
+            360,
+            220,
         );
         $positions = $this->reserveRelationshipNodeHeadroom($positions);
         $positions = BoardLayout::clearLinkCorridors(
@@ -1957,8 +1633,8 @@ class SchemaBoard extends Component
             $positions,
             fn (array $entity): float => $this->entityDimensions($entity)['height'],
             self::ENTITY_WIDTH,
-            160,
-            24,
+            220,
+            36,
         );
 
         foreach ($this->entities as &$entity) {
@@ -2042,6 +1718,7 @@ class SchemaBoard extends Component
 
         $model->name = $this->diagramName;
         $model->data = [
+            'dialect' => $this->dialect,
             'entities' => $this->entities,
             'relations' => $this->relations,
         ];
@@ -2065,6 +1742,7 @@ class SchemaBoard extends Component
     {
         return json_encode([
             '_comment' => 'Projeto: '.$this->diagramName.' | Modelo: ER',
+            'dialect' => $this->dialect,
             'entities' => $this->entities,
             'relations' => $this->relations,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

@@ -218,7 +218,7 @@ class RelationalBoardTest extends TestCase
 
         $tables = collect($component->get('tables'))->keyBy('id');
 
-        $this->assertSame(48, abs($tables['clients']['x'] - $tables['staff']['x']) - 380);
+        $this->assertSame(130, abs($tables['clients']['x'] - $tables['staff']['x']) - 380);
         $this->assertSame($tables->values()->all(), $diagram->fresh()->data['tables']);
     }
 
@@ -249,13 +249,13 @@ class RelationalBoardTest extends TestCase
 
         $this->assertSame($organized['left']['y'], $organized['right']['y']);
         $this->assertGreaterThanOrEqual(
-            $organized['left']['y'] + 74 + 48,
+            $organized['left']['y'] + 74 + 40,
             $organized['middle']['y'],
         );
         $this->assertSame($organized->values()->all(), $diagram->fresh()->data['tables']);
     }
 
-    public function test_organizing_a_chain_wraps_tables_into_compact_rows_for_export(): void
+    public function test_organizing_a_chain_keeps_the_full_readable_spacing_for_export(): void
     {
         $diagram = $this->relationalDiagram();
         $tables = array_map(fn (int $index): array => [
@@ -280,11 +280,9 @@ class RelationalBoardTest extends TestCase
             ->call('organizeBoard');
         $organized = collect($component->get('tables'));
         $xs = $organized->pluck('x')->unique();
-        $ys = $organized->pluck('y')->unique();
 
-        $this->assertLessThanOrEqual(3, $xs->count());
-        $this->assertGreaterThanOrEqual(3, $ys->count());
-        $this->assertLessThan(1340, $xs->max() - $xs->min() + 380);
+        $this->assertSame(8, $xs->count());
+        $this->assertGreaterThanOrEqual(3950, $xs->max() - $xs->min() + 380);
         $this->assertSame($organized->all(), $diagram->fresh()->data['tables']);
 
         foreach ($organized as $left) {
@@ -294,17 +292,52 @@ class RelationalBoardTest extends TestCase
                 }
 
                 $this->assertTrue(
-                    $left['x'] + 380 + 48 <= $right['x']
-                    || $right['x'] + 380 + 48 <= $left['x']
-                    || $left['y'] + 74 + 48 <= $right['y']
-                    || $right['y'] + 74 + 48 <= $left['y'],
+                    $left['x'] + 380 + 130 <= $right['x']
+                    || $right['x'] + 380 + 130 <= $left['x']
+                    || $left['y'] + 74 + 40 <= $right['y']
+                    || $right['y'] + 74 + 40 <= $left['y'],
                     "As tabelas {$left['id']} e {$right['id']} ficaram próximas demais.",
                 );
             }
         }
     }
 
-    public function test_organizing_a_connected_model_with_different_table_heights_stays_compact(): void
+    public function test_organizing_the_marketplace_example_keeps_every_table_within_a_bounded_canvas(): void
+    {
+        $marketplace = json_decode(
+            file_get_contents(base_path('public/examples/marketplace-er.json')),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $source = Diagram::create([
+            'name' => $marketplace['title'],
+            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'data' => $marketplace,
+        ]);
+        $diagram = Diagram::create([
+            'name' => 'Marketplace — Relacional',
+            'type' => Diagram::TYPE_RELATIONAL,
+            'source_diagram_id' => $source->id,
+            'data' => [],
+        ]);
+
+        $tables = collect(Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('organizeBoard')
+            ->get('tables'));
+
+        $top = $tables->min('y');
+        $bottom = $tables->max(fn (array $table): int => $table['y'] + 74 + 44 * count($table['columns']));
+
+        $this->assertCount(10, $tables);
+        $this->assertLessThan(1_200, $bottom - $top);
+        $byId = $tables->keyBy('id');
+        $this->assertSame(
+            $byId['customers']['y'] + 74 + 22 * count($byId['customers']['columns']),
+            $byId['customers_phone']['y'] + 74 + 22 * count($byId['customers_phone']['columns']),
+        );
+    }
+
+    public function test_organizing_a_connected_model_with_different_table_heights_stays_readable(): void
     {
         $diagram = $this->relationalDiagram();
         $columnCounts = [2, 3, 1, 1, 2];
@@ -435,20 +468,22 @@ class RelationalBoardTest extends TestCase
 
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram->fresh()])
             ->assertSet('dialect', 'oracle');
+
+        $this->assertSame('oracle', $diagram->sourceDiagram->fresh()->data['dialect']);
     }
 
     public function test_invalid_database_dialect_and_unavailable_column_type_are_rejected(): void
     {
         $diagram = $this->relationalDiagram();
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
-            ->call('setDialect', 'sqlite')
+            ->call('setDialect', 'desconhecido')
             ->assertSet('dialect', 'mysql')
             ->call('updateColumnType', 'staff', 'staff.id', 'money');
 
         $staff = collect($component->get('tables'))->firstWhere('id', 'staff');
 
         $this->assertSame('bigint', collect($staff['columns'])->firstWhere('id', 'staff.id')['type']);
-        $this->assertArrayNotHasKey('dialect', $diagram->fresh()->data);
+        $this->assertSame('mysql', $diagram->fresh()->data['dialect']);
     }
 
     public function test_header_links_both_independent_models_and_explains_regeneration(): void
@@ -491,12 +526,16 @@ class RelationalBoardTest extends TestCase
             ->assertSee('Baixar .sql');
 
         $sql = $component->get('sqlPreview');
-        $this->assertStringStartsWith("-- Projeto: CRM\n", $sql);
+        $this->assertStringStartsWith("-- Código SQL para: PostgreSQL\n-- Projeto: CRM\n", $sql);
         $this->assertStringContainsString('CREATE TABLE "Staff"', $sql);
         $this->assertStringContainsString('"staffNo" BIGINT NOT NULL', $sql);
         $this->assertStringContainsString('REFERENCES "Staff" ("staffNo")', $sql);
         $this->assertSame('pgsql', $diagram->fresh()->data['dialect']);
-        $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
+        $this->assertSame('pgsql', $diagram->sourceDiagram->fresh()->data['dialect']);
+        unset($sourceBefore['dialect']);
+        $sourceAfter = $diagram->sourceDiagram->fresh()->data;
+        unset($sourceAfter['dialect']);
+        $this->assertSame($sourceBefore, $sourceAfter);
 
         $component->call('downloadSql')->assertFileDownloaded('modelo-relacional-pgsql.sql');
     }
@@ -504,8 +543,9 @@ class RelationalBoardTest extends TestCase
     public function test_json_modal_copies_and_downloads_the_relational_model(): void
     {
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()]);
-        $this->assertSame('Projeto: CRM | Modelo: CRM — Relacional',
-            json_decode($component->instance()->getJsonPreviewProperty(), true)['_comment']);
+        $json = json_decode($component->instance()->getJsonPreviewProperty(), true);
+        $this->assertSame('Projeto: CRM | Modelo: CRM — Relacional', $json['_comment']);
+        $this->assertSame('mysql', $json['dialect']);
 
         $component
             ->call('toggleJson')
@@ -518,6 +558,38 @@ class RelationalBoardTest extends TestCase
             ->assertSee('wire:click="downloadJson"', escape: false)
             ->call('downloadJson')
             ->assertFileDownloaded('modelo-relacional.json');
+    }
+
+    public function test_custom_type_is_saved_and_immediately_sent_back_to_the_canvas(): void
+    {
+        $diagram = $this->relationalDiagram();
+
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('updateColumnType', 'staff', 'staff.id', 'custom')
+            ->call('updateColumnCustomType', 'staff', 'staff.id', 'GEOMETRY(Point, 4326)')
+            ->assertDispatched('flow:updateNode');
+
+        $column = collect($component->get('tables'))->firstWhere('id', 'staff')['columns'][0];
+        $this->assertSame('custom', $column['type']);
+        $this->assertSame('GEOMETRY(Point, 4326)', $column['customType']);
+        $this->assertSame('GEOMETRY(Point, 4326)', $diagram->fresh()->data['tables'][0]['columns'][0]['customType']);
+    }
+
+    public function test_enum_values_are_saved_and_the_editor_has_room_for_them(): void
+    {
+        $diagram = $this->relationalDiagram();
+
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('updateColumnType', 'staff', 'staff.id', 'enum')
+            ->call('updateColumnEnumValues', 'staff', 'staff.id', "active, suspended\npending")
+            ->assertDispatched('flow:updateNode')
+            ->assertSee('Valores permitidos')
+            ->assertSee('rel-enum-list', escape: false)
+            ->assertSee('Adicionar');
+
+        $column = collect($component->get('tables'))->firstWhere('id', 'staff')['columns'][0];
+        $this->assertSame(['active', 'suspended', 'pending'], $column['enumValues']);
+        $this->assertSame(['active', 'suspended', 'pending'], $diagram->fresh()->data['tables'][0]['columns'][0]['enumValues']);
     }
 
     public function test_regeneration_explicitly_replaces_the_logical_copy_from_er(): void

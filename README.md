@@ -1,300 +1,67 @@
-# Projeto Livewire — Health Check (Livewire · Alpine · AlpineFlow · WireFlow)
+# Editor de diagramas ER e modelos relacionais
 
-Aplicação Laravel 12 com a stack **Livewire 4 + Alpine + AlpineFlow + WireFlow**.
+Aplicação Laravel 12 com Livewire 4, Alpine e WireFlow para desenhar um modelo entidade-relacionamento, convertê-lo em tabelas relacionais e gerar SQL para MySQL, PostgreSQL, Oracle ou SQL Server.
 
-A rota `/flow-check` exercita os quatro pilares:
+## Executar
 
-1. **Livewire (servidor):** contador que incrementa via `wire:click` (round-trip ao servidor).
-2. **Alpine (cliente):** toggle 100% no navegador, sem ir ao servidor.
-3. **AlpineFlow (diagrama JS+CSS):** um `<x-flow>` com nodes/edges arrastáveis.
-4. **WireFlow (ponte servidor → diagrama):** botão que cria um node pelo servidor.
-
----
-
-## Como rodar (Docker) 🐳
-
-Você só precisa do **Docker** instalado. Nada de PHP, Composer ou Node na sua máquina.
+O ambiente de desenvolvimento usa dois containers: `app` (PHP 8.3, Laravel e SQLite) e `vite` (assets).
 
 ```bash
 docker compose up
 ```
 
-Pronto. Abra **http://localhost:8000/schema** no navegador.
+Abra [http://localhost:8000](http://localhost:8000). O primeiro início instala as dependências e executa as migrações. Os arquivos do projeto são montados nos containers; alterações em PHP, Blade, CSS e JavaScript aparecem sem reconstruir a imagem.
 
-Na **primeira vez** demora alguns minutos: baixa as imagens (~400 MB no total, PHP e
-Node em versão Alpine) e instala o `vendor/` e o `node_modules/`.
-Depois disso sobe em **2 segundos**.
-
-Para parar: `Ctrl+C` no terminal.
-
-### Instalando o Docker
-
-| Sistema | Como instalar |
-|---|---|
-| **Windows** | [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/), aceitando o WSL2. **Clone o projeto dentro do WSL** (`~/projetos`), não em `C:\` — no disco do Windows o Docker fica lentíssimo |
-| **Windows (mais leve)** | O [instalador do DDEV](https://ddev.com/download/) configura o WSL2 e instala o Docker CE dentro dele, dispensando o Docker Desktop — veja a nota abaixo |
-| **macOS** | [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) |
-| **Ubuntu / Mint / Debian** | `curl -fsSL https://get.docker.com \| sh` |
-| **Arch / Manjaro / EndeavourOS** | `sudo pacman -S docker docker-compose` |
-| **Fedora** | `sudo dnf install docker docker-compose-plugin` |
-
-No **Linux**, depois de instalar, faltam dois passos que quase todo mundo esquece:
-
-```bash
-sudo systemctl enable --now docker    # liga o serviço (e no boot)
-sudo usermod -aG docker $USER         # usar docker sem sudo
-```
-
-E então **reinicie a sessão** (logout/login), senão dá `permission denied`.
-
-Conferindo se ficou tudo certo:
-
-```bash
-docker compose version
-```
-
-> **Windows sem Docker Desktop, usando o instalador do DDEV:** baixe o **Windows
-> Installer** (`amd64`, ou `arm64` se for Snapdragon) — **não** o script `.ps1`
-> marcado como *Legacy*, que está obsoleto. Na instalação, escolha o modo
-> **Docker CE dentro do WSL2**. Terminada a instalação, **abra o terminal do Ubuntu
-> (WSL)** — não o PowerShell — e trabalhe por lá: clone o projeto em `~/projetos` e
-> rode `docker compose up`. Fora do WSL o comando `docker` não vai existir.
->
-> Aqui o DDEV serve **apenas como instalador do Docker**. Não rode `ddev config` nem
-> `ddev start` neste projeto: o DDEV ignora o nosso `docker-compose.yml` e subiria um
-> ambiente paralelo (nginx + php-fpm + MariaDB), mais pesado e sem o Vite configurado.
-
-> **No Arch, não use o script `get.docker.com`** — ele só conhece distros de família
-> Debian/RedHat e falha com "unsupported distribution". Use o `pacman` da tabela acima.
->
-> **E não troque o `apt-get` do `docker/Dockerfile` por `pacman`.** Aquele `apt-get`
-> roda *dentro* do container, que é Debian por dentro, não importa qual Linux você usa
-> no seu computador. É justamente essa a graça do Docker: o ambiente é o mesmo para
-> quem está no Arch, no Ubuntu, no Windows ou no Mac.
-
-### O que sobe
-
-| Container | O que faz | Endereço |
-|---|---|---|
-| `app` | PHP 8.3 rodando `php artisan serve` (o servidor embutido do Laravel) | http://localhost:8000 |
-| `vite` | Compila CSS/JS e atualiza o navegador sozinho quando você salva um arquivo | http://localhost:5173 |
-
-Você **não abre** o 5173 no navegador — quem usa ele é a página do 8000.
-
-O banco é um **arquivo SQLite** (`database/database.sqlite`). Não existe container de banco.
-
-### Páginas
-
-| Rota | O que é |
-|---|---|
-| `/` | Redireciona para `/schema` |
-| `/schema` | Modelador de ER (o que está sendo construído) |
-| `/board` | Board do AlpineFlow |
-| `/flow-check` | Página de diagnóstico da stack |
-| `/health` | Responde `{"status":"ok"}` — serve pra testar se o servidor está de pé |
-
-### Gerar SQL do modelo relacional
-
-No board relacional, escolha MySQL, PostgreSQL, Oracle ou SQL Server em **Banco** e clique em **SQL**. A janela mostra o DDL gerado do estado atual do modelo, com opção de copiar ou baixar um arquivo `.sql`. Os nomes das tabelas e colunas vêm do modelo ER e não podem ser alterados no board relacional. Tipos, tamanhos, nulabilidade, PKs, unicidade e FKs são lidos do modelo relacional; a geração não modifica o modelo ER. Todas as tabelas são criadas antes das FKs, permitindo autorrelacionamentos e ciclos.
-
-O gerador avisa quando o modelo não pode produzir uma FK válida, como uma referência a coluna ausente ou sem PK/UQ. O arquivo é um esquema de criação de tabelas, não uma migração incremental de um banco já existente.
-
-### Se o Docker roda em OUTRO computador
-
-Se você abre o navegador na sua máquina mas o `docker compose` roda num servidor/VM,
-a página carrega **sem estilo nenhum**. Motivo: o CSS e o JS são baixados do Vite, e o
-endereço gravado na página é `localhost` — que, no seu navegador, é a *sua* máquina.
-
-Conserto: diga ao projeto o endereço do servidor, no `.env`:
+Se o Docker estiver em outra máquina, defina `DEV_HOST` no `.env` com o host acessível pelo navegador, sem protocolo ou porta, e recrie o serviço Vite:
 
 ```dotenv
-DEV_HOST=192.168.0.10      # IP ou nome do servidor, sem http:// e sem porta
+DEV_HOST=192.168.0.10
 ```
 
 ```bash
-docker compose up -d       # recria o container do Vite com o endereço novo
+docker compose up -d --force-recreate vite
 ```
 
-Aí acesse `http://192.168.0.10:8000`. Use **o mesmo endereço** no `DEV_HOST` e na barra
-do navegador — se você entra por um IP de VPN, o `DEV_HOST` tem que ser o da VPN.
+As portas 8000 e 5173 precisam estar acessíveis ao navegador. Consulte `docker compose logs app` e `docker compose logs vite` em caso de erro.
 
-A porta **5173 também precisa estar acessível** pela rede (é dela que vêm o CSS e o JS).
+## Páginas
 
-**Sintoma clássico de `DEV_HOST` errado:** a página até carrega com estilo, mas o board
-não funciona — nada arrasta, nenhum botão responde. É que o `app.js` é um *ES module*, e
-módulos sempre passam por CORS: se a origem não bate, o navegador **bloqueia o JS**
-(Livewire, Alpine e AlpineFlow nem iniciam), enquanto o CSS passa numa boa, porque
-`<link rel=stylesheet>` não faz essa checagem. No console do navegador (F12) aparece
-`blocked by CORS policy`. Confira o `DEV_HOST` e recarregue com `Ctrl+Shift+R`.
+| Rota | Função |
+| --- | --- |
+| `/` | Painel de projetos: criar, importar e abrir diagramas. |
+| `/schema` | Editor ER de demonstração. |
+| `/boards/er/{diagram}` | Editor ER de um projeto salvo. |
+| `/boards/relational/{diagram}` | Modelo relacional gerado a partir do ER, com edição de tipos e exportação SQL. |
+| `/health` e `/up` | Verificações HTTP da aplicação. |
 
-> O `vite.config.js` libera o CORS para **qualquer host na porta 8000**, então o nome que
-> você usa no navegador não precisa bater com o `DEV_HOST` para o JS ser aceito. Mesmo
-> assim, mantenha os dois iguais: o `DEV_HOST` é o endereço de onde o navegador vai
-> *baixar* os assets, e ele precisa ser alcançável a partir da sua máquina.
+## Onde está cada regra
 
-### Comandos do dia a dia
+| Etapa | Arquivos principais |
+| --- | --- |
+| Editar ER | `app/Livewire/SchemaBoard.php`, `resources/views/livewire/schema-board.blade.php`, `resources/js/erd/erd-canvas.js` e `resources/js/erd/edge-editor.js`. |
+| Posicionar elementos | `app/Support/BoardLayout.php` e `app/Support/ErRelationshipAttributeLayout.php`. |
+| Converter ER para relacional | `app/Services/ErToRelationalTransformer.php` e `app/Services/ForeignKeyBuilder.php`. |
+| Editar e desenhar o modelo relacional | `app/Livewire/RelationalBoard.php`, `app/Services/RelationalColumnEditor.php` e `app/Support/RelationalEdgeProjector.php`. |
+| Detectar mudanças no ER e gerar SQL | `app/Services/RelationalDrift.php` e `app/Services/RelationalSqlGenerator.php`. |
+| Importar JSON | `app/Support/ErDiagramImport.php`. |
 
-Rode os comandos **dentro do container**, com `docker compose exec app`:
+O estado do diagrama fica no servidor. As ações Livewire atualizam entidades, relações, tabelas e posições; o WireFlow recebe comandos para atualizar o canvas. O editor ER não usa sincronização bidirecional automática do canvas. A transformação é determinística e grava `sourceFingerprint`; a cópia relacional só é regenerada quando o usuário decide. As regras de cardinalidade e seus limites estão em [docs/conversao-er-relacional.md](docs/conversao-er-relacional.md).
+
+## Verificar mudanças
 
 ```bash
-docker compose exec app php artisan migrate      # rodar migrations
-docker compose exec app php artisan make:model Post
-docker compose exec app php artisan test
-docker compose exec app composer require pacote/novo
-docker compose exec vite npm install alguma-lib
+docker compose exec -T app php artisan test --compact
+docker compose exec -T vite npm test
+docker compose exec -T vite npm run build
 ```
 
-Editar código no seu editor funciona normalmente — a pasta do projeto está montada dentro dos containers, então **não precisa reiniciar nada** ao mexer em PHP, Blade, CSS ou JS.
+O diagnóstico e as prioridades de organização do código estão em [docs/plano-qualidade-codigo.md](docs/plano-qualidade-codigo.md). O Sloppy pode ser executado como PHAR temporário no container PHP, sem alterar `composer.json` ou instalar hooks.
 
-### Quando algo der errado
+## Dependências e ambiente
 
 ```bash
-docker compose logs app          # ver o que o backend reclamou
-docker compose logs vite         # ver o que o Vite reclamou
-docker compose down && docker compose up    # desligar e ligar de novo
+docker compose exec app composer install
+docker compose exec vite npm install
 ```
 
-Se quiser **começar do zero** (reinstalar tudo):
-
-```bash
-docker compose down
-rm -rf vendor node_modules public/hot
-docker compose up
-```
-
-Se o seu usuário do Linux **não for o UID 1000** (confira com `id -u`), troque o `user: "1000:1000"` no `docker-compose.yml` pelo seu número — senão os arquivos criados pelo container ficam com dono errado.
-
-No **Windows/macOS**, se o hot reload não perceber as edições, descomente a linha `VITE_POLLING: "1"` no `docker-compose.yml`.
-
-### Arquivos do ambiente
-
-```
-docker-compose.yml      # descreve os 2 containers
-docker/Dockerfile       # imagem do PHP 8.3 + Composer
-docker/start-app.sh     # o que o container app faz ao subir
-docker/start-vite.sh    # o que o container vite faz ao subir
-```
-
----
-
-## Stack
-
-| Camada | Versão |
-|---|---|
-| PHP | 8.3+ |
-| Laravel | 12 |
-| Livewire | 4.3 |
-| WireFlow (empacota o AlpineFlow) | `getartisanflow/wireflow` ^0.1.2-alpha |
-| Vite / Tailwind | Vite 7 / Tailwind 4 |
-
-> **WireFlow já traz o AlpineFlow embutido** no pacote Composer (`vendor/getartisanflow/wireflow/dist/`). **Não** instale o AlpineFlow nem o Alpine via npm separadamente — o Alpine vem junto do bundle do Livewire. Importá-los de novo causaria conflito de duas instâncias do Alpine.
-
----
-
-## Instalação do zero
-
-```bash
-composer require getartisanflow/wireflow   # service provider auto-descoberto
-php artisan wireflow:install               # publica config + assets e injeta imports no app.js/app.css
-npm install
-npm run build
-```
-
-O `wireflow:install` deixa:
-
-- `resources/js/app.js` — importa `AlpineFlow` do caminho `vendor/.../wireflow/dist/...` e registra `Alpine.plugin(AlpineFlow)`.
-- `resources/css/app.css` — `@import` do `alpineflow.css` + tema.
-- `config/wireflow.php`, `config/livewire.php` e `public/vendor/alpineflow`.
-
----
-
-## 📜 Histórico — ajustes de Cloud Workstations / Firebase Studio
-
-> O projeto **não usa mais** o Firebase Studio; agora roda em Docker (seção no topo).
-> Estes ajustes continuam no código porque são inofensivos em `localhost` (o
-> `AppServiceProvider` só força HTTPS quando detecta o proxy). Ficam registrados
-> aqui caso alguém volte a abrir o projeto atrás de um proxy HTTPS.
-
-O app rodava **atrás de um proxy HTTPS** que expunha cada porta num host `PORTA-…cloudworkstations.dev`. Sem os ajustes abaixo o setup parecia quebrado mesmo estando correto — o `wire:click` simplesmente não funcionava.
-
-### 1. Confiar no proxy — `bootstrap/app.php`
-
-Sem `trustProxies`, o Laravel enxerga o host interno `127.0.0.1:PORT` e gera o endpoint `/livewire/update` num host que o navegador não alcança (`ERR_CONNECTION_REFUSED`).
-
-```php
-$middleware->trustProxies(at: '*', headers:
-    Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_HOST
-    | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_X_FORWARDED_PROTO);
-```
-
-### 2. Forçar HTTPS + assets via Vite — `app/Providers/AppServiceProvider.php`
-
-```php
-// Livewire JS vem do bundle do Vite (app.js); não deixe o Livewire injetar o dele.
-config(['livewire.inject_assets' => false]);
-
-// Sem https, o navegador bloqueia assets como "mixed content".
-URL::forceScheme('https'); // quando o host for *.cloudworkstations.dev
-```
-
-### 3. **NÃO** fixar `ASSET_URL` numa porta — `.env`
-
-Este foi o ponto que fazia **todo o `wire:click` morrer**. O `app.js` é um **ES module**, e módulos sempre carregam via **CORS**. Se `ASSET_URL` aponta para outra porta/host que não a da página, o navegador **bloqueia o `app.js`** (o proxy nginx não envia `Access-Control-Allow-Origin`) → nem Livewire nem Alpine iniciam.
-
-```dotenv
-# Deixe SEM valor — assets carregam na MESMA origem da página (qualquer host do proxy).
-# ASSET_URL=
-```
-
-> O `.env` é gitignored, então **este ajuste não está versionado**: ao clonar num novo workspace, confira que `ASSET_URL` está vazio.
-
----
-
-## Rodar sem Docker (opcional)
-
-Se você já tem PHP 8.3, Composer e Node 22 na máquina:
-
-```bash
-composer install && npm install
-cp .env.example .env && php artisan key:generate
-touch database/database.sqlite && php artisan migrate
-composer run dev   # php artisan serve + queue + pail + vite, tudo junto
-```
-
-Mas o caminho recomendado para o time é o `docker compose up`.
-
----
-
-## Criando nodes pelo servidor (WireFlow)
-
-Para que um node criado pelo servidor seja **arrastável**, use os métodos do trait `WithWireFlow` — **não** empurre direto em `$this->nodes[]`. Push direto só sincroniza o *dado* via entangle: o AlpineFlow desenha o node, mas não o registra no store de interação, então ele "nasce sem deixar mexer".
-
-```php
-use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
-
-public function addNode(): void
-{
-    $id = (string) (++$this->seq);
-
-    $this->flowAddNodes([[                       // dispara flow:addNodes → pipeline do AlpineFlow
-        'id' => $id,
-        'position' => ['x' => 160, 'y' => 200],
-        'data' => ['label' => "Node servidor #{$id}"],
-    ]]);
-
-    $this->flowConnect('2', $id, edgeId: "e2-{$id}"); // dispara flow:connect
-}
-```
-
-No Blade, o canvas usa `:sync="true"` (entangle bidirecional) + `wire:ignore` (evita o morph do Livewire destruir o DOM gerenciado pelo AlpineFlow).
-
----
-
-## Testes
-
-```bash
-php artisan test
-```
-
-- `HealthTest` — `/health` responde `200` com `status: ok`.
-- `FlowHealthCheckTest` — a página carrega, o contador Livewire incrementa, e `addNode` despacha os eventos `flow:addNodes` / `flow:connect`.
+O WireFlow já fornece o AlpineFlow em `vendor/getartisanflow/wireflow/dist/`; Alpine vem do Livewire. O SQLite fica em `database/database.sqlite`. Quem optar por rodar sem Docker precisa de PHP 8.3+, Composer e Node 22; use `composer install`, `npm install`, `php artisan migrate` e `composer run dev`.

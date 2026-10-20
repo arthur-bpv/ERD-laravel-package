@@ -21,6 +21,18 @@ final class BoardLayout
         float $columnGap = 180,
         float $rowGap = 100,
     ): array {
+        [$nodesById, $order, $heights, $adjacency, $degree] = self::prepareGraph($nodes, $links, $heightFor);
+        if ($nodesById === []) {
+            return [];
+        }
+
+        [$hubId, $groups, $maxDistance] = self::groupBranches($nodesById, $order, $heights, $adjacency, $degree, $rowGap);
+
+        return self::placeGroups($hubId, $groups, $maxDistance, $heights, $nodeWidth, $columnGap, $rowGap);
+    }
+
+    private static function prepareGraph(array $nodes, array $links, callable $heightFor): array
+    {
         $nodesById = [];
         $order = [];
         $heights = [];
@@ -34,10 +46,6 @@ final class BoardLayout
             $nodesById[$id] = $node;
             $order[$id] = $index;
             $heights[$id] = max(1, (float) $heightFor($node));
-        }
-
-        if ($nodesById === []) {
-            return [];
         }
 
         $adjacency = array_fill_keys(array_keys($nodesById), []);
@@ -60,6 +68,11 @@ final class BoardLayout
             }
         }
 
+        return [$nodesById, $order, $heights, $adjacency, $degree];
+    }
+
+    private static function groupBranches(array $nodesById, array $order, array $heights, array $adjacency, array $degree, float $rowGap): array
+    {
         $hubId = array_key_first($nodesById);
         foreach (array_keys($nodesById) as $id) {
             if ($degree[$id] > $degree[$hubId]) {
@@ -105,6 +118,13 @@ final class BoardLayout
             self::spreadBranches([$rootId], $hubId, $adjacency, $branchOf, $distance);
         }
 
+        [$groups, $maxDistance] = self::balanceBranches($branchOf, $distance, $order, $heights, $rowGap);
+
+        return [$hubId, $groups, $maxDistance];
+    }
+
+    private static function balanceBranches(array $branchOf, array $distance, array $order, array $heights, float $rowGap): array
+    {
         $branchNodes = [];
         foreach ($branchOf as $nodeId => $branchId) {
             $branchNodes[$branchId][] = $nodeId;
@@ -154,6 +174,11 @@ final class BoardLayout
         }
         unset($sideGroups);
 
+        return [$groups, $maxDistance];
+    }
+
+    private static function placeGroups(string $hubId, array $groups, array $maxDistance, array $heights, float $nodeWidth, float $columnGap, float $rowGap): array
+    {
         $groupHeights = [];
         $maximumHeight = $heights[$hubId];
         foreach ($groups as $side => $sideGroups) {
@@ -179,14 +204,129 @@ final class BoardLayout
                 $y = 80 + (($maximumHeight - $groupHeights[$side][$depth]) / 2);
                 $direction = $side === 'left' ? -1 : 1;
 
-                foreach ($nodeIds as $nodeId) {
+                foreach ($nodeIds as $index => $nodeId) {
+                    // Ramificações na mesma profundidade não precisam formar
+                    // uma coluna perfeitamente reta. Um desnível discreto
+                    // abre espaço entre os trechos verticais dos conectores.
+                    $staggerX = $index % 2 === 0 ? 0 : min(80, $columnGap / 2);
                     $positions[$nodeId] = [
-                        'x' => (int) round($centerX + ($direction * $depth * $stepX)),
+                        'x' => (int) round($centerX + ($direction * $depth * $stepX) + $staggerX),
                         'y' => (int) round($y),
                     ];
                     $y += $heights[$nodeId] + $rowGap;
                 }
             }
+        }
+
+        return $positions;
+    }
+
+    /**
+     * Verdadeiro quando há uma ligação extra num componente conectado.
+     * Árvores não precisam da etapa cara de abrir corredores: as arestas já
+     * podem ser roteadas sem atravessar outro ramo.
+     *
+     * @param  array<int, array{id:string}>  $nodes
+     * @param  array<int, array{source:string,target:string}>  $links
+     */
+    public static function hasUndirectedCycle(array $nodes, array $links): bool
+    {
+        $adjacency = [];
+        foreach ($nodes as $node) {
+            $id = (string) ($node['id'] ?? '');
+            if ($id !== '') {
+                $adjacency[$id] = [];
+            }
+        }
+
+        $edgeCount = 0;
+        foreach ($links as $link) {
+            $source = (string) ($link['source'] ?? '');
+            $target = (string) ($link['target'] ?? '');
+            if ($source === $target || ! isset($adjacency[$source], $adjacency[$target])
+                || isset($adjacency[$source][$target])) {
+                continue;
+            }
+
+            $adjacency[$source][$target] = true;
+            $adjacency[$target][$source] = true;
+            $edgeCount++;
+        }
+
+        $components = 0;
+        $visited = [];
+        foreach (array_keys($adjacency) as $root) {
+            if (isset($visited[$root])) {
+                continue;
+            }
+
+            $components++;
+            $queue = [$root];
+            $visited[$root] = true;
+            for ($cursor = 0; $cursor < count($queue); $cursor++) {
+                foreach (array_keys($adjacency[$queue[$cursor]]) as $neighbor) {
+                    if (! isset($visited[$neighbor])) {
+                        $visited[$neighbor] = true;
+                        $queue[] = $neighbor;
+                    }
+                }
+            }
+        }
+
+        return $edgeCount > count($adjacency) - $components;
+    }
+
+    /**
+     * Alinha um ramo terminal à tabela de origem, preservando a leitura
+     * horizontal de tabelas auxiliares, como atributos multivalorados.
+     *
+     * @param  array<int, array{id:string}>  $nodes
+     * @param  array<int, array{source:string,target:string}>  $links
+     * @param  array<string, array{x:int,y:int}>  $positions
+     * @param  callable(array): float|int  $heightFor
+     * @param  callable(array): bool  $shouldAlign
+     * @return array<string, array{x:int,y:int}>
+     */
+    public static function alignTerminalNodes(
+        array $nodes,
+        array $links,
+        array $positions,
+        callable $heightFor,
+        float $nodeWidth,
+        float $columnGap,
+        callable $shouldAlign,
+    ): array {
+        $nodesById = [];
+        $neighbors = [];
+        foreach ($nodes as $node) {
+            $id = (string) ($node['id'] ?? '');
+            if ($id !== '' && isset($positions[$id])) {
+                $nodesById[$id] = $node;
+                $neighbors[$id] = [];
+            }
+        }
+        foreach ($links as $link) {
+            $source = (string) ($link['source'] ?? '');
+            $target = (string) ($link['target'] ?? '');
+            if ($source !== $target && isset($neighbors[$source], $neighbors[$target])) {
+                $neighbors[$source][$target] = true;
+                $neighbors[$target][$source] = true;
+            }
+        }
+
+        foreach ($nodesById as $id => $node) {
+            if (! $shouldAlign($node) || count($neighbors[$id]) !== 1) {
+                continue;
+            }
+
+            $originId = array_key_first($neighbors[$id]);
+            $origin = $positions[$originId];
+            $originHeight = max(1, (float) $heightFor($nodesById[$originId]));
+            $height = max(1, (float) $heightFor($node));
+            $direction = $positions[$id]['x'] < $origin['x'] ? -1 : 1;
+
+            $positions[$id]['x'] = (int) round($origin['x'] + $direction * ($nodeWidth + $columnGap));
+            $positions[$id]['y'] = (int) round($origin['y'] + (($originHeight - $height) / 2));
         }
 
         return $positions;
@@ -280,6 +420,14 @@ final class BoardLayout
             }
         }
 
+        // Um nó removido de um corredor pode acabar sobre outro segmento. Sem
+        // este limite ele é deslocado de novo em cada passagem e, em grafos
+        // com muitos caminhos (como o exemplo Marketplace), a altura cresce
+        // sem controle até tirar tabelas inteiras da tela. Uma única remoção
+        // por nó preserva o corredor mais relevante sem transformar o canvas
+        // num layout vertical interminável.
+        $movedNodeIds = [];
+
         for ($pass = 0; $pass < max(1, count($nodesById) * 2); $pass++) {
             $changed = false;
 
@@ -302,7 +450,7 @@ final class BoardLayout
                 ];
 
                 foreach ($nodesById as $nodeId => $node) {
-                    if ($nodeId === $sourceId || $nodeId === $targetId) {
+                    if ($nodeId === $sourceId || $nodeId === $targetId || isset($movedNodeIds[$nodeId])) {
                         continue;
                     }
 
@@ -325,6 +473,7 @@ final class BoardLayout
                         $belowEndpoints,
                         $positions[$nodeId]['y'] + $rowGap,
                     ));
+                    $movedNodeIds[$nodeId] = true;
                     $changed = true;
                 }
             }

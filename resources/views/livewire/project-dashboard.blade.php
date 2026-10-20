@@ -49,6 +49,7 @@
             x-show="$wire.showImport"
             x-cloak
             x-transition.opacity
+            x-data="{ readingImportFile: false }"
             class="er-import-overlay"
             role="dialog"
             aria-modal="true"
@@ -84,15 +85,20 @@
                             const file = $event.target.files?.[0];
                             if (!file) return;
                             if (file.size > 2000000) {
-                                $wire.importError = 'O arquivo ultrapassa o limite de 2 MB.';
+                                $wire.set('importError', 'O arquivo ultrapassa o limite de 2 MB.');
                                 $event.target.value = '';
                                 return;
                             }
-                            $wire.importError = '';
-                            file.text().then(text => $wire.importJson = text);
+                            readingImportFile = true;
+                            $wire.set('importError', '');
+                            file.text()
+                                .then(text => $wire.set('importJson', text))
+                                .catch(() => $wire.set('importError', 'Não foi possível ler o arquivo JSON.'))
+                                .finally(() => readingImportFile = false);
                         "
                     >
                 </label>
+                <p x-show="readingImportFile" x-cloak class="text-xs text-indigo-700 dark:text-indigo-300" role="status">Lendo arquivo…</p>
 
                 <details class="er-import-advanced">
                     <summary>Ou colar o JSON manualmente</summary>
@@ -110,7 +116,8 @@
                     <a href="{{ asset('examples/er-conversion-cases.json') }}" download>Matriz técnica</a>
                 </div>
 
-                <button type="button" wire:click="importProject" wire:loading.attr="disabled" wire:target="importProject">
+                <button type="button" wire:click="importProject" wire:loading.attr="disabled" wire:target="importProject"
+                    :disabled="readingImportFile">
                     <span wire:loading.remove wire:target="importProject">Criar projeto importado</span>
                     <span wire:loading wire:target="importProject">Importando…</span>
                 </button>

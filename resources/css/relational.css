@@ -219,14 +219,20 @@
    dependeria de ser sobrescrito depois para ficar legível. */
 :root.dark .rel-column-type:hover { color: #cbd5e1; }
 .rel-column-definition > input,
+.rel-column-definition > textarea,
+.rel-enum-input,
 .rel-decimal-size input {
     height: 25px; min-width: 0; border: 1px solid #334155; border-radius: 6px;
     background: #0f172a; color: #e2e8f0; padding: 2px 5px; font-family: ui-monospace, monospace; font-size: 10px;
     text-align: center; outline: none; transition: border-color .15s, box-shadow .15s;
 }
 .rel-column-definition > input:hover,
+.rel-column-definition > textarea:hover,
+.rel-enum-input:hover,
 .rel-decimal-size input:hover { border-color: #64748b; }
 .rel-column-definition > input:focus-visible,
+.rel-column-definition > textarea:focus-visible,
+.rel-enum-input:focus-visible,
 .rel-decimal-size input:focus-visible { border-color: #38bdf8; box-shadow: 0 0 0 2px rgb(56 189 248 / 18%); }
 .rel-column-definition > input:invalid,
 .rel-decimal-size input:invalid { border-color: #f87171; }
@@ -247,6 +253,52 @@
     border: 1px solid rgb(148 163 184 / .25);
     border-radius: .4rem;
 }
+.rel-enum-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 3px;
+    border: 1px solid rgb(56 189 248 / 32%);
+    border-radius: 6px;
+    background: rgb(8 145 178 / 10%);
+    color: #a5f3fc;
+    padding: .25rem .35rem;
+    font-size: .6rem;
+    font-weight: 750;
+    line-height: 1;
+    white-space: nowrap;
+}
+.rel-enum-toggle:hover,
+.rel-enum-toggle:focus-visible { border-color: #38bdf8; background: rgb(8 145 178 / 18%); outline: none; }
+.rel-enum-toggle > small { color: #67e8f9; font: .55rem ui-monospace, monospace; }
+.rel-enum-editor {
+    display: grid;
+    grid-column: 2 / 4;
+    gap: 5px;
+    margin: 2px 0 4px;
+    padding: 7px 8px;
+    border: 1px solid rgb(56 189 248 / 18%);
+    border-radius: 7px;
+    background: rgb(8 145 178 / 6%);
+}
+.rel-enum-editor label { color: #a5f3fc; font-size: 9px; font-weight: 750; }
+.rel-enum-editor label small { margin-left: 4px; color: #64748b; font-size: 8px; font-weight: 500; }
+.rel-enum-entry { display: flex; gap: 5px; }
+.rel-enum-input { min-width: 0; flex: 1; font: .65rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+.rel-enum-add {
+    flex: none; border: 1px solid rgb(34 211 238 / 35%); border-radius: 6px; background: rgb(8 145 178 / 22%);
+    color: #cffafe; padding: 0 7px; font-size: 9px; font-weight: 750;
+}
+.rel-enum-add:hover, .rel-enum-add:focus-visible { border-color: #38bdf8; background: rgb(8 145 178 / 35%); outline: none; }
+.rel-enum-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.rel-enum-value {
+    display: inline-flex; max-width: 100%; align-items: center; gap: 5px; border: 1px solid rgb(56 189 248 / 22%);
+    border-radius: 5px; background: rgb(15 23 42 / 62%); color: #e0f2fe; padding: 3px 4px 3px 6px;
+    font: .6rem ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.rel-enum-value > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rel-enum-value button { border: 0; background: transparent; color: #94a3b8; padding: 0; font-size: 9px; line-height: 1; }
+.rel-enum-value button:hover, .rel-enum-value button:focus-visible { color: #f87171; outline: none; }
 
 .rel-null { color: #a78bfa; }
 
@@ -279,16 +331,32 @@ html:not(.dark) .rel-node { border-color: #bae6fd; background: rgb(255 255 255 /
 html:not(.dark) .rel-node-head { border-color: #dbeafe; background: linear-gradient(135deg, #ecfeff, #f8fafc); }
 html:not(.dark) .rel-node-title > strong { color: #0f172a; }
 html:not(.dark) .rel-column-definition > input,
+html:not(.dark) .rel-column-definition > textarea,
+html:not(.dark) .rel-enum-input,
 html:not(.dark) .rel-decimal-size input { border-color: #cbd5e1; background: #fff; color: #0f172a; }
 html:not(.dark) .rel-column-definition > input:hover,
+html:not(.dark) .rel-column-definition > textarea:hover,
+html:not(.dark) .rel-enum-input:hover,
 html:not(.dark) .rel-decimal-size input:hover { border-color: #94a3b8; }
 html:not(.dark) .rel-column-definition > input:focus-visible,
+html:not(.dark) .rel-column-definition > textarea:focus-visible,
+html:not(.dark) .rel-enum-input:focus-visible,
 html:not(.dark) .rel-decimal-size input:focus-visible { border-color: #0891b2; box-shadow: 0 0 0 2px rgb(8 145 178 / 15%); }
 html:not(.dark) .rel-column-definition > input:invalid,
+html:not(.dark) .rel-column-definition > textarea:invalid,
 html:not(.dark) .rel-decimal-size input:invalid { border-color: #dc2626; }
 html:not(.dark) .rel-column + .rel-column { border-color: #e2e8f0; }
 html:not(.dark) .rel-column-name { color: #334155; }
 html:not(.dark) .rel-column-type:hover { color: #334155; }
+html:not(.dark) .rel-enum-toggle { border-color: #67e8f9; background: #ecfeff; color: #0e7490; }
+html:not(.dark) .rel-enum-toggle:hover,
+html:not(.dark) .rel-enum-toggle:focus-visible { border-color: #0891b2; background: #cffafe; }
+html:not(.dark) .rel-enum-toggle > small { color: #0e7490; }
+html:not(.dark) .rel-enum-editor { border-color: #bae6fd; background: #f0f9ff; }
+html:not(.dark) .rel-enum-editor label { color: #0e7490; }
+html:not(.dark) .rel-enum-add { border-color: #67e8f9; background: #cffafe; color: #0e7490; }
+html:not(.dark) .rel-enum-add:hover, html:not(.dark) .rel-enum-add:focus-visible { border-color: #0891b2; background: #a5f3fc; }
+html:not(.dark) .rel-enum-value { border-color: #bae6fd; background: #fff; color: #155e75; }
 html:not(.dark) .relational-board .flow-edge-label:not(.flow-edge-label-start):not(.flow-edge-label-end) { background: rgb(255 255 255 / 95%); color: #0e7490; }
 html:not(.dark) .rel-drift { border-color: #fcd34d; background: rgb(254 243 199 / 70%); }
 html:not(.dark) .rel-drift-icon { background: rgb(217 119 6 / 14%); color: #b45309; }

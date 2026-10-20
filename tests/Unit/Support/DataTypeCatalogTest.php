@@ -41,7 +41,7 @@ class DataTypeCatalogTest extends TestCase
     {
         $catalog = DataTypeCatalog::forJs();
 
-        $this->assertSame(['mysql', 'pgsql', 'oracle', 'sqlsrv'], array_keys($catalog));
+        $this->assertSame(['mysql', 'pgsql', 'oracle', 'sqlsrv', 'sqlite'], array_keys($catalog));
         $this->assertSame('PostgreSQL', $catalog['pgsql']['label']);
         $this->assertSame('UUID', $catalog['pgsql']['types']['uuid']);
         $this->assertSame(4000, $catalog['oracle']['limits']['varchar']);

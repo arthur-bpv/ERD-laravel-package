@@ -24,6 +24,7 @@ class RelationalSqlGeneratorTest extends TestCase
         ]);
 
         $this->assertStringContainsString('CREATE TABLE "User Accounts"', $sql);
+        $this->assertStringStartsWith("-- Código SQL para: PostgreSQL\n", $sql);
         $this->assertStringContainsString('"user_id" UUID NOT NULL', $sql);
         $this->assertStringContainsString('"email" VARCHAR(120) NOT NULL', $sql);
         $this->assertStringContainsString('"balance" NUMERIC(12, 4) NULL', $sql);
@@ -93,6 +94,32 @@ class RelationalSqlGeneratorTest extends TestCase
         $this->assertStringContainsString('`count` INT NOT NULL', $sql);
         $this->assertStringContainsString('`price` DECIMAL(10, 2) NOT NULL', $sql);
         $this->assertStringContainsString('`code` VARCHAR(40) NOT NULL', $sql);
+    }
+
+    public function test_it_uses_the_entered_custom_type_instead_of_the_custom_placeholder(): void
+    {
+        $sql = (new RelationalSqlGenerator)->generate([
+            'dialect' => 'pgsql',
+            'tables' => [['id' => 'places', 'name' => 'places', 'primaryKey' => [], 'columns' => [
+                ['name' => 'shape', 'type' => 'custom', 'customType' => 'GEOMETRY(Point, 4326)'],
+            ]]],
+        ]);
+
+        $this->assertStringContainsString('"shape" GEOMETRY(Point, 4326) NOT NULL', $sql);
+        $this->assertStringNotContainsString(' CUSTOM ', $sql);
+    }
+
+    public function test_it_exports_enum_values_for_mysql_and_as_a_check_elsewhere(): void
+    {
+        $data = ['tables' => [['id' => 'orders', 'name' => 'orders', 'primaryKey' => [], 'columns' => [
+            ['name' => 'status', 'type' => 'enum', 'enumValues' => ['pending', "customer's approval"], 'nullable' => false],
+        ]]]];
+
+        $mysql = (new RelationalSqlGenerator)->generate([...$data, 'dialect' => 'mysql']);
+        $postgres = (new RelationalSqlGenerator)->generate([...$data, 'dialect' => 'pgsql']);
+
+        $this->assertStringContainsString("`status` ENUM('pending', 'customer''s approval') NOT NULL", $mysql);
+        $this->assertStringContainsString('"status" VARCHAR(255) NOT NULL CHECK ("status" IN (\'pending\', \'customer\'\'s approval\'))', $postgres);
     }
 
     public function test_it_rejects_a_foreign_key_to_an_unindexed_column(): void

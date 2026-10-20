@@ -176,11 +176,21 @@ class DataTypeCatalog
             $column['precision'] = null;
             $column['scale'] = null;
         }
-                if ($type === 'custom') {
-            $column['customType'] = mb_substr(trim((string) ($column['customType'] ?? '')), 0, 60);
+        if ($type === 'custom') {
+            // Um tipo personalizado é texto livre: o usuário pode trabalhar
+            // com extensões e tipos ainda desconhecidos pelo catálogo.
+            $column['customType'] = trim((string) ($column['customType'] ?? ''));
         } else {
             $column['customType'] = null;
         }
+
+        $column['enumValues'] = $type === 'enum'
+            ? array_values(array_filter(array_map(
+                static fn (mixed $value): string => trim((string) $value),
+                is_array($column['enumValues'] ?? null) ? $column['enumValues'] : [],
+            ), static fn (string $value): bool => $value !== ''))
+            : [];
+
         return $column;
     }
 
@@ -204,6 +214,9 @@ class DataTypeCatalog
     }
     private static function typesFor(string $dialect): array
     {
-        return (self::DIALECTS[$dialect]['types'] ?? []) + ['custom' => 'Personalizado'];
+        return (self::DIALECTS[$dialect]['types'] ?? []) + [
+            'enum' => 'Enum',
+            'custom' => 'Personalizado',
+        ];
     }
 }

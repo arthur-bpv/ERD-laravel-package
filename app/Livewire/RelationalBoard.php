@@ -5,10 +5,12 @@ namespace App\Livewire;
 use App\Livewire\Concerns\InterageComJson;
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalColumnEditor;
 use App\Services\RelationalDrift;
 use App\Services\RelationalSqlGenerator;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
+use App\Support\RelationalEdgeProjector;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
@@ -27,8 +29,6 @@ class RelationalBoard extends Component
     #[Locked]
     public string $dialect = 'mysql';
 
-    private const RECURSIVE_SIDES = ['right', 'left'];
-
     private const TABLE_WIDTH = 380;
 
     /** Altura do cabeçalho e das linhas de coluna da tabela. */
@@ -38,9 +38,10 @@ class RelationalBoard extends Component
 
     private const TABLE_COLUMN_HEIGHT = 44;
 
-    private const LAYOUT_COLUMN_GAP = 48;
+    /** Espaço para ler nomes, tipos e FKs antes de pensar em compactar. */
+    private const LAYOUT_COLUMN_GAP = 130;
 
-    private const LAYOUT_ROW_GAP = 48;
+    private const LAYOUT_ROW_GAP = 40;
 
     #[Locked]
     public int $diagramId;
@@ -156,18 +157,7 @@ class RelationalBoard extends Component
 
     public function updateColumnType(string $tableId, string $columnId, string $type): void
     {
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
-
-        if ($columnIndex === null || ! in_array($type, DataTypeCatalog::canonicalFor($this->dialect), true)) {
-            return;
-        }
-
-        $column = $this->tables[$tableIndex]['columns'][$columnIndex];
-        $column['type'] = $type;
-        $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
-
-        $this->commitLogicalEdit();
+        $this->applyColumnEdit((new RelationalColumnEditor)->type($this->tables, $this->dialect, $tableId, $columnId, $type));
     }
 
     public function updateColumnSize(
@@ -176,70 +166,46 @@ class RelationalBoard extends Component
         int|string|null $size,
         int|string|null $scale = null,
     ): void {
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
-
-        if ($columnIndex === null || ! is_numeric($size)) {
-            return;
-        }
-
-        $column = $this->tables[$tableIndex]['columns'][$columnIndex];
-
-        // Só faz sentido dimensionar tipos parametrizáveis (length/decimal).
-        // Qualquer outro tipo é ignorado para não gravar lixo no estado.
-        match ($kind = DataTypeCatalog::kind($column['type'] ?? '')) {
-            'length' => $column['length'] = (int) $size,
-            'decimal' => [
-                $column['precision'] = (int) $size,
-                $column['scale'] = is_numeric($scale) ? (int) $scale : (int) ($column['scale'] ?? 0),
-            ],
-            default => null,
-        };
-
-        if ($kind === null) {
-            return;
-        }
-
-        $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
-        $this->commitLogicalEdit();
+        $this->applyColumnEdit((new RelationalColumnEditor)->size($this->tables, $this->dialect, $tableId, $columnId, $size, $scale));
     }
 
     public function setDialect(string $dialect): void
-{
-    if (! DataTypeCatalog::has($dialect) || $dialect === $this->dialect) {
-        return;
-    }
-
-    $this->dialect = $dialect;
-
-    foreach ($this->tables as $t => $table) {
-        foreach ($table['columns'] as $c => $column) {
-            $column['type'] = DataTypeCatalog::resolve($dialect, $column['type'] ?? 'varchar');
-            $this->tables[$t]['columns'][$c] = DataTypeCatalog::normalize($dialect, $column);
+    {
+        if (! DataTypeCatalog::has($dialect) || $dialect === $this->dialect) {
+            return;
         }
+
+        $this->dialect = $dialect;
+        $this->tables = (new RelationalColumnEditor)->dialect($this->tables, $dialect);
+        $this->persistDialectOnSource();
+        $this->commitLogicalEdit();
+
+        $this->dispatch(
+            'relational-dialect-warning',
+            message: 'Banco alterado para '.DataTypeCatalog::DIALECTS[$dialect]['label']
+                .'. Alguns tipos podem ter sido ajustados, revise as colunas.',
+        );
     }
-
-    $this->commitLogicalEdit();
-
-    $this->dispatch(
-        'relational-dialect-warning',
-        message: 'Banco alterado para '.DataTypeCatalog::DIALECTS[$dialect]['label']
-            .'. Alguns tipos podem ter sido ajustados, revise as colunas.',
-    );
-}
 
     public function toggleColumnNullable(string $tableId, string $columnId): void
     {
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
-
-        if ($columnIndex === null || str_contains($this->tables[$tableIndex]['columns'][$columnIndex]['key'], 'PK')) {
+        $tables = (new RelationalColumnEditor)->toggleNullable($this->tables, $tableId, $columnId);
+        if ($tables === null) {
             $this->dispatch('relational-edit-rejected', message: 'Uma chave primária não pode aceitar NULL.');
 
             return;
         }
 
-        $this->tables[$tableIndex]['columns'][$columnIndex]['nullable'] = ! $this->tables[$tableIndex]['columns'][$columnIndex]['nullable'];
+        $this->applyColumnEdit($tables);
+    }
+
+    private function applyColumnEdit(?array $tables): void
+    {
+        if ($tables === null) {
+            return;
+        }
+
+        $this->tables = $tables;
         $this->commitLogicalEdit();
     }
 
@@ -280,7 +246,10 @@ class RelationalBoard extends Component
             'width' => self::TABLE_WIDTH,
             'height' => self::TABLE_HEADER_HEIGHT
                 + self::TABLE_BODY_PADDING
-                + (count($table['columns'] ?? []) * self::TABLE_COLUMN_HEIGHT),
+                + array_sum(array_map(
+                    fn (array $column): int => self::TABLE_COLUMN_HEIGHT + (($column['type'] ?? '') === 'enum' ? 34 : 0),
+                    $table['columns'] ?? [],
+                )),
         ];
     }
 
@@ -314,20 +283,10 @@ class RelationalBoard extends Component
             self::LAYOUT_COLUMN_GAP,
             self::LAYOUT_ROW_GAP,
         );
-        if (count($positions) >= 4) {
-            $positions = BoardLayout::compactRows(
-                $this->tables,
-                $positions,
-                fn (array $table): int => $this->tableDimensions($table)['height'],
-                self::TABLE_WIDTH,
-                self::LAYOUT_COLUMN_GAP,
-                self::LAYOUT_ROW_GAP,
-            );
-        }
-        if (count($positions) < 4) {
-            // Em grades maiores, este passo pode deslocar repetidamente as
-            // mesmas tabelas por causa de conexões que cruzam outras linhas.
-            // A grade compacta já evita sobreposição entre tabelas.
+        // Árvores, como o marketplace, já têm um caminho único entre duas
+        // tabelas. Abrir corredores nelas só cria altura vazia; a proteção é
+        // necessária apenas quando a topologia contém ciclos.
+        if (BoardLayout::hasUndirectedCycle($this->tables, $links)) {
             $positions = BoardLayout::clearLinkCorridors(
                 $this->tables,
                 $links,
@@ -335,9 +294,18 @@ class RelationalBoard extends Component
                 fn (array $table): int => $this->tableDimensions($table)['height'],
                 self::TABLE_WIDTH,
                 self::LAYOUT_ROW_GAP,
-                24,
+                36,
             );
         }
+        $positions = BoardLayout::alignTerminalNodes(
+            $this->tables,
+            $links,
+            $positions,
+            fn (array $table): int => $this->tableDimensions($table)['height'],
+            self::TABLE_WIDTH,
+            self::LAYOUT_COLUMN_GAP,
+            fn (array $table): bool => ($table['kind'] ?? '') === 'multivalued',
+        );
 
         foreach ($this->tables as &$table) {
             if (isset($positions[$table['id']])) {
@@ -356,6 +324,7 @@ class RelationalBoard extends Component
     {
         return json_encode([
             '_comment' => 'Projeto: '.$this->sourceDiagramName.' | Modelo: '.$this->diagramName,
+            'dialect' => $this->dialect,
             'tables' => $this->tables,
             'foreignKeys' => $this->foreignKeys,
             'warnings' => $this->warnings,
@@ -385,84 +354,7 @@ class RelationalBoard extends Component
 
     public function buildEdges(): array
     {
-        $recursiveSlots = [];
-        $tablePositions = collect($this->tables)->mapWithKeys(fn (array $table) => [
-            $table['id'] => ['x' => $table['x'], 'y' => $table['y']],
-        ])->all();
-
-        $pairTotals = [];
-        foreach ($this->foreignKeys as $foreignKey) {
-            if ($foreignKey['fromTable'] === $foreignKey['toTable']) {
-                continue;
-            }
-            $pairKey = $foreignKey['fromTable'].'::'.$foreignKey['toTable'];
-            $pairTotals[$pairKey] = ($pairTotals[$pairKey] ?? 0) + 1;
-        }
-
-        return array_map(function (array $foreignKey) use (&$recursiveSlots, $pairTotals, $tablePositions) {
-            $isRecursive = $foreignKey['fromTable'] === $foreignKey['toTable'];
-            $cardinality = $foreignKey['cardinality'] ?? 'N:1';
-            $relationshipName = trim((string) ($foreignKey['relationshipName'] ?? ''));
-            $pairKey = $foreignKey['fromTable'].'::'.$foreignKey['toTable'];
-            $isParallel = ! $isRecursive && ($pairTotals[$pairKey] ?? 0) > 1;
-            $from = $tablePositions[$foreignKey['fromTable']] ?? ['x' => 0, 'y' => 0];
-            $to = $tablePositions[$foreignKey['toTable']] ?? ['x' => 0, 'y' => 0];
-            // O rótulo é lido da esquerda para a direita; a FK continua sendo
-            // a origem da seta, mesmo quando sua tabela está à direita.
-            $displayCardinality = ! $isRecursive && $from['x'] > $to['x']
-                ? implode(':', array_reverse(explode(':', $cardinality)))
-                : $cardinality;
-
-            $edge = [
-                'id' => $foreignKey['id'],
-                'source' => $foreignKey['fromTable'],
-                'target' => $foreignKey['toTable'],
-                'label' => match (true) {
-                    $isRecursive && $relationshipName !== '' => $relationshipName.' · '.$displayCardinality,
-                    $isParallel => $foreignKey['fromColumn'].' · '.$displayCardinality,
-                    default => $displayCardinality,
-                },
-                'color' => '#38bdf8',
-                'strokeWidth' => 1.6,
-                'markerEnd' => 'arrowclosed',
-            ];
-
-            // Toda aresta parte da linha FK e termina na linha que ela referencia.
-            $fromColumnId = $this->columnIdForForeignKey($foreignKey, 'from');
-            $toColumnId = $this->columnIdForForeignKey($foreignKey, 'to');
-
-            if ($fromColumnId === null || $toColumnId === null) {
-                return array_merge($edge, ['type' => 'floating', 'pathType' => 'smoothstep', 'class' => 'relational-cardinality']);
-            }
-
-            if ($isRecursive) {
-                $slot = $recursiveSlots[$foreignKey['fromTable']] ?? 0;
-                $recursiveSlots[$foreignKey['fromTable']] = $slot + 1;
-                $side = self::RECURSIVE_SIDES[$slot % count(self::RECURSIVE_SIDES)];
-
-                return array_merge($edge, [
-                    'type' => 'relational-self-loop',
-                    'pathType' => 'smoothstep',
-                    'sourceHandle' => 'col-'.$fromColumnId.'-'.$side,
-                    'targetHandle' => 'col-'.$toColumnId.'-'.$side,
-                    'class' => 'relational-cardinality relational-self-reference',
-                ]);
-            }
-
-            $side = $to['x'] >= $from['x'] ? 'right' : 'left';
-            $tablesOverlapHorizontally = abs($to['x'] - $from['x']) < self::TABLE_WIDTH;
-            $opposite = $tablesOverlapHorizontally
-                ? $side
-                : ($side === 'right' ? 'left' : 'right');
-
-            return array_merge($edge, [
-                'type' => 'smoothstep',
-                'pathType' => 'smoothstep',
-                'sourceHandle' => 'col-'.$fromColumnId.'-'.$side,
-                'targetHandle' => 'col-'.$toColumnId.'-'.$opposite,
-                'class' => 'relational-cardinality'.($isParallel ? ' relational-parallel-reference' : ''),
-            ]);
-        }, $this->foreignKeys);
+        return (new RelationalEdgeProjector)->build($this->tables, $this->foreignKeys, self::TABLE_WIDTH);
     }
 
     public function render(RelationalDrift $drift): View
@@ -500,12 +392,7 @@ class RelationalBoard extends Component
         $this->isCustomized = (bool) ($data['customized'] ?? false);
         $this->dialect = DataTypeCatalog::has($data['dialect'] ?? '') ? $data['dialect'] : 'mysql';
 
-        foreach ($this->tables as $t => $table) {
-            foreach ($table['columns'] as $c => $column) {
-                $column['type'] = DataTypeCatalog::resolve($this->dialect, $column['type'] ?? 'varchar');
-                $this->tables[$t]['columns'][$c] = DataTypeCatalog::normalize($this->dialect, $column);
-            }
-        }
+        $this->tables = (new RelationalColumnEditor)->dialect($this->tables, $this->dialect);
     }
 
     private function persistCurrentData(bool $markCustomized = false): void
@@ -531,6 +418,18 @@ class RelationalBoard extends Component
         $this->persistCurrentData(markCustomized: true);
         $this->syncCanvas();
         $this->dispatch('relational-saved');
+    }
+
+    /** Mantém o dialeto no ER, que é o JSON exportável/importável do projeto. */
+    private function persistDialectOnSource(): void
+    {
+        $source = Diagram::query()
+            ->whereKey($this->sourceDiagramId)
+            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->firstOrFail();
+        $data = $source->data ?? [];
+        $data['dialect'] = $this->dialect;
+        $source->update(['data' => $data]);
     }
 
     private function syncCanvas(?array $previousTableIds = null): void
@@ -567,64 +466,21 @@ class RelationalBoard extends Component
         $this->flowFromObject(['edges' => $this->buildEdges()]);
     }
 
-    private function tableIndex(string $tableId): ?int
-    {
-        $index = array_search($tableId, array_column($this->tables, 'id'), true);
-
-        return $index === false ? null : $index;
-    }
-
-    private function columnIndex(int $tableIndex, string $columnId): ?int
-    {
-        $index = array_search($columnId, array_column($this->tables[$tableIndex]['columns'], 'id'), true);
-
-        return $index === false ? null : $index;
-    }
-
-    private function columnIdForForeignKey(array $foreignKey, string $end): ?string
-    {
-        $tableId = $foreignKey[$end.'Table'];
-        $stableId = $foreignKey[$end.'ColumnId'] ?? null;
-        $columnName = $foreignKey[$end.'Column'];
-        $tableIndex = $this->tableIndex($tableId);
-
-        if ($tableIndex === null) {
-            return null;
-        }
-
-        foreach ($this->tables[$tableIndex]['columns'] as $column) {
-            if (($stableId !== null && $column['id'] === $stableId) || $column['name'] === $columnName) {
-                return $column['id'];
-            }
-        }
-
-        return null;
-    }
     public function updateColumnCustomType(string $tableId, string $columnId, string $value): void
     {
-        $tableIndex = $this->tableIndex($tableId);
-        $columnIndex = $tableIndex === null ? null : $this->columnIndex($tableIndex, $columnId);
-
-        if ($columnIndex === null) {
-            return;
-        }
-
-        $column = $this->tables[$tableIndex]['columns'][$columnIndex];
-        if (($column['type'] ?? '') !== 'custom') {
-            return;
-        }
-
-        $value = trim($value);
-
-        // Só letras, números, espaço, _ ( ) , . — evita lixo/injeção se um dia gerar DDL.
-        if ($value === '' || mb_strlen($value) > 60 || ! preg_match('/^[\p{L}0-9_ (),.]+$/u', $value)) {
-            $this->dispatch('relational-edit-rejected', message: 'Tipo inválido. Use letras, números, espaço, _ ( ) , . (máx. 60).');
+        try {
+            $tables = (new RelationalColumnEditor)->customType($this->tables, $this->dialect, $tableId, $columnId, $value);
+        } catch (InvalidArgumentException $exception) {
+            $this->dispatch('relational-edit-rejected', message: $exception->getMessage());
 
             return;
         }
 
-        $column['customType'] = $value;
-        $this->tables[$tableIndex]['columns'][$columnIndex] = DataTypeCatalog::normalize($this->dialect, $column);
-        $this->commitLogicalEdit();
+        $this->applyColumnEdit($tables);
+    }
+
+    public function updateColumnEnumValues(string $tableId, string $columnId, string $value): void
+    {
+        $this->applyColumnEdit((new RelationalColumnEditor)->enumValues($this->tables, $this->dialect, $tableId, $columnId, $value));
     }
 }

@@ -31,7 +31,7 @@
                         @if ($relationalOutdated) title="O modelo relacional não foi regerado após as últimas mudanças deste ER" @endif>
                         Modelo Relacional
                         @if ($relationalOutdated)
-                            <span class="board-tab-flag" aria-label="Modelo relacional desatualizado">!</span>
+                            <span class="board-tab-flag" aria-label="Modelo Relacional desatualizado">!</span>
                         @endif
                     </button>
                 @else
@@ -61,7 +61,7 @@
             <details class="board-toolbar-menu board-toolbar-export" @click.outside="$el.open = false">
                 <summary>Exportar imagem</summary>
                 <div class="board-menu-panel">
-                    <button type="button" data-export-name="{{ $diagramName }}" @click="window.exportBoardImage($el, 'png'); $el.closest('details').open = false">Baixar PNG</button>
+                    <button type="button" data-export-name="{{ $diagramName }}" @click="window.exportBoardImage($el, 'png'); $el.closest('details').open = false" title="PNG em alta resolução, indicado para impressão">Baixar PNG em alta resolução</button>
                     <button type="button" data-export-name="{{ $diagramName }}" @click="window.exportBoardImage($el, 'jpg'); $el.closest('details').open = false">Baixar JPG</button>
                 </div>
             </details>

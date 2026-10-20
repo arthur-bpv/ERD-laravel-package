@@ -121,6 +121,22 @@ class ProjectDashboardTest extends TestCase
         $this->assertCount(41, $diagram->data['relations']);
     }
 
+    public function test_dashboard_import_preserves_the_database_dialect_for_the_relational_conversion(): void
+    {
+        $json = json_encode(array_merge($this->erData(), ['dialect' => 'sqlite']));
+
+        Livewire::test(ProjectDashboard::class)
+            ->set('importProjectName', 'SQLite importado')
+            ->set('importJson', $json)
+            ->call('importProject');
+
+        $source = Diagram::sole();
+        $this->assertSame('sqlite', $source->data['dialect']);
+
+        Livewire::test(ProjectDashboard::class)->call('createRelational', $source->id);
+        $this->assertSame('sqlite', $source->fresh()->relationalDiagram->data['dialect']);
+    }
+
     public function test_dashboard_rejects_an_invalid_import_without_creating_a_project(): void
     {
         Livewire::test(ProjectDashboard::class)
@@ -136,7 +152,10 @@ class ProjectDashboardTest extends TestCase
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('Importar projeto');
+            ->assertSee('Importar projeto')
+            ->assertSee('readingImportFile', escape: false)
+            ->assertSee('Lendo arquivo…')
+            ->assertSee('$wire.set(\'importJson\', text)', escape: false);
 
         $this->get('/schema')
             ->assertOk()

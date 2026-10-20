@@ -2,20 +2,21 @@
 
 namespace App\Services;
 
+use App\Support\DataTypeCatalog;
 use Illuminate\Support\Str;
 
 class ErToRelationalTransformer
 {
     private array $warnings = [];
 
-    private array $entityKinds = [];
+    private ForeignKeyBuilder $foreignKeyBuilder;
 
     private array $relationshipAttributeUsage = [];
 
     public function transform(array $diagram): array
     {
         $this->warnings = [];
-        $this->entityKinds = [];
+        $entityKinds = [];
         $this->relationshipAttributeUsage = [];
 
         $tables = [];
@@ -37,9 +38,11 @@ class ErToRelationalTransformer
         foreach ($diagram['entities'] ?? [] as $index => $entity) {
             $tableId = (string) $entity['id'];
             $entityTable[$tableId] = $tableId;
-            $this->entityKinds[$tableId] = $entity['kind'] ?? 'strong';
+            $entityKinds[$tableId] = $entity['kind'] ?? 'strong';
             $tables[$tableId] = $this->tableFromEntity($entity, $index);
         }
+
+        $this->foreignKeyBuilder = new ForeignKeyBuilder($entityKinds, $this->warnings);
 
         foreach ($relations as $relation) {
             $this->mapRelation($tables, $entityTable, $relation);
@@ -54,6 +57,11 @@ class ErToRelationalTransformer
         // tempo só mudaria o resultado sem acrescentar informação. Quem precisa saber
         // de qual ER o modelo veio lê `sourceFingerprint`.
         return [
+            // O dialeto faz parte do projeto, e não apenas da tela Relacional.
+            // Assim, um ER exportado/importado volta a gerar o mesmo DDL.
+            'dialect' => DataTypeCatalog::has((string) ($diagram['dialect'] ?? ''))
+                ? $diagram['dialect']
+                : 'mysql',
             'tables' => array_values($tables),
             'foreignKeys' => $this->foreignKeys($tables),
             'warnings' => array_values(array_unique($this->warnings)),
@@ -87,7 +95,9 @@ class ErToRelationalTransformer
 
     private function withoutLayout(array $value): array
     {
-        foreach (['x', 'y', 'diamondX', 'diamondY', 'offsetX', 'offsetY'] as $field) {
+        // O dialeto já é replicado para a cópia Relacional; ele não muda a
+        // estrutura ER e não deve fazê-la parecer defasada depois de salvar.
+        foreach (['x', 'y', 'diamondX', 'diamondY', 'offsetX', 'offsetY', 'dialect'] as $field) {
             unset($value[$field]);
         }
 
@@ -211,25 +221,37 @@ class ErToRelationalTransformer
         }
 
         if ($fromCard['many'] xor $toCard['many']) {
-            $childId = $fromCard['many'] ? $fromId : $toId;
-            $parentId = $fromCard['many'] ? $toId : $fromId;
-            $nullable = $fromCard['many'] ? $toCard['min'] === 0 : $fromCard['min'] === 0;
-            $childAttributeId = $childId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null);
-            $parentAttributeId = $parentId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null);
-            $this->copyPrimaryKey(
-                $tables[$parentId],
-                $tables[$childId],
-                nullable: $nullable,
-                sourceCard: $fromCard['many'] ? $relation['childCard'] : $relation['parentCard'],
-                targetCard: $fromCard['many'] ? $relation['parentCard'] : $relation['childCard'],
-                parentAttributeId: $parentAttributeId,
-                childAttributeId: $childAttributeId,
-            );
-            $this->appendRelationshipAttributes($tables[$childId], $relation, $nullable);
+            $this->mapOneToMany($tables, $fromId, $toId, $relation, $fromCard, $toCard);
 
             return;
         }
 
+        $this->mapOneToOne($tables, $fromId, $toId, $relation, $fromCard, $toCard);
+    }
+
+    private function mapOneToMany(array &$tables, string $fromId, string $toId, array $relation, array $fromCard, array $toCard): void
+    {
+        $childId = $fromCard['many'] ? $fromId : $toId;
+        $parentId = $fromCard['many'] ? $toId : $fromId;
+        $nullable = $fromCard['many'] ? $toCard['min'] === 0 : $fromCard['min'] === 0;
+        $childAttributeId = $childId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null);
+        $parentAttributeId = $parentId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null);
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $tables[$parentId],
+            $tables[$childId],
+            [
+                'nullable' => $nullable,
+                'sourceCard' => $fromCard['many'] ? $relation['childCard'] : $relation['parentCard'],
+                'targetCard' => $fromCard['many'] ? $relation['parentCard'] : $relation['childCard'],
+                'parentAttributeId' => $parentAttributeId,
+                'childAttributeId' => $childAttributeId,
+            ],
+        );
+        $this->appendRelationshipAttributes($tables[$childId], $relation, $nullable);
+    }
+
+    private function mapOneToOne(array &$tables, string $fromId, string $toId, array $relation, array $fromCard, array $toCard): void
+    {
         // Os marcadores indicam quantos registros existem na ponta oposta.
         // 1:1: a entidade que exige um parceiro recebe a FK; com ambas opcionais,
         // preservamos a direção desenhada (to = pai, from = filho).
@@ -241,16 +263,18 @@ class ErToRelationalTransformer
             [$childId, $parentId] = [$fromId, $toId];
         }
 
-        $this->copyPrimaryKey(
+        $this->foreignKeyBuilder->copyPrimaryKey(
             $tables[$parentId],
             $tables[$childId],
-            nullable: $fromCard['min'] === 0 && $toCard['min'] === 0,
-            unique: true,
-            cardinality: '1:1',
-            sourceCard: $childId === $fromId ? $relation['childCard'] : $relation['parentCard'],
-            targetCard: $parentId === $toId ? $relation['parentCard'] : $relation['childCard'],
-            parentAttributeId: $parentId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null),
-            childAttributeId: $childId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null),
+            [
+                'nullable' => $fromCard['min'] === 0 && $toCard['min'] === 0,
+                'unique' => true,
+                'cardinality' => '1:1',
+                'sourceCard' => $childId === $fromId ? $relation['childCard'] : $relation['parentCard'],
+                'targetCard' => $parentId === $toId ? $relation['parentCard'] : $relation['childCard'],
+                'parentAttributeId' => $parentId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null),
+                'childAttributeId' => $childId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null),
+            ],
         );
         $this->appendRelationshipAttributes($tables[$childId], $relation, $fromCard['min'] === 0 && $toCard['min'] === 0);
     }
@@ -269,25 +293,29 @@ class ErToRelationalTransformer
             'primaryKey' => [],
         ];
 
-        $this->copyPrimaryKey(
+        $this->foreignKeyBuilder->copyPrimaryKey(
             $tables[$fromId],
             $table,
-            prefix: $recursive ? $this->role($relation, 'from') : null,
-            primary: true,
-            cardinality: 'N:1',
-            sourceCard: 'cf-zero-many',
-            targetCard: 'cf-one-one',
-            parentAttributeId: $relation['fromAttr'] ?? null,
+            [
+                'prefix' => $recursive ? $this->role($relation, 'from') : null,
+                'primary' => true,
+                'cardinality' => 'N:1',
+                'sourceCard' => 'cf-zero-many',
+                'targetCard' => 'cf-one-one',
+                'parentAttributeId' => $relation['fromAttr'] ?? null,
+            ],
         );
-        $this->copyPrimaryKey(
+        $this->foreignKeyBuilder->copyPrimaryKey(
             $tables[$toId],
             $table,
-            prefix: $recursive ? $this->role($relation, 'to') : null,
-            primary: true,
-            cardinality: 'N:1',
-            sourceCard: 'cf-zero-many',
-            targetCard: 'cf-one-one',
-            parentAttributeId: $relation['toAttr'] ?? null,
+            [
+                'prefix' => $recursive ? $this->role($relation, 'to') : null,
+                'primary' => true,
+                'cardinality' => 'N:1',
+                'sourceCard' => 'cf-zero-many',
+                'targetCard' => 'cf-one-one',
+                'parentAttributeId' => $relation['toAttr'] ?? null,
+            ],
         );
         $this->appendRelationshipAttributes($table, $relation);
         $tables[$id] = $table;
@@ -305,15 +333,17 @@ class ErToRelationalTransformer
     {
         $manyIsFrom = $fromCard['many'];
         $prefix = $this->role($relation, $manyIsFrom ? 'to' : 'from');
-        $this->copyPrimaryKey(
+        $this->foreignKeyBuilder->copyPrimaryKey(
             $table,
             $table,
-            prefix: $prefix,
-            nullable: ($manyIsFrom ? $toCard['min'] : $fromCard['min']) === 0,
-            sourceCard: $manyIsFrom ? $relation['childCard'] : $relation['parentCard'],
-            targetCard: $manyIsFrom ? $relation['parentCard'] : $relation['childCard'],
-            parentAttributeId: $manyIsFrom ? ($relation['toAttr'] ?? null) : ($relation['fromAttr'] ?? null),
-            relationshipName: $relation['name'] ?? null,
+            [
+                'prefix' => $prefix,
+                'nullable' => ($manyIsFrom ? $toCard['min'] : $fromCard['min']) === 0,
+                'sourceCard' => $manyIsFrom ? $relation['childCard'] : $relation['parentCard'],
+                'targetCard' => $manyIsFrom ? $relation['parentCard'] : $relation['childCard'],
+                'parentAttributeId' => $manyIsFrom ? ($relation['toAttr'] ?? null) : ($relation['fromAttr'] ?? null),
+                'relationshipName' => $relation['name'] ?? null,
+            ],
         );
         $this->appendRelationshipAttributes(
             $table,
@@ -335,25 +365,29 @@ class ErToRelationalTransformer
             'primaryKey' => [],
         ];
 
-        $this->copyPrimaryKey(
+        $this->foreignKeyBuilder->copyPrimaryKey(
             $tables[$entityId],
             $table,
-            prefix: $this->role($relation, 'from'),
-            primary: true,
-            cardinality: '1:1',
-            sourceCard: $relation['childCard'],
-            targetCard: $relation['parentCard'],
-            parentAttributeId: $relation['fromAttr'] ?? null,
+            [
+                'prefix' => $this->role($relation, 'from'),
+                'primary' => true,
+                'cardinality' => '1:1',
+                'sourceCard' => $relation['childCard'],
+                'targetCard' => $relation['parentCard'],
+                'parentAttributeId' => $relation['fromAttr'] ?? null,
+            ],
         );
-        $this->copyPrimaryKey(
+        $this->foreignKeyBuilder->copyPrimaryKey(
             $tables[$entityId],
             $table,
-            prefix: $this->role($relation, 'to'),
-            unique: true,
-            cardinality: '1:1',
-            sourceCard: $relation['parentCard'],
-            targetCard: $relation['childCard'],
-            parentAttributeId: $relation['toAttr'] ?? null,
+            [
+                'prefix' => $this->role($relation, 'to'),
+                'unique' => true,
+                'cardinality' => '1:1',
+                'sourceCard' => $relation['parentCard'],
+                'targetCard' => $relation['childCard'],
+                'parentAttributeId' => $relation['toAttr'] ?? null,
+            ],
         );
         $this->appendRelationshipAttributes($table, $relation);
         $tables[$id] = $table;
@@ -389,11 +423,13 @@ class ErToRelationalTransformer
         ];
 
         foreach ($resolved as [$participantTable, $participant]) {
-            $this->copyPrimaryKey(
+            $this->foreignKeyBuilder->copyPrimaryKey(
                 $participantTable,
                 $table,
-                prefix: $participant['role'] ?? null,
-                primary: (bool) ($participant['many'] ?? true),
+                [
+                    'prefix' => $participant['role'] ?? null,
+                    'primary' => (bool) ($participant['many'] ?? true),
+                ],
             );
         }
 
@@ -427,91 +463,14 @@ class ErToRelationalTransformer
                 'primaryKey' => $column['key'] === 'PK' ? [$column['name']] : [],
             ];
 
-            $this->copyPrimaryKey($tables[$ownerId], $table, primary: $column['key'] !== 'UQ');
+            $this->foreignKeyBuilder->copyPrimaryKey(
+                $tables[$ownerId],
+                $table,
+                [
+                    'primary' => $column['key'] !== 'UQ',
+                ],
+            );
             $tables[$id] = $table;
-        }
-    }
-
-    private function copyPrimaryKey(
-        array $parent,
-        array &$child,
-        ?string $prefix = null,
-        bool $nullable = false,
-        bool $unique = false,
-        bool $primary = false,
-        string $cardinality = 'N:1',
-        string $sourceCard = 'cf-zero-many',
-        string $targetCard = 'cf-one-one',
-        ?string $parentAttributeId = null,
-        ?string $childAttributeId = null,
-        ?string $relationshipName = null,
-    ): void {
-        $keys = $this->referenceColumns($parent, $parentAttributeId);
-
-        if ($keys === []) {
-            $this->warnings[] = "A relação {$parent['name']} não possui chave PK/UQ para ser referenciada.";
-
-            return;
-        }
-
-        foreach ($keys as $key) {
-            $existingIndex = count($keys) === 1 && $childAttributeId
-                ? $this->columnIndexById($child, $childAttributeId)
-                : null;
-            $existingIsPrimary = $existingIndex !== null
-                && in_array($child['columns'][$existingIndex]['name'], $child['primaryKey'], true);
-
-            // Em 1:N, reutilizar a PK do lado N transformaria a relação em
-            // 1:1 por acidente. Uma PK existente só pode servir como FK no
-            // caso de chave primária compartilhada (1:1 obrigatório).
-            if ($existingIsPrimary && (! $unique || $nullable)) {
-                $existingIndex = null;
-                $existingIsPrimary = false;
-            }
-
-            $name = $prefix ? Str::camel($prefix).Str::ucfirst($key['name']) : $key['name'];
-            if ($existingIndex !== null) {
-                $name = $child['columns'][$existingIndex]['name'];
-            } elseif ($this->hasColumn($child, $name)) {
-                $name = Str::camel($parent['name']).Str::ucfirst($key['name']);
-            }
-
-            $column = $existingIndex !== null ? $child['columns'][$existingIndex] : $key;
-            $column['id'] = $existingIndex !== null
-                ? $column['id']
-                : $child['id'].'.'.Str::snake($name);
-            $column['name'] = $name;
-            $column['type'] = $key['type'];
-            $column['key'] = $primary || $existingIsPrimary ? 'PK/FK' : ($unique ? 'UQ/FK' : 'FK');
-            $column['nullable'] = $primary || $existingIsPrimary ? false : $nullable;
-            $column['references'] = [
-                'table' => $parent['id'],
-                'column' => $key['name'],
-                'columnId' => $key['id'],
-                'cardinality' => $cardinality,
-                'sourceCard' => $sourceCard,
-                'targetCard' => $targetCard,
-                'relationshipName' => $relationshipName,
-            ];
-            $column['source'] = 'foreign-key';
-            if ($existingIndex !== null) {
-                $child['columns'][$existingIndex] = $column;
-            } else {
-                $child['columns'][] = $column;
-                $existingIndex = array_key_last($child['columns']);
-            }
-
-            if ($primary) {
-                if (! in_array($name, $child['primaryKey'], true)) {
-                    $child['primaryKey'][] = $name;
-                }
-            } elseif (($this->entityKinds[$child['id']] ?? null) === 'weak') {
-                if (! in_array($name, $child['primaryKey'], true)) {
-                    $child['primaryKey'][] = $name;
-                }
-                $child['columns'][$existingIndex]['key'] = 'PK/FK';
-                $child['columns'][$existingIndex]['nullable'] = false;
-            }
         }
     }
 
@@ -532,50 +491,6 @@ class ErToRelationalTransformer
             $column['nullable'] = $nullable || $column['nullable'];
             $table['columns'][] = $column;
         }
-    }
-
-    private function referenceColumns(array $table, ?string $selectedAttributeId): array
-    {
-        if ($selectedAttributeId) {
-            $selected = collect($table['columns'])->firstWhere('id', $selectedAttributeId);
-
-            if ($selected && str_contains((string) $selected['key'], 'UQ')) {
-                return [$selected];
-            }
-
-            if ($selected && str_contains((string) $selected['key'], 'PK')) {
-                return array_values(array_filter(
-                    $table['columns'],
-                    fn (array $column) => in_array($column['name'], $table['primaryKey'], true),
-                ));
-            }
-        }
-
-        $primary = array_values(array_filter(
-            $table['columns'],
-            fn (array $column) => in_array($column['name'], $table['primaryKey'], true),
-        ));
-
-        if ($primary !== []) {
-            return $primary;
-        }
-
-        $unique = collect($table['columns'])->first(
-            fn (array $column) => str_contains((string) $column['key'], 'UQ'),
-        );
-
-        return $unique ? [$unique] : [];
-    }
-
-    private function columnIndexById(array $table, string $id): ?int
-    {
-        foreach ($table['columns'] as $index => $column) {
-            if (($column['id'] ?? null) === $id) {
-                return $index;
-            }
-        }
-
-        return null;
     }
 
     private function role(array $relation, string $end): string

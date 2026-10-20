@@ -9,6 +9,21 @@ class ErDiagramImport
 {
     public static function parse(string $json): array
     {
+        $data = self::decode($json);
+        $entities = self::validateEntities($data['entities']);
+        self::validateRelations($data['relations'], $entities);
+
+        return array_filter([
+            // Arquivos antigos continuam compatíveis; nos novos, o valor é
+            // preservado para que a conversão Relacional use o banco correto.
+            'dialect' => $data['dialect'] ?? null,
+            'entities' => array_values($data['entities']),
+            'relations' => array_values($data['relations']),
+        ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    private static function decode(string $json): array
+    {
         if (strlen($json) > 2_000_000) {
             throw new InvalidArgumentException('O arquivo ultrapassa o limite de 2 MB.');
         }
@@ -27,8 +42,17 @@ class ErDiagramImport
             throw new InvalidArgumentException('Limite: 250 entidades e 500 relacionamentos.');
         }
 
+        if (isset($data['dialect']) && (! is_string($data['dialect']) || ! DataTypeCatalog::has($data['dialect']))) {
+            throw new InvalidArgumentException('dialect deve ser um banco de dados suportado.');
+        }
+
+        return $data;
+    }
+
+    private static function validateEntities(array $data): array
+    {
         $entities = [];
-        foreach ($data['entities'] as $index => $entity) {
+        foreach ($data as $index => $entity) {
             self::requireObject($entity, "entities[$index]");
             $id = self::identifier($entity['id'] ?? null, "entities[$index].id");
             self::unique($entities, $id, "entities[$index].id");
@@ -37,8 +61,13 @@ class ErDiagramImport
             $entities[$id] = self::attributes($entity['attributes'] ?? null, "entities[$index].attributes");
         }
 
+        return $entities;
+    }
+
+    private static function validateRelations(array $data, array $entities): void
+    {
         $relations = [];
-        foreach ($data['relations'] as $index => $relation) {
+        foreach ($data as $index => $relation) {
             self::requireObject($relation, "relations[$index]");
             $id = self::identifier($relation['id'] ?? null, "relations[$index].id");
             self::unique($relations, $id, "relations[$index].id");
@@ -74,11 +103,6 @@ class ErDiagramImport
             }
             $relations[$id] = true;
         }
-
-        return [
-            'entities' => array_values($data['entities']),
-            'relations' => array_values($data['relations']),
-        ];
     }
 
     private static function attributes(mixed $attributes, string $path): array

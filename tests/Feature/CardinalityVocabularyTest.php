@@ -23,7 +23,7 @@ class CardinalityVocabularyTest extends TestCase
 
         // O SchemaBoard barra valor fora da lista, então um nome que ele
         // recusa nunca chega a ser desenhado.
-        $rendered = $this->cardinalitiesDeclaredIn(SchemaBoard::class, 'CARDINALIDADES');
+        $rendered = $this->cardinalitiesDeclaredIn(SchemaBoard::class, 'CARDINALITY_MARKERS');
 
         $this->assertSame([], array_diff($accepted, $rendered), 'O SchemaBoard rejeita uma cardinalidade que o import aceita.');
 
@@ -44,15 +44,15 @@ class CardinalityVocabularyTest extends TestCase
 
         $markers = $this->cardinalitiesWithAJsMarker();
         sort($markers);
-        $this->assertSame($expected, $markers, 'resources/js/erd/markers.js divergiu do servidor.');
+        $this->assertSame($expected, $markers, 'resources/js/erd/markers.js diverges from the server.');
 
         $options = $this->cardinalitiesOfferedByTheEdgeEditor();
         sort($options);
-        $this->assertSame($expected, $options, 'resources/js/erd/relationship-editor.js divergiu do servidor.');
+        $this->assertSame($expected, $options, 'resources/js/erd/relationship-editor.js diverges from the server.');
 
-        $declared = $this->cardinalitiesDeclaredIn(SchemaBoard::class, 'CARDINALIDADES');
+        $declared = $this->cardinalitiesDeclaredIn(SchemaBoard::class, 'CARDINALITY_MARKERS');
         sort($declared);
-        $this->assertSame($expected, $declared, 'SchemaBoard::CARDINALIDADES divergiu do servidor.');
+        $this->assertSame($expected, $declared, 'SchemaBoard::CARDINALITY_MARKERS diverges from the server.');
     }
 
     /**
@@ -92,7 +92,7 @@ class CardinalityVocabularyTest extends TestCase
 
         // Só as chamadas que registram de fato um marcador, e não a lista de
         // conferência que o próprio arquivo mantém.
-        preg_match_all("/registrarCardinalidade\('(cf-[a-z-]+)'/", (string) $source, $matches);
+        preg_match_all("/registerCardinality\('(cf-[a-z-]+)'/", (string) $source, $matches);
 
         return array_values(array_unique($matches[1]));
     }

@@ -1,42 +1,26 @@
 import { Alpine } from '../../../vendor/livewire/livewire/dist/livewire.esm';
 import { installRelationshipBalloons } from './relationship-balloons';
+import { selfRelationshipPortPositions } from './self-relationship-ports';
 
 /*
  * -------------------------------------------------------------------------
- * Reconciliação de arestas criadas por arrasto.
+ * Reconcile edges created by dragging.
  *
- * Quando o usuário arrasta uma conexão, o AlpineFlow já cria a aresta no
- * cliente com um id aleatório (`e-{origem}-{destino}-{timestamp}-{n}`) e só
- * DEPOIS emite o evento `connect` — e o payload desse evento NÃO inclui o id
- * gerado. Ou seja: o servidor nunca fica sabendo qual é o id daquela aresta.
+ * AlpineFlow creates a temporary edge before it emits `connect`. The event
+ * does not include that edge's generated ID, so the server cannot remove it.
  *
- * Isso quebrava a limpeza em cascata: ao excluir uma tabela ou coluna, o
- * `flowRemoveEdges()` do servidor só conhecia os ids do seed, então as
- * relações desenhadas à mão sobravam na tela apontando para o vazio. Pior:
- * como a aresta provisória nunca era removida, uma segunda tentativa de
- * conectar o MESMO par de entidades era rejeitada pela biblioteca como
- * conexão duplicada — na prática, "não dá para criar relação nenhuma".
+ * An orphaned temporary edge blocks later connections between the same pair
+ * of entities and survives server side cascade deletion.
  *
- * A correção é tirar a autoridade do cliente: assim que a aresta provisória
- * nasce, nós a removemos. O `@connect` do WireFlow leva a conexão para o
- * servidor, que grava a relação com id próprio e devolve a aresta definitiva
- * via flowAddEdges. O usuário só percebe um piscar de ~1 quadro.
+ * Remove the temporary edge immediately. WireFlow's `@connect` sends the
+ * connection to the server, which stores it and returns the definitive edge.
  *
- * IMPORTANTE — `$flow` NÃO tem um método `.on()`. O flowCanvas não mantém
- * pub/sub próprio; ele despacha um `CustomEvent` no elemento raiz
- * (`.flow-container`) para cada evento interno, com o nome `flow-<evento>`
- * (ex.: "connect" vira `flow-connect`, "edge-click" vira `flow-edge-click`).
- * Isso é DIFERENTE do bridge `@connect="onConnect"` do Blade, que o WireFlow
- * escuta separadamente para acionar métodos do Livewire. Uma versão anterior
- * chamava `flow.on(...)`, que sempre falhava em silêncio (guard defensivo
- * engolia o erro) — o painel de cardinalidade nunca abria e esta limpeza
- * nunca rodava.
+ * `$flow` has no `.on()` method. The canvas dispatches `flow-*` CustomEvents
+ * on `.flow-container`; WireFlow's Blade `@connect` bridge is separate.
  * -------------------------------------------------------------------------
  */
-// Dois requestAnimationFrame seguidos garantem que o navegador processou
-// um ciclo completo de renderização entre a remoção e a adição — ver a nota
-// grande em mutateRelation() (SchemaBoard.php) para o porquê disso importar.
-function apósUmFrameDeVerdade(fn) {
+// Two animation frames let the browser render between removal and addition.
+function afterTwoAnimationFrames(fn) {
     requestAnimationFrame(() => requestAnimationFrame(fn));
 }
 
@@ -54,14 +38,13 @@ document.addEventListener('alpine:init', () => {
                 const flow = this.$flow;
                 if (!flow) return;
 
-                // Toda aresta provisória do AlpineFlow tem o formato
-                // `e-{origem}-{destino}-{timestamp}-{contador}`. As
-                // definitivas usam o id do servidor ("r1", "r2", ...).
-                const provisorias = flow.edges
+                // Temporary edges use `e-{source}-{target}-{timestamp}-{counter}`.
+                // Definitive edges use server IDs such as `r1`.
+                const temporaryEdges = flow.edges
                     .filter((edge) => /^e-.+-\d+-\d+$/.test(edge.id))
                     .map((edge) => edge.id);
 
-                if (provisorias.length) flow.removeEdges(provisorias);
+                if (temporaryEdges.length) flow.removeEdges(temporaryEdges);
             });
 
             container.addEventListener('flow-node-drag-start', (ev) => {
@@ -100,47 +83,35 @@ document.addEventListener('alpine:init', () => {
             });
 
             /*
-             * Redesenho de aresta pedido pelo servidor (troca de
-             * cardinalidade, inversão de sentido).
+             * Redraw an edge after a server side cardinality or direction change.
              *
-             * O servidor manda o payload completo da aresta já pronto
-             * (SchemaBoard::edgeFor) e só UM evento — quem decide COMO e
-             * QUANDO fazer o remove+add é o cliente, porque só ele consegue
-             * esperar um frame real do navegador entre as duas chamadas.
-             * Chamar removeEdges()+addEdges() de volta a back no mesmo tick
-             * (como fazíamos antes, via dois `flow:xxx` do WireFlow na
-             * mesma resposta HTTP) reaproveita o <g> SVG existente sem
-             * reavaliar marker-start/marker-end: o dado reativo
-             * (`$flow.edges`) fica correto, mas o símbolo de cardinalidade
-             * desenhado na tela continua sendo o antigo.
+             * The server sends the complete edge payload. The client waits
+             * between removal and addition because same tick updates can reuse
+             * the SVG group without refreshing marker-start or marker-end.
              */
-        this.$wire.on('erd-rebuild-edge', ({ edges, removeIds = [], select }) => {
-            const flow = this.$flow;
-            if (!flow) return;
+            this.$wire.on('erd-rebuild-edge', ({ edges, removeIds = [], select }) => {
+                const flow = this.$flow;
+                if (!flow) return;
 
-            flow.removeEdges([...new Set([...removeIds, ...edges.map((edge) => edge.id)])]);
-
-
-            apósUmFrameDeVerdade(() => {
-                if (edges.length) flow.addEdges(edges);
-                if (select && edges.length) flow.selectedEdges?.add(edges[0].id);
-
-
+                flow.removeEdges([...new Set([...removeIds, ...edges.map((edge) => edge.id)])]);
+                afterTwoAnimationFrames(() => {
+                    if (edges.length) flow.addEdges(edges);
+                    if (select && edges.length) flow.selectedEdges?.add(edges[0].id);
+                });
             });
-        });
-        this.$wire.on('erd-sync-relation', ({ removeEdgeIds, removeNodeIds, nodes, edges, relationId }) => {
-            const flow = this.$flow;
-            if (!flow) return;
-            flow.removeEdges(removeEdgeIds);
-            flow.removeNodes(removeNodeIds);
-            apósUmFrameDeVerdade(() => {
-                if (nodes.length) flow.addNodes(nodes);
-                if (edges.length) flow.addEdges(edges);
-                container.dispatchEvent(new CustomEvent('erd-relation-synced', {
-                    detail: { relationId, relationship: nodes.find((node) => node.data?.kind === 'relationship')?.data, edges },
-                }));
+            this.$wire.on('erd-sync-relation', ({ removeEdgeIds, removeNodeIds, nodes, edges, relationId }) => {
+                const flow = this.$flow;
+                if (!flow) return;
+                flow.removeEdges(removeEdgeIds);
+                flow.removeNodes(removeNodeIds);
+                afterTwoAnimationFrames(() => {
+                    if (nodes.length) flow.addNodes(nodes);
+                    if (edges.length) flow.addEdges(edges);
+                    container.dispatchEvent(new CustomEvent('erd-relation-synced', {
+                        detail: { relationId, relationship: nodes.find((node) => node.data?.kind === 'relationship')?.data, edges },
+                    }));
+                });
             });
-        });
         },
 
         destroy() {
@@ -202,76 +173,12 @@ document.addEventListener('alpine:init', () => {
             };
             if (Object.values(ports).some((port) => !port)) return;
 
-            const entityWidth = entity.dimensions?.width || 232;
-            const entityHeight = entity.dimensions?.height
-                || (84 + ((entity.data?.attributes?.length || 0) * 24.5));
-            const diamondWidth = diamond.dimensions?.width || 120;
-            const diamondHeight = diamond.dimensions?.height || 44;
-            const entityCenter = {
-                x: entityPosition.x + (entityWidth / 2),
-                y: entityPosition.y + (entityHeight / 2),
-            };
-            const diamondCenter = {
-                x: diamond.position.x + (diamondWidth / 2),
-                y: diamond.position.y + (diamondHeight / 2),
-            };
-
-            const dx = diamondCenter.x - entityCenter.x;
-            const dy = diamondCenter.y - entityCenter.y;
-            const length = Math.max(1, Math.hypot(dx, dy));
-            const unit = { x: dx / length, y: dy / length };
-            const perpendicular = { x: -unit.y, y: unit.x };
-            const spread = 0.55;
-
-            const points = {
-                entityOut: this.rectangleBorderPoint(
-                    entityCenter, entityWidth / 2, entityHeight / 2,
-                    { x: unit.x + (perpendicular.x * spread), y: unit.y + (perpendicular.y * spread) },
-                ),
-                entityIn: this.rectangleBorderPoint(
-                    entityCenter, entityWidth / 2, entityHeight / 2,
-                    { x: unit.x - (perpendicular.x * spread), y: unit.y - (perpendicular.y * spread) },
-                ),
-                diamondOut: this.diamondBorderPoint(
-                    diamondCenter, diamondWidth / 2, diamondHeight / 2, perpendicular,
-                ),
-                diamondIn: this.diamondBorderPoint(
-                    diamondCenter, diamondWidth / 2, diamondHeight / 2,
-                    { x: -perpendicular.x, y: -perpendicular.y },
-                ),
-            };
-
-            for (const [role, point] of Object.entries(points)) {
-                ports[role].position.x = Math.round(point.x) - 1;
-                ports[role].position.y = Math.round(point.y) - 1;
+            const positions = selfRelationshipPortPositions(entity, diamond, entityPosition);
+            for (const [role, position] of Object.entries(positions)) {
+                ports[role].position.x = position.x;
+                ports[role].position.y = position.y;
             }
         },
 
-        rectangleBorderPoint(center, halfWidth, halfHeight, direction) {
-            const tx = Math.abs(direction.x) > 0.0001
-                ? halfWidth / Math.abs(direction.x)
-                : Number.MAX_VALUE;
-            const ty = Math.abs(direction.y) > 0.0001
-                ? halfHeight / Math.abs(direction.y)
-                : Number.MAX_VALUE;
-            const scale = Math.min(tx, ty);
-
-            return {
-                x: center.x + (direction.x * scale),
-                y: center.y + (direction.y * scale),
-            };
-        },
-
-        diamondBorderPoint(center, halfWidth, halfHeight, direction) {
-            const scale = 1 / Math.max(
-                0.0001,
-                (Math.abs(direction.x) / halfWidth) + (Math.abs(direction.y) / halfHeight),
-            );
-
-            return {
-                x: center.x + (direction.x * scale),
-                y: center.y + (direction.y * scale),
-            };
-        },
     }));
 });

@@ -8,8 +8,10 @@ use App\Services\RelationalDiagramCreator;
 use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
+use App\Support\ErEntityNodeProjector;
 use App\Support\ErRelationshipAttributePositioner;
 use App\Support\ErRelationshipEdgeProjector;
+use App\Support\ErSelfRelationshipPortProjector;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
@@ -50,34 +52,15 @@ class SchemaBoard extends Component
     use WithWireFlow;
 
     /**
-     * Recuo da ponta da linha em relação à borda da entidade, em pixels.
+     * Accepted cardinalities, used to reject invalid values from the client.
      *
-     * Precisa ser ZERO. O `offset` do AlpineFlow empurra o fim do traço para
-     * FORA do nó, e o símbolo é desenhado a partir dali para trás — então
-     * qualquer valor positivo vira um vão visível entre o pé de galinha e a
-     * caixa. O padrão da biblioteca (12,5px, tamanho de uma seta comum) é
-     * justamente o que causava o afastamento.
-     *
-     * Os símbolos já nascem inteiramente atrás da âncora (o viewBox vai de -40
-     * a 0 em x), então com offset 0 a ponta encosta na borda e o desenho corre
-     * por cima da linha, sem sobrar espaço nem invadir a entidade.
+     * Must match the markers in resources/js/erd/markers.js. A marker present
+     * on only one side silently becomes an ordinary arrow.
      */
-    /**
-     * Cardinalidades aceitas — usado para barrar valor inválido vindo do cliente.
-     *
-     * A lista tem de ser idêntica à de `CARDINALIDADES` em `resources/js/erd/markers.js`:
-     * um nome só em um dos lados falha em silêncio (a aresta vira uma seta comum).
-     */
-    private const CARDINALIDADES = [
+    private const CARDINALITY_MARKERS = [
         'cf-one-one', 'cf-zero-one',
         'cf-one-many', 'cf-zero-many',
     ];
-
-    private const ENTITY_WIDTH = 232.0;
-
-    private const ENTITY_BASE_HEIGHT = 84.0;
-
-    private const ENTITY_ROW_HEIGHT = 24.5;
 
     /** Tamanho do losango de relacionamento (`.er-relationship` no CSS). */
     private const RELATIONSHIP_WIDTH = 120.0;
@@ -241,7 +224,7 @@ class SchemaBoard extends Component
      */
     public function buildNodes(): array
     {
-        $nodes = array_map(fn ($e) => $this->nodeFor($e), $this->entities);
+        $nodes = array_map(fn ($e) => ErEntityNodeProjector::node($e, $this->relations), $this->entities);
 
         // Os nós visuais de cada relacionamento são exatamente os mesmos que
         // `relationshipVisualNodesFor` devolve para o diff/remove — listar os
@@ -251,73 +234,6 @@ class SchemaBoard extends Component
         }
 
         return $nodes;
-    }
-
-    /**
-     * Monta um node completo, já com os metadados semânticos que o Blade usa
-     * para liberar ou bloquear conexões.
-     *
-     * `dimensions` é obrigatório em TODO node publicado, não só nas entidades:
-     * o `fitView` do AlpineFlow aborta (e só aborta, sem erro) se encontrar
-     * um único node sem dimensão. Sem isso, o "Organizar quadro" redesenha o
-     * arranjo e nunca reenquadra — os balões ficavam fora da vista e era
-     * preciso dar F5 para o quadro voltar a aparecer inteiro.
-     */
-    private function nodeFor(array $e): array
-    {
-        return [
-            'id' => $e['id'],
-            'position' => ['x' => $e['x'], 'y' => $e['y']],
-            'dimensions' => $this->entityDimensions($e),
-            'data' => $this->nodeData($e),
-        ];
-    }
-
-    private function entityDimensions(array $entity): array
-    {
-        return [
-            'width' => self::ENTITY_WIDTH,
-            'height' => self::ENTITY_BASE_HEIGHT + (count($entity['attributes'] ?? []) * self::ENTITY_ROW_HEIGHT),
-        ];
-    }
-
-    /**
-     * Payload de `data` de um node.
-     *
-     * Além de nome e atributos, publica o estado de conexão da entidade. É esse
-     * bloco que substitui a antiga "contagem de handles": em vez de reservar um
-     * ponto físico por coluna, dizemos ao canvas o que o modelo permite.
-     *
-     *   canBeParent  — tem identificador (PK/UQ), então pode receber relação
-     *   usedAttrs    — colunas já comprometidas com alguma relação
-     */
-    private function nodeData(array $e): array
-    {
-        $usadas = [];
-
-        foreach ($this->relations as $r) {
-            if ($r['from'] === $e['id']) {
-                $usadas[] = $r['fromAttr'];
-            }
-            if ($r['to'] === $e['id']) {
-                $usadas[] = $r['toAttr'];
-            }
-        }
-
-        $temIdentificador = false;
-        foreach ($e['attributes'] as $a) {
-            if ($a['key'] === 'PK' || $a['key'] === 'UQ') {
-                $temIdentificador = true;
-                break;
-            }
-        }
-
-        return [
-            'name' => $e['name'],
-            'attributes' => array_values($e['attributes']),
-            'canBeParent' => $temIdentificador,
-            'usedAttrs' => array_values(array_unique($usadas)),
-        ];
     }
 
     /**
@@ -452,8 +368,8 @@ class SchemaBoard extends Component
         if ($this->usesAttributeAnchor($relation)) {
             $from = $this->findEntity($relation['from']);
             $to = $this->findEntity($relation['to']);
-            $fromHeight = $this->entityDimensions($from)['height'];
-            $toHeight = $this->entityDimensions($to)['height'];
+            $fromHeight = ErEntityNodeProjector::dimensions($from)['height'];
+            $toHeight = ErEntityNodeProjector::dimensions($to)['height'];
 
             // O cliente ancora no rótulo, que é o meio do TRECHO VISÍVEL da
             // linha: da borda direita de uma entidade à borda esquerda da
@@ -462,7 +378,7 @@ class SchemaBoard extends Component
             // dezenas de pixels, e como a escolha do ponto do balão é feita
             // aqui, a validação olhava para um lugar que ninguém veria.
             return [
-                'x' => (int) round((($from['x'] ?? 0) + ($to['x'] ?? 0) + self::ENTITY_WIDTH) / 2),
+                'x' => (int) round((($from['x'] ?? 0) + ($to['x'] ?? 0) + ErEntityNodeProjector::WIDTH) / 2),
                 'y' => (int) round(
                     (($from['y'] ?? 0) + ($fromHeight / 2) + ($to['y'] ?? 0) + ($toHeight / 2)) / 2,
                 ),
@@ -554,7 +470,7 @@ class SchemaBoard extends Component
     {
         $bounds = [];
         foreach ($this->entities as $entity) {
-            $dimensions = $this->entityDimensions($entity);
+            $dimensions = ErEntityNodeProjector::dimensions($entity);
             $bounds[] = [
                 'x' => $entity['x'],
                 'y' => $entity['y'],
@@ -640,15 +556,15 @@ class SchemaBoard extends Component
         // (o esquema anterior) deixava ~90% de sobreposição entre duas
         // caixas consecutivas, cobrindo fisicamente os handles da mais nova.
         // 280x220 garante folga real entre as caixas.
-        $indice = count($this->entities);
-        $coluna = $indice % 4;
-        $linha = intdiv($indice, 4);
+        $index = count($this->entities);
+        $column = $index % 4;
+        $row = intdiv($index, 4);
 
         $entity = [
             'id' => $id,
             'name' => $name,
-            'x' => 40 + $coluna * 280,
-            'y' => ($this->diagramId ? 60 : 380) + $linha * 220,
+            'x' => 40 + $column * 280,
+            'y' => ($this->diagramId ? 60 : 380) + $row * 220,
             'attributes' => [
                 ['id' => $id.'.id', 'name' => 'id', 'type' => 'bigint', 'key' => 'PK'], // toda entidade nasce identificada
             ],
@@ -658,7 +574,7 @@ class SchemaBoard extends Component
         $this->newEntityName = ''; // limpa o input do formulário
 
         // Renderiza o nó dinamicamente, já registrado e arrastável.
-        $this->flowAddNodes([$this->nodeFor($entity)]);
+        $this->flowAddNodes([ErEntityNodeProjector::node($entity, $this->relations)]);
     }
 
     /**
@@ -794,7 +710,7 @@ class SchemaBoard extends Component
      *
      * É a PK (ou a UQ) que decide se a entidade pode receber uma relação, então
      * o estado do node precisa ser republicado: `mutateEntity` já faz isso ao
-     * recarregar `nodeData()` da entidade.
+     * rebuilding the entity's node data.
      */
     public function cycleKey(string $entityId, string $attrId): void
     {
@@ -853,21 +769,21 @@ class SchemaBoard extends Component
             return;
         }
 
-        $origem = $this->findEntity($source);
-        $destino = $this->findEntity($target);
+        $sourceEntity = $this->findEntity($source);
+        $targetEntity = $this->findEntity($target);
 
-        if (! $origem || ! $destino) {
+        if (! $sourceEntity || ! $targetEntity) {
             return;
         }
 
         // Duas entidades só podem ter UM relacionamento entre si, independente
         // da direção — impede duplicar a mesma ligação ao arrastar de novo.
-        if ($this->relacaoExisteEntre($origem['id'], $destino['id'])) {
+        if ($this->relationshipExistsBetween($sourceEntity['id'], $targetEntity['id'])) {
             return;
         }
 
         // Regra do modelo: só é possível referenciar quem tem identificador.
-        $pk = $this->identificadorDe($destino);
+        $pk = $this->identifierOf($targetEntity);
         if ($pk === null) {
             return;
         }
@@ -875,35 +791,35 @@ class SchemaBoard extends Component
         // Reaproveita a coluna que já carregaria a chave estrangeira, se existir.
         // Não cria mais uma coluna nova — se não houver candidata, a relação
         // nasce com fromAttr vazio, pronta pra ser configurada manualmente.
-        $fk = $this->buscarColunaFkExistente($origem['id'], $destino) ?? '';
+        $fk = $this->findExistingForeignKeyColumn($sourceEntity['id'], $targetEntity) ?? '';
 
         $id = 'r'.(++$this->relSeq);
 
-        $relacao = [
+        $relation = [
             'id' => $id,
             'name' => 'relaciona',
-            'from' => $origem['id'],
+            'from' => $sourceEntity['id'],
             'fromAttr' => $fk,
-            'to' => $destino['id'],
+            'to' => $targetEntity['id'],
             'toAttr' => $pk,
             'childCard' => 'cf-one-many', // o lado da FK costuma ser "muitos"
             'parentCard' => 'cf-one-one', // o lado da PK costuma ser "um e só um"
         ];
 
         if ($source === $target) {
-            $relacao['fromRole'] = 'papel_origem';
-            $relacao['toRole'] = 'papel_destino';
+            $relation['fromRole'] = 'papel_origem';
+            $relation['toRole'] = 'papel_destino';
         }
 
-        $this->relations[] = $relacao;
+        $this->relations[] = $relation;
 
-        if ($this->isSelfRelationship($relacao)) {
+        if ($this->isSelfRelationship($relation)) {
             $this->flowAddNodes([
-                $this->relationshipNodeFor($relacao),
-                ...$this->selfRelationshipPortNodesFor($relacao),
+                $this->relationshipNodeFor($relation),
+                ...$this->selfRelationshipPortNodesFor($relation),
             ]);
         }
-        $this->flowAddEdges($this->edgesForRelation($relacao));
+        $this->flowAddEdges($this->edgesForRelation($relation));
         $this->syncNodeData();
     }
 
@@ -922,19 +838,19 @@ class SchemaBoard extends Component
             $oldEdgeIds = array_column($this->edgesForRelation($relation), 'id');
 
             if ($end === 'to') {
-                $identifier = $this->identificadorDe($entity);
+                $identifier = $this->identifierOf($entity);
                 if ($identifier === null) {
                     return;
                 }
                 $relation['to'] = $entityId;
                 $relation['toAttr'] = $identifier;
                 if ($relation['from']) {
-                    $relation['fromAttr'] = $this->buscarColunaFkExistente($relation['from'], $entity) ?? '';
+                    $relation['fromAttr'] = $this->findExistingForeignKeyColumn($relation['from'], $entity) ?? '';
                 }
             } else {
                 $relation['from'] = $entityId;
                 if ($relation['to'] && ($target = $this->findEntity($relation['to']))) {
-                    $relation['fromAttr'] = $this->buscarColunaFkExistente($entityId, $target) ?? '';
+                    $relation['fromAttr'] = $this->findExistingForeignKeyColumn($entityId, $target) ?? '';
                 }
             }
 
@@ -964,7 +880,7 @@ class SchemaBoard extends Component
      */
     public function setCardinality(string $relationId, string $end, string $marker): void
     {
-        if (! in_array($marker, self::CARDINALIDADES, true)) {
+        if (! in_array($marker, self::CARDINALITY_MARKERS, true)) {
             return;
         }
 
@@ -1045,7 +961,7 @@ class SchemaBoard extends Component
             } elseif ($this->isCompleteRelationship($relation)) {
                 $newParent = $this->findEntity($relation['from']);
                 $newChild = $this->findEntity($relation['to']);
-                $identifier = $newParent ? $this->identificadorDe($newParent) : null;
+                $identifier = $newParent ? $this->identifierOf($newParent) : null;
                 if (! $identifier || ! $newChild) {
                     $this->dispatch('erd-swap-rejected', relationId: $relationId,
                         message: 'A nova entidade de destino precisa de uma coluna PK ou UQ.');
@@ -1053,7 +969,7 @@ class SchemaBoard extends Component
                     return;
                 }
 
-                $foreignKey = $this->buscarColunaFkExistente($newChild['id'], $newParent) ?? '';
+                $foreignKey = $this->findExistingForeignKeyColumn($newChild['id'], $newParent) ?? '';
                 $this->mutateRelation($relationId, function (&$item) use ($identifier, $foreignKey) {
                     [$item['from'], $item['to']] = [$item['to'], $item['from']];
                     $item['fromAttr'] = $foreignKey;
@@ -1237,7 +1153,7 @@ class SchemaBoard extends Component
     }
 
     /** Devolve o id da coluna identificadora da entidade (PK, ou UQ como alternativa). */
-    private function identificadorDe(array $entity): ?string
+    private function identifierOf(array $entity): ?string
     {
         foreach ($entity['attributes'] as $a) {
             if ($a['key'] === 'PK') {
@@ -1254,24 +1170,24 @@ class SchemaBoard extends Component
         return null;
     }
 
-    private function buscarColunaFkExistente(string $entityId, array $destino): ?string
+    private function findExistingForeignKeyColumn(string $entityId, array $targetEntity): ?string
     {
-        $nomes = array_unique([
-            Str::snake(Str::singular($destino['name'])).'_id',
-            Str::snake($destino['name']).'_id',
+        $candidateNames = array_unique([
+            Str::snake(Str::singular($targetEntity['name'])).'_id',
+            Str::snake($targetEntity['name']).'_id',
         ]);
 
         // Colunas já comprometidas com alguma relação existente.
-        $ocupadas = [];
+        $occupiedAttributeIds = [];
         foreach ($this->relations as $r) {
             if ($r['from'] === $entityId) {
-                $ocupadas[] = $r['fromAttr'];
+                $occupiedAttributeIds[] = $r['fromAttr'];
             }
         }
 
-        $origem = $this->findEntity($entityId);
-        foreach ($origem['attributes'] as $a) {
-            if (in_array($a['name'], $nomes, true) && ! in_array($a['id'], $ocupadas, true)) {
+        $sourceEntity = $this->findEntity($entityId);
+        foreach ($sourceEntity['attributes'] as $a) {
+            if (in_array($a['name'], $candidateNames, true) && ! in_array($a['id'], $occupiedAttributeIds, true)) {
                 return $a['id'];
             }
         }
@@ -1292,8 +1208,8 @@ class SchemaBoard extends Component
                 $fn($e);
                 $patch = [
                     $id => [
-                        'data' => $this->nodeData($e),
-                        'dimensions' => $this->entityDimensions($e),
+                        'data' => ErEntityNodeProjector::data($e, $this->relations),
+                        'dimensions' => ErEntityNodeProjector::dimensions($e),
                     ],
                 ];
 
@@ -1337,7 +1253,7 @@ class SchemaBoard extends Component
      * erd/relationship-editor.js. O servidor continua sendo autoridade do dado; só
      * a orquestração de timing do redesenho passou para o cliente.
      */
-    private function mutateRelation(string $id, callable $fn, bool $manterSelecionada = true): void
+    private function mutateRelation(string $id, callable $fn, bool $keepSelected = true): void
     {
         foreach ($this->relations as &$r) {
             if ($r['id'] === $id) {
@@ -1356,7 +1272,7 @@ class SchemaBoard extends Component
                     if ($patch) {
                         $this->flowUpdate(['nodes' => $patch]);
                     }
-                    $this->dispatch('erd-rebuild-edge', edges: $newEdges, select: $manterSelecionada);
+                    $this->dispatch('erd-rebuild-edge', edges: $newEdges, select: $keepSelected);
                 } else {
                     $this->syncRelationshipVisual($before, $r);
                 }
@@ -1373,13 +1289,13 @@ class SchemaBoard extends Component
      * de tabelas — isso normalmente é sinal de erro do usuário (clicou duas
      * vezes / arrastou de novo sem perceber), não uma modelagem válida.
      */
-    private function relacaoExisteEntre(string $idA, string $idB): bool
+    private function relationshipExistsBetween(string $idA, string $idB): bool
     {
         foreach ($this->relations as $r) {
-            $ligaAB = $r['from'] === $idA && $r['to'] === $idB;
-            $ligaBA = $r['from'] === $idB && $r['to'] === $idA;
+            $connectsForward = $r['from'] === $idA && $r['to'] === $idB;
+            $connectsBackward = $r['from'] === $idB && $r['to'] === $idA;
 
-            if ($ligaAB || $ligaBA) {
+            if ($connectsForward || $connectsBackward) {
                 return true;
             }
         }
@@ -1407,19 +1323,6 @@ class SchemaBoard extends Component
     private function relationshipNodeId(string $relationId): string
     {
         return 'relation-'.$relationId;
-    }
-
-    /** @return array{entityOut: string, entityIn: string, diamondOut: string, diamondIn: string} */
-    private function selfRelationshipPortNodeIds(string $relationId): array
-    {
-        $prefix = $this->relationshipNodeId($relationId).'-port-';
-
-        return [
-            'entityOut' => $prefix.'entity-out',
-            'entityIn' => $prefix.'entity-in',
-            'diamondOut' => $prefix.'diamond-out',
-            'diamondIn' => $prefix.'diamond-in',
-        ];
     }
 
     /**
@@ -1453,96 +1356,13 @@ class SchemaBoard extends Component
         return [$this->relationshipNodeFor($relation), ...$this->selfRelationshipPortNodesFor($relation)];
     }
 
-    /**
-     * Cria quatro pontos geométricos invisíveis sobre os dois contornos.
-     * Eles deslizam continuamente: dois pela borda retangular da entidade e
-     * dois pelas arestas do losango. As linhas ligam esses pontos, portanto
-     * não dependem dos quatro handles discretos oferecidos pelo AlpineFlow.
-     *
-     * @return array<int, array>
-     */
+    /** Returns the four canvas ports for a self relationship. */
     private function selfRelationshipPortNodesFor(array $relation): array
     {
         $entity = $this->findEntity($relation['from']);
         $diamond = $this->relationshipNodeFor($relation)['position'];
-        $ids = $this->selfRelationshipPortNodeIds($relation['id']);
 
-        $entityDimensions = $this->entityDimensions($entity);
-        $entityWidth = $entityDimensions['width'];
-        $entityHeight = $entityDimensions['height'];
-        $entityCenterX = $entity['x'] + ($entityWidth / 2);
-        $entityCenterY = $entity['y'] + ($entityHeight / 2);
-        $diamondCenterX = $diamond['x'] + 60.0;
-        $diamondCenterY = $diamond['y'] + 22.0;
-
-        $dx = $diamondCenterX - $entityCenterX;
-        $dy = $diamondCenterY - $entityCenterY;
-        $length = max(1.0, hypot($dx, $dy));
-        $ux = $dx / $length;
-        $uy = $dy / $length;
-        $px = -$uy;
-        $py = $ux;
-
-        // Abre as duas pernas sem criar uma troca brusca de lado nos cantos.
-        $spread = 0.55;
-        $entityOut = $this->rectangleBorderPoint(
-            $entityCenterX, $entityCenterY, $entityWidth / 2, $entityHeight / 2,
-            $ux + ($px * $spread), $uy + ($py * $spread),
-        );
-        $entityIn = $this->rectangleBorderPoint(
-            $entityCenterX, $entityCenterY, $entityWidth / 2, $entityHeight / 2,
-            $ux - ($px * $spread), $uy - ($py * $spread),
-        );
-
-        // No losango, o par ocupa o eixo perpendicular ao ângulo da relação:
-        // esquerda/direita quando está acima e topo/base quando está ao lado.
-        $diamondOut = $this->diamondBorderPoint($diamondCenterX, $diamondCenterY, 60.0, 22.0, $px, $py);
-        $diamondIn = $this->diamondBorderPoint($diamondCenterX, $diamondCenterY, 60.0, 22.0, -$px, -$py);
-
-        $points = [
-            'entityOut' => $entityOut,
-            'entityIn' => $entityIn,
-            'diamondOut' => $diamondOut,
-            'diamondIn' => $diamondIn,
-        ];
-
-        return array_map(
-            fn (string $role) => [
-                'id' => $ids[$role],
-                'position' => [
-                    'x' => (int) round($points[$role]['x']) - 1,
-                    'y' => (int) round($points[$role]['y']) - 1,
-                ],
-                'dimensions' => [
-                    'width' => self::RELATION_ANCHOR_SIZE,
-                    'height' => self::RELATION_ANCHOR_SIZE,
-                ],
-                'data' => [
-                    'kind' => 'relationship-port',
-                    'relationId' => $relation['id'],
-                    'role' => $role,
-                ],
-            ],
-            array_keys($points),
-        );
-    }
-
-    /** @return array{x: float, y: float} */
-    private function rectangleBorderPoint(float $cx, float $cy, float $halfWidth, float $halfHeight, float $dx, float $dy): array
-    {
-        $tx = abs($dx) > 0.0001 ? $halfWidth / abs($dx) : PHP_FLOAT_MAX;
-        $ty = abs($dy) > 0.0001 ? $halfHeight / abs($dy) : PHP_FLOAT_MAX;
-        $scale = min($tx, $ty);
-
-        return ['x' => $cx + ($dx * $scale), 'y' => $cy + ($dy * $scale)];
-    }
-
-    /** @return array{x: float, y: float} */
-    private function diamondBorderPoint(float $cx, float $cy, float $halfWidth, float $halfHeight, float $dx, float $dy): array
-    {
-        $scale = 1 / max(0.0001, (abs($dx) / $halfWidth) + (abs($dy) / $halfHeight));
-
-        return ['x' => $cx + ($dx * $scale), 'y' => $cy + ($dy * $scale)];
+        return ErSelfRelationshipPortProjector::nodes($relation['id'], $entity, $diamond);
     }
 
     /**
@@ -1556,7 +1376,7 @@ class SchemaBoard extends Component
     {
         $patch = [];
         foreach ($this->entities as $e) {
-            $patch[$e['id']] = ['data' => $this->nodeData($e)];
+            $patch[$e['id']] = ['data' => ErEntityNodeProjector::data($e, $this->relations)];
         }
 
         if ($patch) {
@@ -1618,8 +1438,8 @@ class SchemaBoard extends Component
         $positions = BoardLayout::centered(
             $this->entities,
             $links,
-            fn (array $entity): float => $this->entityDimensions($entity)['height'],
-            self::ENTITY_WIDTH,
+            fn (array $entity): float => ErEntityNodeProjector::dimensions($entity)['height'],
+            ErEntityNodeProjector::WIDTH,
             // O ER privilegia a leitura do domínio. Os balões de atributos
             // podem receber pequenos ajustes manuais depois, mas as entidades
             // e relações precisam nascer com corredores amplos.
@@ -1631,8 +1451,8 @@ class SchemaBoard extends Component
             $this->entities,
             $links,
             $positions,
-            fn (array $entity): float => $this->entityDimensions($entity)['height'],
-            self::ENTITY_WIDTH,
+            fn (array $entity): float => ErEntityNodeProjector::dimensions($entity)['height'],
+            ErEntityNodeProjector::WIDTH,
             220,
             36,
         );

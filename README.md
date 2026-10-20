@@ -39,6 +39,7 @@ As portas 8000 e 5173 precisam estar acessíveis ao navegador. Consulte `docker 
 | Etapa | Arquivos principais |
 | --- | --- |
 | Editar ER | `app/Livewire/SchemaBoard.php`, `resources/views/livewire/schema-board.blade.php`, `resources/js/erd/canvas-controller.js` e `resources/js/erd/relationship-editor.js`. |
+| Projetar nós ER | `app/Support/ErEntityNodeProjector.php` monta os nós das entidades; `app/Support/ErSelfRelationshipPortProjector.php` e `resources/js/erd/self-relationship-ports.js` posicionam as portas de autorrelação no servidor e durante o arrasto. |
 | Posicionar elementos | `app/Support/BoardLayout.php` e `app/Support/ErRelationshipAttributePositioner.php`. |
 | Converter ER para relacional | `app/Services/ErToRelationalTransformer.php` e `app/Services/ReferencedKeyCopier.php`. |
 | Editar e desenhar o modelo relacional | `app/Livewire/RelationalBoard.php`, `app/Services/RelationalColumnUpdater.php` e `app/Support/RelationalForeignKeyEdgeProjector.php`. |

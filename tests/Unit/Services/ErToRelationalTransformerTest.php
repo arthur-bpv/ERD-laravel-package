@@ -192,6 +192,58 @@ class ErToRelationalTransformerTest extends TestCase
         $this->assertSame('dateView', $this->column($viewing, 'dateView')['name']);
     }
 
+    public function test_one_to_many_references_every_column_of_a_composite_parent_key(): void
+    {
+        $result = $this->transformer->transform([
+            'entities' => [
+                $this->entity('orders', 'Orders', [
+                    $this->attribute('orders.tenant', 'tenantId', 'bigint', 'PK'),
+                    $this->attribute('orders.number', 'orderNo', 'bigint', 'PK'),
+                ]),
+                $this->entity('items', 'Items', [$this->attribute('items.id', 'id', 'bigint', 'PK')]),
+            ],
+            'relations' => [[
+                'id' => 'contains', 'name' => 'contains',
+                'from' => 'items', 'fromAttr' => '', 'to' => 'orders', 'toAttr' => 'orders.tenant',
+                'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one',
+            ]],
+        ]);
+
+        $items = $this->table($result, 'items');
+        $this->assertSame(['id'], $items['primaryKey']);
+        $this->assertSame(['tenantId', 'orderNo'], array_column($result['foreignKeys'], 'fromColumn'));
+        $this->assertSame(['orders.tenant', 'orders.number'], array_column($result['foreignKeys'], 'toColumnId'));
+        $this->assertSame([], $result['warnings']);
+    }
+
+    public function test_conversion_reports_missing_references_in_relation_order(): void
+    {
+        $result = $this->transformer->transform([
+            'entities' => [
+                $this->entity('items', 'Items', [$this->attribute('items.id', 'id', 'bigint', 'PK')]),
+                $this->entity('catalog', 'Catalog', [$this->attribute('catalog.title', 'title', 'varchar')]),
+            ],
+            'relations' => [
+                [
+                    'id' => 'catalog_items', 'name' => 'catalog_items',
+                    'from' => 'items', 'fromAttr' => '', 'to' => 'catalog', 'toAttr' => '',
+                    'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one',
+                ],
+                [
+                    'id' => 'missing_items', 'name' => 'missing_items',
+                    'from' => 'items', 'fromAttr' => '', 'to' => 'missing', 'toAttr' => '',
+                    'childCard' => 'cf-zero-many', 'parentCard' => 'cf-one-one',
+                ],
+            ],
+        ]);
+
+        $this->assertSame([
+            'A relação Catalog não possui chave PK/UQ para ser referenciada.',
+            'O relacionamento missing_items referencia uma entidade inexistente.',
+        ], $result['warnings']);
+        $this->assertSame([], $result['foreignKeys']);
+    }
+
     public function test_many_to_many_removes_a_dedicated_fk_left_from_a_previous_one_to_many_mapping(): void
     {
         $result = $this->transformer->transform([

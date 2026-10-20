@@ -2,52 +2,41 @@ import { registerMarker } from '../../../vendor/getartisanflow/wireflow/dist/alp
 
 /*
  * -------------------------------------------------------------------------
- * Marcadores "pé de galinha" (crow's foot / IE notation) para o AlpineFlow.
+ * Crow's foot markers (IE notation) for AlpineFlow.
  *
- * O AlpineFlow só traz `arrow` e `arrowclosed` nativos. Aqui registramos os
- * símbolos de cardinalidade de modelagem de dados. Cada função recebe
- * { id, color, width, height, orient } e devolve um <marker> SVG.
+ * AlpineFlow provides only `arrow` and `arrowclosed` by default. Each marker
+ * factory receives { id, color, width, height, orient } and returns SVG.
  *
- * DUAS DECISÕES DE GEOMETRIA IMPORTANTES (foram a causa dos bugs de linha):
+ * Two geometry choices prevent marker distortion:
  *
- * 1. markerUnits="userSpaceOnUse" em vez de "strokeWidth". Com "strokeWidth" o
- *    símbolo era multiplicado pela espessura do traço, então selecionar uma
- *    aresta (que engrossa a linha) fazia o pé de galinha mudar de tamanho.
- *    Em userSpaceOnUse 1 unidade do viewBox = 1 pixel, sempre.
+ * 1. userSpaceOnUse keeps marker size independent of edge stroke width.
  *
- * 2. O viewBox tem a mesma proporção de markerWidth/markerHeight. Antes o
- *    viewBox era 40x32 e o marcador 26x20 — proporções diferentes distorciam
- *    o desenho.
+ * 2. The viewBox and rendered marker share the same aspect ratio.
  *
- * O ponto (0,0) do viewBox é a âncora que encosta na ponta da linha; as
- * "patas" crescem para o x negativo (de volta pela linha). `orient` já vem
- * como "auto-start-reverse", então o símbolo aponta certo tanto no início
- * (markerStart) quanto no fim (markerEnd) da aresta.
+ * The viewBox origin touches the line endpoint. The symbol extends toward
+ * negative x; auto-start-reverse handles either end of the edge.
  * -------------------------------------------------------------------------
  */
 
-// Caixa do marcador em unidades de usuário (= pixels). O x vai de -MW até 0,
-// ou seja: todo o desenho fica ATRÁS da âncora, recuando pela linha.
-const MW = 40; // largura
-const MH = 32; // altura
+// The full symbol fits behind its anchor in a box measured in pixels.
+const MW = 40;
+const MH = 32;
 const CF_VIEWBOX = `${-MW} ${-MH / 2} ${MW} ${MH}`;
 
 /*
- * Símbolos de cardinalidade que o servidor pode pedir.
+ * Cardinality markers the server can request.
  *
- * Serve de conferência: SchemaBoard::CARDINALIDADES precisa listar exatamente
- * estes nomes. Pedir um marcador não registrado faz o AlpineFlow cair no
- * fallback de seta fechada — a relação aparece com uma flecha comum em vez do
- * pé de galinha, sem nenhum erro no console.
+ * Keep this list in sync with SchemaBoard::CARDINALITY_MARKERS. An unregistered
+ * marker silently falls back to a closed arrow.
  */
-const CARDINALIDADES = [
+const CARDINALITY_MARKERS = [
     'cf-one-one',
     'cf-zero-one',
     'cf-one-many',
     'cf-zero-many',
 ];
 
-// converge = ponta onde as três patas do pé de galinha se encontram.
+// converge is the junction of the three strokes of the crow's foot.
 const foot = (converge = -18) =>
     `<path d="M ${converge} 0 L 0 -12 M ${converge} 0 L 0 0 M ${converge} 0 L 0 12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
 
@@ -56,11 +45,10 @@ const bar = (x) => `<line x1="${x}" y1="-11" x2="${x}" y2="11" stroke-linecap="r
 const ring = (cx) => `<circle cx="${cx}" cy="0" r="5" fill="var(--er-canvas-bg, #ffffff)"/>`;
 
 /*
- * shapes: string com o "miolo" do marcador (linhas/patas/círculo).
+ * shapes contains the strokes and rings of the marker.
  *
- * `color` vem do AlpineFlow e reflete a cor da aresta no momento em que o
- * marcador é gerado. Os marcadores são deduplicados no <defs> por tipo+cor,
- * então cada cor distinta gera o seu próprio <marker>.
+ * AlpineFlow supplies the current edge color. It deduplicates markers in
+ * <defs> by type and color.
  */
 const crowMarker = (shapes) => ({ id, color, orient }) => `<marker
         id="${id}"
@@ -76,27 +64,24 @@ const crowMarker = (shapes) => ({ id, color, orient }) => `<marker
     </marker>`;
 
 /*
- * Registra o marcador conferindo que ele consta da lista conhecida.
+ * Register only known markers.
  *
- * Um símbolo fora de sincronia entre JS e PHP falha em silêncio — o AlpineFlow
- * desenha uma seta fechada e segue em frente. Melhor gritar no console do que
- * descobrir isso olhando o diagrama.
+ * Surface a mismatch between the JavaScript and PHP lists in the console.
  */
-const registrarCardinalidade = (nome, marcador) => {
-    if (!CARDINALIDADES.includes(nome)) {
+const registerCardinality = (name, marker) => {
+    if (!CARDINALITY_MARKERS.includes(name)) {
         console.error(
-            `[ERD] Marcador "${nome}" não está em CARDINALIDADES. ` +
-            'Declare-o aqui e em SchemaBoard::CARDINALIDADES, senão a relação vira uma seta comum.',
+            `[ERD] Marker "${name}" is missing from CARDINALITY_MARKERS and SchemaBoard::CARDINALITY_MARKERS.`,
         );
     }
-    registerMarker(nome, marcador);
+    registerMarker(name, marker);
 };
 
-// Um  (obrigatório, exatamente um)              →  ||
-registrarCardinalidade('cf-one-one', crowMarker(bar(-8) + bar(-16)));
-// Zero ou um                                    →  o|
-registrarCardinalidade('cf-zero-one', crowMarker(bar(-10) + ring(-22)));
-// Um ou muitos                                  →  |<
-registrarCardinalidade('cf-one-many', crowMarker(foot(-18) + bar(-26)));
-// Zero ou muitos                                →  o<
-registrarCardinalidade('cf-zero-many', crowMarker(foot(-18) + ring(-32)));
+// Exactly one → ||
+registerCardinality('cf-one-one', crowMarker(bar(-8) + bar(-16)));
+// Zero or one → o|
+registerCardinality('cf-zero-one', crowMarker(bar(-10) + ring(-22)));
+// One or many → |<
+registerCardinality('cf-one-many', crowMarker(foot(-18) + bar(-26)));
+// Zero or many → o<
+registerCardinality('cf-zero-many', crowMarker(foot(-18) + ring(-32)));

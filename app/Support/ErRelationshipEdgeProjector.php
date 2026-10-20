@@ -5,7 +5,7 @@ namespace App\Support;
 /** Projects ER relationships and their attributes into WireFlow edges. */
 final class ErRelationshipEdgeProjector
 {
-    private const COR_RELACAO = '#64748b';
+    private const RELATION_COLOR = '#64748b';
 
     private const MARKER_OFFSET = 0;
 
@@ -37,7 +37,7 @@ final class ErRelationshipEdgeProjector
         $base = [
             'type' => 'straight',
             'pathType' => 'straight',
-            'color' => self::COR_RELACAO,
+            'color' => self::RELATION_COLOR,
             'strokeWidth' => 1.6,
             'interactionWidth' => 34,
             'data' => $data,
@@ -50,7 +50,7 @@ final class ErRelationshipEdgeProjector
                 'source' => $isSelfRelationship ? $selfPorts['entityOut'] : $relation['from'],
                 'target' => $isSelfRelationship ? $selfPorts['diamondOut'] : $diamondId,
                 ...($isSelfRelationship ? ['label' => $this->selfRoleLabel($relation['fromRole'] ?? null, 'Origem')] : []),
-                'labelStart' => $this->nomeCurto($relation['fromAttr']),
+                'labelStart' => $this->shortName($relation['fromAttr']),
                 'markerStart' => $this->marker($relation['childCard']),
             ];
         }
@@ -60,7 +60,7 @@ final class ErRelationshipEdgeProjector
                 'source' => $isSelfRelationship ? $selfPorts['diamondIn'] : $diamondId,
                 'target' => $isSelfRelationship ? $selfPorts['entityIn'] : $relation['to'],
                 ...($isSelfRelationship ? ['label' => $this->selfRoleLabel($relation['toRole'] ?? null, 'Destino')] : []),
-                'labelEnd' => $this->nomeCurto($relation['toAttr']),
+                'labelEnd' => $this->shortName($relation['toAttr']),
                 'markerEnd' => $this->marker($relation['parentCard']),
             ];
         }
@@ -89,12 +89,12 @@ final class ErRelationshipEdgeProjector
             'target' => $relation['to'],
             'type' => 'floating',
             'pathType' => 'smoothstep',
-            'color' => self::COR_RELACAO,
+            'color' => self::RELATION_COLOR,
             'strokeWidth' => 1.6,
             'interactionWidth' => 34,
             'label' => $relation['name'],
-            'labelStart' => $this->nomeCurto($relation['fromAttr']),
-            'labelEnd' => $this->nomeCurto($relation['toAttr']),
+            'labelStart' => $this->shortName($relation['fromAttr']),
+            'labelEnd' => $this->shortName($relation['toAttr']),
             'markerStart' => $this->marker($relation['childCard']),
             'markerEnd' => $this->marker($relation['parentCard']),
             'data' => [
@@ -132,23 +132,23 @@ final class ErRelationshipEdgeProjector
     }
 
     /**
-     * Descreve um marcador de cardinalidade como array em vez de string.
+     * Describe a cardinality marker as an array instead of a string.
      *
-     * Passar só o nome do marcador deixaria o AlpineFlow aplicar o recuo padrão
-     * de 12,5px na ponta da linha, abrindo um vão entre o símbolo e a caixa da
-     * entidade. Com o offset explícito em zero, o pé de galinha encosta.
+     * A marker name alone uses AlpineFlow's default 12.5px offset, leaving a
+     * visible gap between the symbol and entity. An explicit zero offset
+     * keeps the crow's foot against the entity border.
      */
-    private function marker(string $tipo): array
+    private function marker(string $type): array
     {
         return [
-            'type' => $tipo,
+            'type' => $type,
             'offset' => self::MARKER_OFFSET,
-            'color' => self::COR_RELACAO,
+            'color' => self::RELATION_COLOR,
         ];
     }
 
-    /** 'posts.user_id' → 'user_id' (o que aparece na ponta da linha). */
-    private function nomeCurto(string $attrId): string
+    /** 'posts.user_id' → 'user_id' (the label at the end of the edge). */
+    private function shortName(string $attrId): string
     {
         $pos = strrpos($attrId, '.');
 

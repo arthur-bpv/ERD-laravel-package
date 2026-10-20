@@ -1,8 +1,7 @@
-// A aresta floating continua responsável pelos handles, percurso e cardinalidade.
-// Este módulo apenas decora o label N:N e posiciona os atributos em relação a ele.
+// Floating edges still own handles, paths, and cardinality.
+// This module decorates the N:N label and positions its attributes.
 //
-// `setRelationshipAttributeFollowing` é exportado só para o teste unitário; o
-// resto do módulo é consumido por `installRelationshipBalloons`.
+// `setRelationshipAttributeFollowing` is also used by the unit test.
 export function setRelationshipAttributeFollowing(container, nodeId, following) {
     const escapedId = globalThis.CSS?.escape
         ? globalThis.CSS.escape(nodeId)

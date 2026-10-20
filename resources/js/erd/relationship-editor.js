@@ -158,10 +158,9 @@ document.addEventListener('alpine:init', () => {
             return this.$flow?.edges.find((edge) => edge.id === this.activeEdgeId) ?? null;
         },
 
-        // markerStart/markerEnd chegam como objeto ({type, offset, color}),
-        // porque é assim que se controla o recuo da linha. Para comparar com
-        // a paleta precisamos só do tipo.
-        tipo(marker) {
+        // A marker can be an object carrying its type, offset, and color.
+        // The palette only needs its type.
+        markerType(marker) {
             return typeof marker === 'string' ? marker : marker?.type;
         },
 
@@ -186,7 +185,7 @@ document.addEventListener('alpine:init', () => {
         addAttribute() {
             const name = this.attributeName.trim();
             if (!name || !this.e) return;
-            this.$wire.addRelationAttribute(this.relationId(this.e), name,);
+            this.$wire.addRelationAttribute(this.relationId(this.e), name);
             this.attributeName = '';
             this.feedback = 'Atributo adicionado.';
         },
@@ -200,47 +199,46 @@ document.addEventListener('alpine:init', () => {
             if (this.e) this.$wire.removeRelationAttribute(this.relationId(this.e), attribute.id);
         },
 
-        markerFor(campo) {
+        markerFor(markerField) {
             const edge = this.e;
             if (!edge) return null;
 
             const relationId = this.relationId(edge);
             const relationEdge = this.$flow?.edges.find(
-                (item) => this.relationId(item) === relationId && item[campo],
+                (item) => this.relationId(item) === relationId && item[markerField],
             );
 
-            return relationEdge?.[campo] ?? null;
+            return relationEdge?.[markerField] ?? null;
         },
 
 
-        // campo = 'markerStart' (lado filho/FK) | 'markerEnd' (lado pai/PK).
-        // Não fecha o painel: o usuário costuma testar mais de uma opção
-        // seguida antes de decidir.
-        setEnd(campo, marker) {
+        // markerStart belongs to the child/FK end; markerEnd to the parent/PK.
+        // Keep the panel open so the user can try several options.
+        setEnd(markerField, marker) {
             const edge = this.e;
-            if (!edge || this.tipo(this.markerFor(campo)) === marker) return;
+            if (!edge || this.markerType(this.markerFor(markerField)) === marker) return;
 
             if (!this.activeEdgeId && this.activeRelationship) {
-                this.activeRelationship[campo === 'markerStart' ? 'childCard' : 'parentCard'] = marker;
+                this.activeRelationship[markerField === 'markerStart' ? 'childCard' : 'parentCard'] = marker;
             }
-            this.$wire.setCardinality(this.relationId(edge), campo === 'markerStart' ? 'child' : 'parent', marker);
+            this.$wire.setCardinality(this.relationId(edge), markerField === 'markerStart' ? 'child' : 'parent', marker);
         },
 
         rename() {
             const edge = this.e;
             if (!edge) return;
 
-            const nome = this.relationName.trim();
-            if (!nome) return;
+            const name = this.relationName.trim();
+            if (!name) return;
 
             const relationId = this.relationId(edge);
             if (this.activeRelationship) {
-                this.activeRelationship.name = nome;
-                this.activeRelationship.relationName = nome;
+                this.activeRelationship.name = name;
+                this.activeRelationship.relationName = name;
             }
-            if (edge.data) edge.data.relationName = nome;
-            if (!edge.data?.isSelf && 'label' in edge) edge.label = nome;
-            this.$wire.renameRelation(relationId, nome);
+            if (edge.data) edge.data.relationName = name;
+            if (!edge.data?.isSelf && 'label' in edge) edge.label = name;
+            this.$wire.renameRelation(relationId, name);
             this.feedback = 'Nome atualizado.';
         },
 

@@ -25,7 +25,7 @@ class SchemaBoardTest extends TestCase
     {
         $board = Livewire::test(SchemaBoard::class)
             ->call('addRelationAttribute', 'r1', 'published_at', 'date');
-        $relation = $this->relacao($board->get('relations'), 'r1');
+        $relation = $this->findRelation($board->get('relations'), 'r1');
         $this->assertSame('date', $relation['attributes'][0]['type']);
         $nodes = $board->instance()->buildNodes();
         $this->assertContains('relation-r1-attribute-anchor', array_column($nodes, 'id'));
@@ -60,7 +60,7 @@ class SchemaBoardTest extends TestCase
     public function test_relationship_balloons_keep_relative_offsets_when_an_entity_moves(): void
     {
         $board = Livewire::test(SchemaBoard::class)->call('addRelationAttribute', 'r1', 'signed_at');
-        $attributeId = $this->relacao($board->get('relations'), 'r1')['attributes'][0]['id'];
+        $attributeId = $this->findRelation($board->get('relations'), 'r1')['attributes'][0]['id'];
         $nodeId = 'relation-r1-attr-'.$attributeId;
         $before = collect($board->instance()->buildNodes())->firstWhere('id', $nodeId)['position'];
 
@@ -70,13 +70,13 @@ class SchemaBoardTest extends TestCase
         $this->assertSame($before['y'] + 50, $after['y']);
 
         $board->call('onRelationAttributeDragEnd', 'r1', $attributeId, ['x' => 210, 'y' => -40]);
-        $relation = $this->relacao($board->get('relations'), 'r1');
+        $relation = $this->findRelation($board->get('relations'), 'r1');
         $this->assertSame(210, $relation['attributes'][0]['offsetX']);
         $this->assertSame(-40, $relation['attributes'][0]['offsetY']);
     }
 
     /** Localiza uma relação pelo id dentro do estado do componente. */
-    private function relacao(array $relations, string $id): ?array
+    private function findRelation(array $relations, string $id): ?array
     {
         foreach ($relations as $r) {
             if ($r['id'] === $id) {
@@ -267,17 +267,17 @@ class SchemaBoardTest extends TestCase
             ->call('renameSelfRelationRoles', 'r4', 'subordinado', 'supervisor')
             ->assertDispatched('flow:update');
 
-        $relation = $this->relacao($component->get('relations'), 'r4');
+        $relation = $this->findRelation($component->get('relations'), 'r4');
         $this->assertSame('subordinado', $relation['fromRole']);
         $this->assertSame('supervisor', $relation['toRole']);
         $roleEdges = collect($component->instance()->buildEdges())->where('data.relationId', 'r4')->values();
         $this->assertSame(['subordinado', 'supervisor'], $roleEdges->pluck('label')->all());
 
         $component->call('renameSelfRelationRoles', 'r4', ' ', 'supervisor');
-        $this->assertSame('subordinado', $this->relacao($component->get('relations'), 'r4')['fromRole']);
+        $this->assertSame('subordinado', $this->findRelation($component->get('relations'), 'r4')['fromRole']);
 
         $component->call('renameSelfRelationRoles', 'r4', 'pessoa', 'pessoa');
-        $this->assertSame('subordinado', $this->relacao($component->get('relations'), 'r4')['fromRole']);
+        $this->assertSame('subordinado', $this->findRelation($component->get('relations'), 'r4')['fromRole']);
     }
 
     /**
@@ -312,13 +312,13 @@ class SchemaBoardTest extends TestCase
         $relations = $component->get('relations');
         $this->assertCount(4, $relations);
 
-        $nova = $this->relacao($relations, 'r4');
-        $this->assertNotNull($nova, 'a relação deveria ter recebido o id do servidor');
-        $this->assertSame('comments', $nova['from']);
-        $this->assertSame('comments', $nova['to']);
-        $this->assertSame('comments.id', $nova['toAttr']);
-        $this->assertSame('papel_origem', $nova['fromRole']);
-        $this->assertSame('papel_destino', $nova['toRole']);
+        $newRelation = $this->findRelation($relations, 'r4');
+        $this->assertNotNull($newRelation, 'a relação deveria ter recebido o id do servidor');
+        $this->assertSame('comments', $newRelation['from']);
+        $this->assertSame('comments', $newRelation['to']);
+        $this->assertSame('comments.id', $newRelation['toAttr']);
+        $this->assertSame('papel_origem', $newRelation['fromRole']);
+        $this->assertSame('papel_destino', $newRelation['toRole']);
     }
 
     /** O modelo conceitual não inventa uma FK; isso pertence à etapa relacional. */
@@ -331,7 +331,7 @@ class SchemaBoardTest extends TestCase
         $recursiveFk = collect($comments['attributes'])->firstWhere('name', 'comments_id');
 
         $this->assertNull($recursiveFk);
-        $this->assertSame('', $this->relacao($component->get('relations'), 'r4')['fromAttr']);
+        $this->assertSame('', $this->findRelation($component->get('relations'), 'r4')['fromAttr']);
     }
 
     public function test_self_relationship_is_drawn_through_an_external_diamond(): void
@@ -418,7 +418,7 @@ class SchemaBoardTest extends TestCase
             ->call('removeAttribute', 'posts', 'posts.user_id')
             ->assertDispatched('flow:removeEdges');
 
-        $this->assertNull($this->relacao($component->get('relations'), 'r1'));
+        $this->assertNull($this->findRelation($component->get('relations'), 'r1'));
         $this->assertCount(2, $component->get('relations'));
     }
 
@@ -447,7 +447,7 @@ class SchemaBoardTest extends TestCase
                     && $params['select'] === true;
             });
 
-        $this->assertSame('cf-one-many', $this->relacao($component->get('relations'), 'r1')['childCard']);
+        $this->assertSame('cf-one-many', $this->findRelation($component->get('relations'), 'r1')['childCard']);
     }
 
     /** Cardinalidade inventada pelo cliente é ignorada. */
@@ -456,7 +456,7 @@ class SchemaBoardTest extends TestCase
         $component = Livewire::test(SchemaBoard::class)
             ->call('setCardinality', 'r1', 'child', 'nao-existe');
 
-        $this->assertSame('cf-one-many', $this->relacao($component->get('relations'), 'r1')['childCard']);
+        $this->assertSame('cf-one-many', $this->findRelation($component->get('relations'), 'r1')['childCard']);
     }
 
     /** Inverter muda a ponta visual e escolhe uma PK válida na nova origem. */
@@ -464,7 +464,7 @@ class SchemaBoardTest extends TestCase
     {
         $component = Livewire::test(SchemaBoard::class)->call('swapRelation', 'r1');
 
-        $r1 = $this->relacao($component->get('relations'), 'r1');
+        $r1 = $this->findRelation($component->get('relations'), 'r1');
         $this->assertSame('users', $r1['from']);
         $this->assertSame('posts', $r1['to']);
         $this->assertSame('', $r1['fromAttr']);
@@ -480,7 +480,7 @@ class SchemaBoardTest extends TestCase
         $component->assertDispatched('erd-rebuild-edge');
 
         $component->call('swapRelation', 'r1');
-        $restored = $this->relacao($component->get('relations'), 'r1');
+        $restored = $this->findRelation($component->get('relations'), 'r1');
         $this->assertSame('posts', $restored['from']);
         $this->assertSame('users', $restored['to']);
         $this->assertSame('posts.user_id', $restored['fromAttr']);
@@ -491,22 +491,22 @@ class SchemaBoardTest extends TestCase
     {
         $component = Livewire::test(SchemaBoard::class)
             ->call('cycleKey', 'posts', 'posts.id');
-        $before = $this->relacao($component->get('relations'), 'r1');
+        $before = $this->findRelation($component->get('relations'), 'r1');
 
         $component->call('swapRelation', 'r1')
             ->assertDispatched('erd-swap-rejected');
 
-        $this->assertSame($before, $this->relacao($component->get('relations'), 'r1'));
+        $this->assertSame($before, $this->findRelation($component->get('relations'), 'r1'));
     }
 
     public function test_swapping_a_self_relationship_still_exchanges_its_roles(): void
     {
         $component = Livewire::test(SchemaBoard::class)
             ->call('createSelfRelation', 'users');
-        $before = $this->relacao($component->get('relations'), 'r4');
+        $before = $this->findRelation($component->get('relations'), 'r4');
 
         $component->call('swapRelation', 'r4');
-        $after = $this->relacao($component->get('relations'), 'r4');
+        $after = $this->findRelation($component->get('relations'), 'r4');
 
         $this->assertSame($before['toRole'], $after['fromRole']);
         $this->assertSame($before['fromRole'], $after['toRole']);
@@ -523,7 +523,7 @@ class SchemaBoardTest extends TestCase
             ->call('renameRelation', 'r1', 'publica')
             ->assertDispatched('flow:update');
 
-        $this->assertSame('publica', $this->relacao($component->get('relations'), 'r1')['name']);
+        $this->assertSame('publica', $this->findRelation($component->get('relations'), 'r1')['name']);
     }
 
     /** Nome vazio não apaga o losango. */
@@ -531,7 +531,7 @@ class SchemaBoardTest extends TestCase
     {
         $component = Livewire::test(SchemaBoard::class)->call('renameRelation', 'r1', '   ');
 
-        $this->assertSame('escreve', $this->relacao($component->get('relations'), 'r1')['name']);
+        $this->assertSame('escreve', $this->findRelation($component->get('relations'), 'r1')['name']);
     }
 
     /** Arrastar a entidade persiste a posição, para o layout sobreviver a um reload. */

@@ -40,9 +40,10 @@ As portas 8000 e 5173 precisam estar acessíveis ao navegador. Consulte `docker 
 | --- | --- |
 | Editar ER | `app/Livewire/SchemaBoard.php`, `resources/views/livewire/schema-board.blade.php`, `resources/js/erd/canvas-controller.js` e `resources/js/erd/relationship-editor.js`. |
 | Projetar nós ER | `app/Support/ErEntityNodeProjector.php` monta os nós das entidades; `app/Support/ErSelfRelationshipPortProjector.php` e `resources/js/erd/self-relationship-ports.js` posicionam as portas de autorrelação no servidor e durante o arrasto. |
+| Editar atributos de relação | `app/Services/ErRelationshipAttributeEditor.php` aplica inclusão, renomeação e remoção; `SchemaBoard` mantém os eventos e a sincronização visual. |
 | Posicionar elementos | `app/Support/BoardLayout.php` e `app/Support/ErRelationshipAttributePositioner.php`. |
 | Converter ER para relacional | `app/Services/ErToRelationalTransformer.php` e `app/Services/ReferencedKeyCopier.php`. |
-| Editar e desenhar o modelo relacional | `app/Livewire/RelationalBoard.php`, `app/Services/RelationalColumnUpdater.php` e `app/Support/RelationalForeignKeyEdgeProjector.php`. |
+| Editar e desenhar o modelo relacional | `app/Livewire/RelationalBoard.php`, `app/Services/RelationalColumnUpdater.php`, `app/Support/RelationalTableNodeProjector.php` e `app/Support/RelationalForeignKeyEdgeProjector.php`. |
 | Detectar mudanças no ER e gerar SQL | `app/Services/RelationalDiagramDriftAnalyzer.php` e `app/Services/RelationalSqlGenerator.php`. |
 | Importar JSON | `app/Support/ErDiagramImporter.php`. |
 

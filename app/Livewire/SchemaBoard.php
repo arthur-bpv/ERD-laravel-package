@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Livewire\Concerns\HandlesDiagramJsonExport;
 use App\Models\Diagram;
+use App\Services\ErRelationshipAttributeEditor;
 use App\Services\RelationalDiagramCreator;
 use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Support\BoardLayout;
@@ -884,10 +885,10 @@ class SchemaBoard extends Component
             return;
         }
 
-        $campo = $end === 'parent' ? 'parentCard' : 'childCard';
+        $field = $end === 'parent' ? 'parentCard' : 'childCard';
 
-        $this->mutateRelation($relationId, function (&$r) use ($campo, $marker) {
-            $r[$campo] = $marker;
+        $this->mutateRelation($relationId, function (&$relation) use ($field, $marker) {
+            $relation[$field] = $marker;
         });
     }
 
@@ -995,17 +996,13 @@ class SchemaBoard extends Component
         }
 
         $this->mutateRelation($relationId, function (&$relation) use ($name, $type) {
-            foreach ($relation['attributes'] ?? [] as $attribute) {
-                if (mb_strtolower($attribute['name']) === mb_strtolower($name)) {
-                    return;
-                }
+            $attributes = (new ErRelationshipAttributeEditor)->add(
+                $relation['attributes'] ?? [], $name, $type, 'a'.($this->seq + 1),
+            );
+            if ($attributes !== null) {
+                $relation['attributes'] = $attributes;
+                $this->seq++;
             }
-            $relation['attributes'][] = [
-                'id' => 'a'.(++$this->seq),
-                'name' => $name,
-                'type' => in_array($type, ['bigint', 'int', 'decimal', 'date', 'datetime', 'boolean', 'text', 'varchar'], true) ? $type : 'varchar',
-                'key' => '',
-            ];
         });
     }
 
@@ -1016,28 +1013,17 @@ class SchemaBoard extends Component
             return;
         }
         $this->mutateRelation($relationId, function (&$relation) use ($attributeId, $name) {
-            foreach ($relation['attributes'] ?? [] as $attribute) {
-                if ($attribute['id'] !== $attributeId && mb_strtolower($attribute['name']) === mb_strtolower($name)) {
-                    return;
-                }
+            $attributes = (new ErRelationshipAttributeEditor)->rename($relation['attributes'] ?? [], $attributeId, $name);
+            if ($attributes !== null) {
+                $relation['attributes'] = $attributes;
             }
-            $relation['attributes'] ??= [];
-            foreach ($relation['attributes'] as &$attribute) {
-                if ($attribute['id'] === $attributeId) {
-                    $attribute['name'] = $name;
-                    break;
-                }
-            }
-            unset($attribute);
         });
     }
 
     public function removeRelationAttribute(string $relationId, string $attributeId): void
     {
         $this->mutateRelation($relationId, function (&$relation) use ($attributeId) {
-            $relation['attributes'] = array_values(array_filter(
-                $relation['attributes'] ?? [], fn ($attribute) => $attribute['id'] !== $attributeId,
-            ));
+            $relation['attributes'] = (new ErRelationshipAttributeEditor)->remove($relation['attributes'] ?? [], $attributeId);
         });
     }
 

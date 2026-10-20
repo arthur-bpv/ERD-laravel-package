@@ -406,7 +406,7 @@
                                 <template x-for="o in options" :key="'s'+o.m">
                                     <button
                                         class="er-ee-opt"
-                                        :class="{ 'is-active': tipo(markerFor('markerStart')) === o.m }"
+                                        :class="{ 'is-active': markerType(markerFor('markerStart')) === o.m }"
                                         :title="o.t"
                                         @click="setEnd('markerStart', o.m)"
                                         x-text="o.s"
@@ -423,7 +423,7 @@
                                 <template x-for="o in options" :key="'t'+o.m">
                                     <button
                                         class="er-ee-opt"
-                                        :class="{ 'is-active': tipo(markerFor('markerEnd')) === o.m }"
+                                        :class="{ 'is-active': markerType(markerFor('markerEnd')) === o.m }"
                                         :title="o.t"
                                         @click="setEnd('markerEnd', o.m)"
                                         x-text="o.s"

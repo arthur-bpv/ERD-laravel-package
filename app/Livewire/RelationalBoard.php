@@ -11,6 +11,7 @@ use App\Services\RelationalSqlGenerator;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
 use App\Support\RelationalForeignKeyEdgeProjector;
+use App\Support\RelationalTableNodeProjector;
 use ArtisanFlow\WireFlow\Concerns\WithWireFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
@@ -28,15 +29,6 @@ class RelationalBoard extends Component
 
     #[Locked]
     public string $dialect = 'mysql';
-
-    private const TABLE_WIDTH = 380;
-
-    /** Altura do cabeçalho e das linhas de coluna da tabela. */
-    private const TABLE_HEADER_HEIGHT = 62;
-
-    private const TABLE_BODY_PADDING = 12;
-
-    private const TABLE_COLUMN_HEIGHT = 44;
 
     /** Espaço para ler nomes, tipos e FKs antes de pensar em compactar. */
     private const LAYOUT_COLUMN_GAP = 130;
@@ -235,24 +227,6 @@ class RelationalBoard extends Component
         );
     }
 
-    /**
-     * Tamanho de uma tabela, no canvas e no arranjo automático.
-     *
-     * @return array{width: int, height: int}
-     */
-    private function tableDimensions(array $table): array
-    {
-        return [
-            'width' => self::TABLE_WIDTH,
-            'height' => self::TABLE_HEADER_HEIGHT
-                + self::TABLE_BODY_PADDING
-                + array_sum(array_map(
-                    fn (array $column): int => self::TABLE_COLUMN_HEIGHT + (($column['type'] ?? '') === 'enum' ? 34 : 0),
-                    $table['columns'] ?? [],
-                )),
-        ];
-    }
-
     private function sqlData(): array
     {
         return [
@@ -278,8 +252,8 @@ class RelationalBoard extends Component
         $positions = BoardLayout::centered(
             $this->tables,
             $links,
-            fn (array $table): int => $this->tableDimensions($table)['height'],
-            self::TABLE_WIDTH,
+            fn (array $table): int => RelationalTableNodeProjector::dimensions($table)['height'],
+            RelationalTableNodeProjector::WIDTH,
             self::LAYOUT_COLUMN_GAP,
             self::LAYOUT_ROW_GAP,
         );
@@ -291,8 +265,8 @@ class RelationalBoard extends Component
                 $this->tables,
                 $links,
                 $positions,
-                fn (array $table): int => $this->tableDimensions($table)['height'],
-                self::TABLE_WIDTH,
+                fn (array $table): int => RelationalTableNodeProjector::dimensions($table)['height'],
+                RelationalTableNodeProjector::WIDTH,
                 self::LAYOUT_ROW_GAP,
                 36,
             );
@@ -301,8 +275,8 @@ class RelationalBoard extends Component
             $this->tables,
             $links,
             $positions,
-            fn (array $table): int => $this->tableDimensions($table)['height'],
-            self::TABLE_WIDTH,
+            fn (array $table): int => RelationalTableNodeProjector::dimensions($table)['height'],
+            RelationalTableNodeProjector::WIDTH,
             self::LAYOUT_COLUMN_GAP,
             fn (array $table): bool => ($table['kind'] ?? '') === 'multivalued',
         );
@@ -339,22 +313,12 @@ class RelationalBoard extends Component
 
     public function buildNodes(): array
     {
-        return array_map(fn (array $table) => [
-            'id' => $table['id'],
-            'position' => ['x' => $table['x'], 'y' => $table['y']],
-            'dimensions' => $this->tableDimensions($table),
-            'data' => [
-                'name' => $table['name'],
-                'kind' => $table['kind'],
-                'columns' => $table['columns'],
-                'primaryKey' => $table['primaryKey'],
-            ],
-        ], $this->tables);
+        return array_map(RelationalTableNodeProjector::node(...), $this->tables);
     }
 
     public function buildEdges(): array
     {
-        return (new RelationalForeignKeyEdgeProjector)->build($this->tables, $this->foreignKeys, self::TABLE_WIDTH);
+        return (new RelationalForeignKeyEdgeProjector)->build($this->tables, $this->foreignKeys, RelationalTableNodeProjector::WIDTH);
     }
 
     public function render(RelationalDiagramDriftAnalyzer $drift): View

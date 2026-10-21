@@ -6,6 +6,7 @@ use App\Models\Diagram;
 use App\Services\RelationalDiagramCreator;
 use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Support\ErDiagramImporter;
+use App\Support\SqlDiagramImporter;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,12 @@ class ProjectDashboard extends Component
     public bool $showImport = false;
 
     public string $importJson = '';
+
+    public string $importFormat = 'json';
+
+    public string $importSql = '';
+
+    public string $importDialect = '';
 
     public string $importError = '';
 
@@ -78,11 +85,50 @@ class ProjectDashboard extends Component
         $this->redirectRoute('boards.er', $diagram, navigate: true);
     }
 
-    public function toggleImport(): void
+    public function toggleImport(string $format = 'json'): void
     {
-        $this->showImport = ! $this->showImport;
+        $this->showImport = ! $this->showImport || $this->importFormat !== $format;
+        $this->importFormat = $format === 'sql' ? 'sql' : 'json';
         $this->importError = '';
         $this->resetValidation('importProjectName');
+    }
+
+    #[Computed]
+    public function detectedSqlDialect(): ?string
+    {
+        return SqlDiagramImporter::detectDialect($this->importSql);
+    }
+
+    public function importSqlProject(SqlDiagramImporter $importer): void
+    {
+        $this->validateOnly('importProjectName');
+        $this->importError = '';
+
+        try {
+            $data = $importer->parse($this->importSql, $this->importDialect ?: null);
+        } catch (InvalidArgumentException $exception) {
+            $this->importError = $exception->getMessage();
+
+            return;
+        }
+
+        $diagram = DB::transaction(function () use ($data): Diagram {
+            $diagram = Diagram::create([
+                'name' => trim($this->importProjectName),
+                'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+                'data' => $data['er'],
+            ]);
+            Diagram::create([
+                'name' => $diagram->name.' — Relacional',
+                'type' => Diagram::TYPE_RELATIONAL,
+                'source_diagram_id' => $diagram->id,
+                'data' => $data['relational'],
+            ]);
+
+            return $diagram;
+        });
+
+        $this->redirectRoute('boards.er', $diagram, navigate: true);
     }
 
     public function importProject(): void

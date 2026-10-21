@@ -36,11 +36,16 @@
 
                 <button
                     type="button"
-                    wire:click="toggleImport"
+                    wire:click="toggleImport('json')"
                     class="flex w-full items-center justify-between rounded-2xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-left text-sm font-semibold text-indigo-800 transition hover:border-indigo-400 hover:bg-indigo-100 dark:border-indigo-300/25 dark:bg-indigo-400/[0.06] dark:text-indigo-200 dark:hover:border-indigo-300/50 dark:hover:bg-indigo-400/10"
                 >
-                    <span><span aria-hidden="true">↑</span> Importar projeto</span>
+                    <span><span aria-hidden="true">↑</span> Importar projeto JSON</span>
                     <span class="text-xs font-normal text-slate-600 dark:text-slate-500">JSON de modelo ER</span>
+                </button>
+                <button type="button" wire:click="toggleImport('sql')"
+                    class="flex w-full items-center justify-between rounded-2xl border border-dashed border-cyan-300 bg-cyan-50 px-4 py-3 text-left text-sm font-semibold text-cyan-800 transition hover:border-cyan-400 hover:bg-cyan-100 dark:border-cyan-300/25 dark:bg-cyan-400/[0.06] dark:text-cyan-200 dark:hover:border-cyan-300/50 dark:hover:bg-cyan-400/10">
+                    <span><span aria-hidden="true">↑</span> Importar projeto SQL</span>
+                    <span class="text-xs font-normal text-slate-600 dark:text-slate-500">Script de estrutura do banco</span>
                 </button>
             </div>
         </header>
@@ -54,16 +59,16 @@
             role="dialog"
             aria-modal="true"
             aria-labelledby="import-project-title"
-            @click.self="$wire.toggleImport()"
+            @click.self="$wire.showImport = false"
             @keydown.escape.window="$wire.showImport = false"
         >
             <div class="er-import-dialog">
                 <div class="er-import-heading">
                     <div>
                         <p class="er-import-kicker">Novo projeto</p>
-                        <h2 id="import-project-title">Importar diagrama ER</h2>
+                        <h2 id="import-project-title">{{ $importFormat === 'sql' ? 'Importar estrutura SQL' : 'Importar diagrama ER' }}</h2>
                     </div>
-                    <button type="button" wire:click="toggleImport" aria-label="Fechar importação">✕</button>
+                    <button type="button" wire:click="$set('showImport', false)" aria-label="Fechar importação">✕</button>
                 </div>
 
                 <p>O arquivo será validado e salvo como um projeto independente. Nenhum projeto existente será alterado.</p>
@@ -74,52 +79,98 @@
                 </label>
                 @error('importProjectName') <p class="er-import-error" role="alert">{{ $message }}</p> @enderror
 
-                <label class="er-import-drop">
-                    <span>Selecionar arquivo JSON</span>
-                    <small>Máximo de 2 MB</small>
-                    <input
-                        type="file"
-                        accept=".json,application/json"
-                        aria-label="Arquivo JSON do projeto"
-                        @change="
-                            const file = $event.target.files?.[0];
-                            if (!file) return;
-                            if (file.size > 2000000) {
-                                $wire.set('importError', 'O arquivo ultrapassa o limite de 2 MB.');
-                                $event.target.value = '';
-                                return;
-                            }
-                            readingImportFile = true;
-                            $wire.set('importError', '');
-                            file.text()
-                                .then(text => $wire.set('importJson', text))
-                                .catch(() => $wire.set('importError', 'Não foi possível ler o arquivo JSON.'))
-                                .finally(() => readingImportFile = false);
-                        "
-                    >
-                </label>
-                <p x-show="readingImportFile" x-cloak class="text-xs text-indigo-700 dark:text-indigo-300" role="status">Lendo arquivo…</p>
+                @if ($importFormat === 'sql')
+                    <p>Tabelas, colunas e chaves serão convertidas em modelos ER e relacional. Dados, rotinas, defaults, checks e geração automática não são importados. Chaves UNIQUE compostas ainda não são suportadas.</p>
+                    <label class="er-import-drop">
+                        <span>Selecionar arquivo SQL</span>
+                        <small>Máximo de 2 MB</small>
+                        <input type="file" accept=".sql,text/sql,application/sql,text/plain" aria-label="Arquivo SQL do projeto"
+                            @change="
+                                const file = $event.target.files?.[0];
+                                if (!file) return;
+                                if (file.size > 2000000) {
+                                    $wire.set('importError', 'O arquivo ultrapassa o limite de 2 MB.');
+                                    $event.target.value = '';
+                                    return;
+                                }
+                                readingImportFile = true;
+                                $wire.set('importError', '');
+                                file.text()
+                                    .then(text => $wire.set('importSql', text))
+                                    .catch(() => $wire.set('importError', 'Não foi possível ler o arquivo SQL.'))
+                                    .finally(() => readingImportFile = false);
+                            ">
+                    </label>
+                    <details class="er-import-advanced">
+                        <summary>Ou colar o SQL manualmente</summary>
+                        <textarea wire:model.live.debounce.500ms="importSql" rows="8" placeholder="CREATE TABLE ..." aria-label="SQL para importar"></textarea>
+                    </details>
+                    <p role="status">
+                        @if ($this->detectedSqlDialect)
+                            Banco identificado: <strong>{{ \App\Support\DataTypeCatalog::DIALECTS[$this->detectedSqlDialect]['label'] }}</strong>
+                        @else
+                            Banco não identificado. SQL genérico pode pertencer a vários bancos; selecione o banco abaixo.
+                        @endif
+                    </p>
+                    <label class="er-import-field">
+                        <span>Banco de dados</span>
+                        <select wire:model="importDialect" class="rounded-lg border border-slate-300 bg-white p-2 text-slate-900 dark:border-white/15 dark:bg-slate-900 dark:text-white">
+                            <option value="">Detectar automaticamente</option>
+                            @foreach (\App\Support\DataTypeCatalog::DIALECTS as $value => $config)
+                                <option value="{{ $value }}">{{ $config['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                @else
+                    <label class="er-import-drop">
+                        <span>Selecionar arquivo JSON</span>
+                        <small>Máximo de 2 MB</small>
+                        <input
+                            type="file"
+                            accept=".json,application/json"
+                            aria-label="Arquivo JSON do projeto"
+                            @change="
+                                const file = $event.target.files?.[0];
+                                if (!file) return;
+                                if (file.size > 2000000) {
+                                    $wire.set('importError', 'O arquivo ultrapassa o limite de 2 MB.');
+                                    $event.target.value = '';
+                                    return;
+                                }
+                                readingImportFile = true;
+                                $wire.set('importError', '');
+                                file.text()
+                                    .then(text => $wire.set('importJson', text))
+                                    .catch(() => $wire.set('importError', 'Não foi possível ler o arquivo JSON.'))
+                                    .finally(() => readingImportFile = false);
+                            "
+                        >
+                    </label>
+                    <details class="er-import-advanced">
+                        <summary>Ou colar o JSON manualmente</summary>
+                        <textarea wire:model="importJson" rows="8" placeholder='{"entities":[],"relations":[]}' aria-label="JSON para importar"></textarea>
+                    </details>
 
-                <details class="er-import-advanced">
-                    <summary>Ou colar o JSON manualmente</summary>
-                    <textarea wire:model="importJson" rows="8" placeholder='{"entities":[],"relations":[]}' aria-label="JSON para importar"></textarea>
-                </details>
+                @endif
 
                 @if ($importError)
                     <p class="er-import-error" role="alert">{{ $importError }}</p>
                 @endif
 
-                <div class="er-import-example">
-                    <button type="button" wire:click="createAnalysisProject">Criar projeto de análise completo</button>
-                    <a href="{{ asset('examples/marketplace-er.json') }}" download>Marketplace</a>
-                    <a href="{{ asset('examples/clinic-er.json') }}" download>Clínica</a>
-                    <a href="{{ asset('examples/er-conversion-cases.json') }}" download>Matriz técnica</a>
-                </div>
+                @if ($importFormat === 'json')
+                    <div class="er-import-example">
+                        <button type="button" wire:click="createAnalysisProject">Criar projeto de análise completo</button>
+                        <a href="{{ asset('examples/marketplace-er.json') }}" download>Marketplace</a>
+                        <a href="{{ asset('examples/clinic-er.json') }}" download>Clínica</a>
+                        <a href="{{ asset('examples/er-conversion-cases.json') }}" download>Matriz técnica</a>
+                    </div>
 
-                <button type="button" wire:click="importProject" wire:loading.attr="disabled" wire:target="importProject"
+                @endif
+                <p x-show="readingImportFile" x-cloak class="text-xs text-indigo-700 dark:text-indigo-300" role="status">Lendo arquivo…</p>
+                <button type="button" wire:click="{{ $importFormat === 'sql' ? 'importSqlProject' : 'importProject' }}" wire:loading.attr="disabled" wire:target="importProject,importSqlProject"
                     :disabled="readingImportFile">
-                    <span wire:loading.remove wire:target="importProject">Criar projeto importado</span>
-                    <span wire:loading wire:target="importProject">Importando…</span>
+                    <span wire:loading.remove wire:target="importProject,importSqlProject">Criar projeto importado</span>
+                    <span wire:loading wire:target="importProject,importSqlProject">Importando…</span>
                 </button>
             </div>
         </div>
@@ -161,6 +212,9 @@
                                     @else
                                         <h3 class="truncate text-lg font-semibold text-slate-950 dark:text-white">{{ $project->name }}</h3>
                                         <p class="mt-1 text-xs text-slate-600 dark:text-slate-500">Atualizado {{ $project->updated_at->diffForHumans() }}</p>
+                                        @if (\App\Support\DataTypeCatalog::has($project->data['dialect'] ?? ''))
+                                            <p class="mt-2 text-xs font-medium text-cyan-800 dark:text-cyan-300">Banco: {{ \App\Support\DataTypeCatalog::DIALECTS[$project->data['dialect']]['label'] }}</p>
+                                        @endif
                                     @endif
                                 </div>
                                 <div class="flex w-full items-center justify-end gap-2 sm:w-auto">

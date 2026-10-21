@@ -6,6 +6,7 @@ use App\Livewire\ProjectDashboard;
 use App\Livewire\SchemaBoard;
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
+use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Support\ErDiagramImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -146,6 +147,75 @@ class ProjectDashboardTest extends TestCase
             ->assertSet('importError', 'relations[0].name precisa ter nome de até 80 caracteres.');
 
         $this->assertSame(0, Diagram::count());
+    }
+
+    public function test_sql_import_creates_linked_boards_and_displays_the_identified_database(): void
+    {
+        $sql = 'PRAGMA foreign_keys=ON; CREATE TABLE parents (id INTEGER PRIMARY KEY);'
+            .' CREATE TABLE children (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parents(id));';
+        Livewire::test(ProjectDashboard::class)
+            ->assertSee('Importar projeto SQL')
+            ->call('toggleImport', 'sql')
+            ->assertSet('showImport', true)
+            ->assertSee('Selecionar arquivo SQL')
+            ->set('importSql', $sql)
+            ->assertSee('SQLite')
+            ->set('importProjectName', 'Banco importado')
+            ->call('importSqlProject')
+            ->assertRedirect();
+
+        $source = Diagram::where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->sole();
+        $this->assertSame('sqlite', $source->data['dialect']);
+        $this->assertCount(2, $source->data['entities']);
+        $this->assertCount(1, $source->data['relations']);
+        $relational = $source->relationalDiagram;
+        $this->assertSame('Banco importado — Relacional', $relational->name);
+        $this->assertSame('sqlite', $relational->data['dialect']);
+        $this->assertCount(1, $relational->data['foreignKeys']);
+        $this->assertFalse(app(RelationalDiagramDriftAnalyzer::class)->isOutdated($source->data, $relational->data));
+        $this->get('/')->assertSee('Banco: SQLite');
+        $this->get(route('boards.er', $source))->assertOk();
+        $this->get(route('boards.relational', $relational))->assertOk();
+    }
+
+    public function test_sql_import_requests_a_database_for_ambiguous_sql_and_allows_a_manual_choice(): void
+    {
+        Livewire::test(ProjectDashboard::class)
+            ->set('importSql', 'CREATE TABLE books (id INTEGER PRIMARY KEY);')
+            ->call('importSqlProject')
+            ->assertSet('importError', 'Não foi possível identificar o banco com segurança. Selecione o banco de dados para importar.')
+            ->set('importDialect', 'oracle')
+            ->call('importSqlProject')
+            ->assertSet('importError', '')
+            ->assertRedirect();
+
+        $this->assertSame('oracle', Diagram::where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->sole()->data['dialect']);
+    }
+
+    public function test_invalid_sql_never_creates_a_partial_project_or_executes_statements(): void
+    {
+        Livewire::test(ProjectDashboard::class)
+            ->set('importDialect', 'sqlite')
+            ->set('importSql', 'DROP TABLE diagrams; CREATE TABLE books (id INT REFERENCES missing(id));')
+            ->call('importSqlProject')
+            ->assertSet('importError', 'Tabela referenciada ausente do SQL: missing.');
+
+        $this->assertSame(0, Diagram::count());
+    }
+
+    public function test_switching_import_formats_resets_errors_and_uses_the_correct_form(): void
+    {
+        Livewire::test(ProjectDashboard::class)
+            ->call('toggleImport', 'sql')
+            ->set('importError', 'Erro anterior')
+            ->call('toggleImport', 'json')
+            ->assertSet('showImport', true)
+            ->assertSet('importFormat', 'json')
+            ->assertSet('importError', '')
+            ->assertSee('Selecionar arquivo JSON')
+            ->assertDontSee('Selecionar arquivo SQL')
+            ->call('toggleImport', 'json')
+            ->assertSet('showImport', false);
     }
 
     public function test_import_controls_exist_only_on_the_dashboard(): void

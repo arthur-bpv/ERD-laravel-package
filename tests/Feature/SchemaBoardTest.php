@@ -20,6 +20,28 @@ class SchemaBoardTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_unique_keys_can_be_created_and_selected_in_er_and_preserved_on_conversion(): void
+    {
+        $board = Livewire::test(SchemaBoard::class)
+            ->call('addAttribute', 'users', 'document', 'varchar', 'UQ')
+            ->call('cycleKey', 'posts', 'posts.title')
+            ->call('cycleKey', 'posts', 'posts.title')
+            ->call('convertToRelational');
+
+        $source = Diagram::query()->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->sole();
+        $relational = Diagram::query()->where('type', Diagram::TYPE_RELATIONAL)->sole();
+        foreach (['users' => 'document', 'posts' => 'title'] as $entityId => $name) {
+            $entity = collect($source->data['entities'])->firstWhere('id', $entityId);
+            $table = collect($relational->data['tables'])->firstWhere('id', $entityId);
+            $this->assertSame('UQ', collect($entity['attributes'])->firstWhere('name', $name)['key']);
+            $this->assertSame('UQ', collect($table['columns'])->firstWhere('name', $name)['key']);
+        }
+
+        $board->call('cycleKey', 'posts', 'posts.title');
+        $posts = collect($board->get('entities'))->firstWhere('id', 'posts');
+        $this->assertSame('', collect($posts['attributes'])->firstWhere('name', 'title')['key']);
+    }
+
     public function test_relationship_attributes_are_nodes_and_many_to_many_is_automatically_associative(): void
     {
         $board = Livewire::test(SchemaBoard::class)
@@ -375,6 +397,7 @@ class SchemaBoardTest extends TestCase
         $component = Livewire::test(SchemaBoard::class)
             ->call('createEntity')
             ->call('cycleKey', 'e4', 'e4.id')
+            ->call('cycleKey', 'e4', 'e4.id')
             ->call('onConnect', 'users', 'e4');
 
         $this->assertCount(3, $component->get('relations'), 'No new relationship should exist.');
@@ -474,6 +497,7 @@ class SchemaBoardTest extends TestCase
     public function test_swapping_requires_an_identifier_on_the_new_parent(): void
     {
         $component = Livewire::test(SchemaBoard::class)
+            ->call('cycleKey', 'posts', 'posts.id')
             ->call('cycleKey', 'posts', 'posts.id');
         $before = $this->findRelation($component->get('relations'), 'r1');
 

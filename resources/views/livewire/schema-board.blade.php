@@ -221,10 +221,12 @@
                                     class="er-key nodrag"
                                     :class="'k-' + (attr.key || 'none').toLowerCase()"
                                     @click="$wire.cycleKey(node.id, attr.id)"
-                                    title="Clique para alternar a chave primária"
+                                    title="Clique para alternar: sem chave → PK → UQ (única)"
+                                    :aria-label="'Chave de ' + attr.name + ': ' + (attr.key || 'nenhuma') + '. Clique para alternar entre nenhuma, PK e UQ.'"
                                 >
                                     <span x-show="attr.key === 'PK'">🔑</span>
-                                    <span x-show="attr.key !== 'PK'" class="er-key-empty">•</span>
+                                    <span x-show="attr.key === 'UQ'">UQ</span>
+                                    <span x-show="attr.key !== 'PK' && attr.key !== 'UQ'" class="er-key-empty">•</span>
                                 </button>
 
                                 {{-- Attribute name. --}}
@@ -271,6 +273,7 @@
                             <select class="er-add-select er-add-key" x-model="k" @pointerdown.stop>
                                 <option value="">—</option>
                                 <option value="PK">PK</option>
+                                <option value="UQ">UQ (única)</option>
                             </select>
                             <button class="er-add-confirm" @click="if (n.trim()) { $wire.addAttribute(node.id, n.trim(), 'varchar', k); n=''; k=''; open=false; }">ok</button>
                         </div>

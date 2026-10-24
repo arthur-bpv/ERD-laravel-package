@@ -660,10 +660,7 @@ class SchemaBoard extends Component
     }
 
     /**
-     * Toggle an attribute between no key and PK.
-     *
-     * Only these states are editable in the ER view. FK and UQ can arrive
-     * through import; any other current key becomes no key here.
+     * Cycle an attribute through no key, PK, and UQ.
      *
      * PK and UQ decide whether an entity can receive a relationship.
      * mutateEntity republishes the node data after the change.
@@ -673,7 +670,11 @@ class SchemaBoard extends Component
         $this->mutateEntity($entityId, function (&$e) use ($attrId) {
             foreach ($e['attributes'] as &$attribute) {
                 if ($attribute['id'] === $attrId) {
-                    $attribute['key'] = $attribute['key'] === 'PK' ? '' : 'PK';
+                    $attribute['key'] = match ($attribute['key']) {
+                        'PK' => 'UQ',
+                        'UQ' => '',
+                        default => 'PK',
+                    };
                     break;
                 }
             }

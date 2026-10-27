@@ -19,6 +19,7 @@ final class RelationalTableNodeProjector
             'width' => self::WIDTH,
             'height' => self::HEADER_HEIGHT
                 + self::BODY_PADDING
+                + 24 * count(array_filter($table['uniqueKeys'] ?? [], fn (array $key): bool => count($key) > 1))
                 + array_sum(array_map(
                     fn (array $column): int => self::COLUMN_HEIGHT + (($column['type'] ?? '') === 'enum' ? 34 : 0),
                     $table['columns'] ?? [],
@@ -37,6 +38,7 @@ final class RelationalTableNodeProjector
                 'kind' => $table['kind'],
                 'columns' => $table['columns'],
                 'primaryKey' => $table['primaryKey'],
+                'uniqueKeys' => $table['uniqueKeys'] ?? [],
             ],
         ];
     }

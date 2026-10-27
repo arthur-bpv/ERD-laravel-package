@@ -1,5 +1,7 @@
 <div class="er-board flex h-screen min-h-0 flex-col overflow-hidden bg-slate-100 font-sans text-slate-800"
     x-data="{
+        shortcutsCleanup: null,
+        destroy() { this.shortcutsCleanup?.destroy(); },
         guideOpen: false,
         notice: '',
         noticeKind: 'success',
@@ -11,6 +13,7 @@
             this.noticeTimer = window.setTimeout(() => this.notice = '', 2800);
         },
     }"
+    x-init="shortcutsCleanup = window.installBoardShortcuts($el, $wire, 'er')"
     @saved.window="showNotice('Diagrama salvo.')">
 
     <x-board-header mode="er" :diagram-name="$diagramName" :relational-diagram-id="$relationalDiagramId"
@@ -24,6 +27,7 @@
     @endif
 
     <div x-show="guideOpen" x-cloak class="er-guide" @keydown.escape.window="guideOpen = false">
+        <p><kbd>Ctrl/Cmd + S</kbd> salva. <kbd>Delete</kbd> exclui a seleção. Clique na linha de uma coluna e saia do campo de texto para excluí-la.</p>
         <div class="er-guide-intro">
             <span class="er-guide-step">1</span>
             <p><strong>Modele o domínio</strong><small>Crie entidades, identificadores e atributos.</small></p>
@@ -197,6 +201,7 @@
                         >↻</button>
                         <button
                             class="er-head-del nodrag"
+                            :data-board-delete-entity="node.id"
                             title="Excluir entidade"
                             @click="if (window.confirm('Excluir a entidade \'' + node.data.name + '\'?')) $wire.deleteEntity(node.id)"
                         >✕</button>
@@ -210,7 +215,7 @@
                     {{-- Attribute rows. --}}
                     <div class="er-rows">
                         <template x-for="attr in node.data.attributes" :key="attr.id">
-                            <div class="er-row"
+                            <div class="er-row" :data-board-table="node.id" :data-board-column="attr.id"
                                  :class="{
                                      'is-pk': attr.key === 'PK',
                                      'is-used': node.data.usedAttrs.includes(attr.id),

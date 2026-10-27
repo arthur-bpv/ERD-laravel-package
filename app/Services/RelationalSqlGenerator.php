@@ -94,6 +94,18 @@ final class RelationalSqlGenerator
             }
         }
 
+        foreach ($table['uniqueKeys'] ?? [] as $key) {
+            if (count($key) < 2) {
+                continue; // Single-column keys are represented by the UQ flag.
+            }
+            if (count(array_unique($key)) !== count($key) || array_diff($key, $columnNames) !== []) {
+                throw new InvalidArgumentException("Chave UNIQUE inválida na tabela {$table['name']}.");
+            }
+            $definitions[] = '    UNIQUE ('.implode(', ', array_map(
+                fn (string $name): string => $this->quote($dialect, $name), $key,
+            )).')';
+        }
+
         if ($primary !== []) {
             $definitions[] = '    PRIMARY KEY ('.implode(', ', array_map(
                 fn (string $name): string => $this->quote($dialect, $name),
@@ -227,7 +239,32 @@ final class RelationalSqlGenerator
         $groups = [];
         $compositePairs = [];
 
+        $namedGroups = [];
         foreach ($foreignKeys as $key) {
+            if (! empty($key['relationshipName'])) {
+                $namedGroups[$key['fromTable'].'|'.$key['toTable'].'|'.$key['relationshipName']][] = $key;
+            }
+        }
+        foreach ($namedGroups as $keys) {
+            $first = $keys[0];
+            $target = $tables[$first['toTable']] ?? [];
+            $names = array_column($keys, 'toColumn');
+            sort($names);
+            $valid = false;
+            foreach ([$target['primaryKey'] ?? [], ...($target['uniqueKeys'] ?? [])] as $candidate) {
+                sort($candidate);
+                $valid = $valid || ($candidate !== [] && $candidate === $names);
+            }
+            if ($valid) {
+                $groups[] = ['fromTable' => $first['fromTable'], 'toTable' => $first['toTable'], 'keys' => $keys];
+            }
+        }
+
+        foreach ($foreignKeys as $key) {
+            $handled = array_filter($groups, fn (array $group): bool => in_array($key, $group['keys'], true));
+            if ($handled !== []) {
+                continue;
+            }
             $fromId = (string) ($key['fromTable'] ?? '');
             $toId = (string) ($key['toTable'] ?? '');
             if (! isset($tables[$fromId], $tables[$toId])) {

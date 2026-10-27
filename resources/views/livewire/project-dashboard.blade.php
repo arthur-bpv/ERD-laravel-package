@@ -80,7 +80,7 @@
                 @error('importProjectName') <p class="er-import-error" role="alert">{{ $message }}</p> @enderror
 
                 @if ($importFormat === 'sql')
-                    <p>Tabelas, colunas e chaves serão convertidas em modelos ER e relacional. Dados, rotinas, defaults, checks e geração automática não são importados. Chaves UNIQUE compostas ainda não são suportadas.</p>
+                    <p>Tabelas, colunas e chaves serão convertidas em modelos ER e relacional. Dados, rotinas, defaults, checks e geração automática não são importados. Chaves PRIMARY, UNIQUE e FOREIGN simples ou compostas são reconhecidas inline, no CREATE TABLE ou via ALTER TABLE; índices UNIQUE também são importados.</p>
                     <label class="er-import-drop">
                         <span>Selecionar arquivo SQL</span>
                         <small>Máximo de 2 MB</small>

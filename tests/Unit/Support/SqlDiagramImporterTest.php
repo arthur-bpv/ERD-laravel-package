@@ -93,6 +93,40 @@ class SqlDiagramImporterTest extends TestCase
         $this->assertNotEmpty($data['relational']['warnings']);
     }
 
+    public static function compositeUniqueSyntaxes(): array
+    {
+        return [
+            ['UNIQUE (trip_id, slug)', ''],
+            ['CONSTRAINT roles_trip_slug UNIQUE (trip_id, slug)', ''],
+            ['UNIQUE KEY roles_trip_slug (trip_id, slug)', ''],
+            ['UNIQUE INDEX roles_trip_slug (trip_id, slug)', ''],
+            ['', 'ALTER TABLE roles ADD CONSTRAINT roles_trip_slug UNIQUE (trip_id, slug);'],
+            ['', 'CREATE UNIQUE INDEX IF NOT EXISTS roles_trip_slug ON roles (trip_id ASC, slug DESC);'],
+            ['', 'CREATE UNIQUE INDEX CONCURRENTLY roles_trip_slug ON roles USING btree (trip_id, slug);'],
+            ['', 'CREATE UNIQUE NONCLUSTERED INDEX roles_trip_slug ON roles (trip_id, slug);'],
+        ];
+    }
+
+    #[DataProvider('compositeUniqueSyntaxes')]
+    public function test_it_preserves_composite_uniqueness_and_references_across_syntaxes(string $constraint, string $extra): void
+    {
+        $sql = 'CREATE TABLE roles (id INTEGER PRIMARY KEY AUTOINCREMENT, trip_id INTEGER NOT NULL, slug VARCHAR(255) NOT NULL'
+            .($constraint ? ', '.$constraint : '').');'.$extra
+            .' CREATE TABLE assignments (trip_id INT, slug VARCHAR(255), UNIQUE(trip_id, slug), FOREIGN KEY(trip_id, slug) REFERENCES roles(trip_id, slug));';
+        $data = (new SqlDiagramImporter)->parse($sql, 'sqlite');
+        $table = $data['relational']['tables'][0];
+        $this->assertSame([['trip_id', 'slug']], $table['uniqueKeys']);
+        $this->assertSame('', $table['columns'][1]['key']);
+        $this->assertSame('', $table['columns'][2]['key']);
+        $this->assertSame('cf-zero-one', $data['er']['relations'][0]['childCard']);
+        $export = (new RelationalSqlGenerator)->generate($data['relational']);
+        $this->assertStringContainsString('UNIQUE ("trip_id", "slug")', $export);
+        $this->assertStringNotContainsString('UNIQUE ("trip_id")', $export);
+        $this->assertStringContainsString('FOREIGN KEY ("trip_id", "slug") REFERENCES "roles" ("trip_id", "slug")', $export);
+        $again = (new SqlDiagramImporter)->parse($export);
+        $this->assertSame($table['uniqueKeys'], $again['relational']['tables'][0]['uniqueKeys']);
+    }
+
     public static function invalidSchemas(): array
     {
         return [
@@ -101,7 +135,6 @@ class SqlDiagramImporterTest extends TestCase
             ['CREATE TABLE t (id INT); CREATE TABLE t (id INT);', 'duplicada'],
             ['CREATE TABLE t (id INT REFERENCES missing(id));', 'ausente'],
             ['CREATE TABLE t (id INT, FOREIGN KEY (missing) REFERENCES t(id));', 'inexistente'],
-            ['CREATE TABLE t (id INT, code INT, UNIQUE(id, code));', 'UNIQUE compostas'],
             ['CREATE TABLE t (id INT); ALTER TABLE t DROP COLUMN id;', 'ALTER TABLE'],
             ['CREATE TABLE t (id INT, FOREIGN KEY(id) REFERENCES t(id, other));', 'quantidade'],
             ["CREATE TABLE t (id TEXT DEFAULT 'broken);", 'fechado'],
@@ -110,6 +143,7 @@ class SqlDiagramImporterTest extends TestCase
             ['CREATE TABLE t (id INT); CREATE TRIGGER p AFTER INSERT ON t BEGIN SELECT 1; CREATE TABLE fake (id INT); END;', 'rotinas'],
             ['CREATE TABLE t (id INT); CREATE UNIQUE INDEX partial ON t(id) WHERE id > 0;', 'parciais'],
             ['CREATE TABLE t (id INT REFERENCES t(id));', 'PRIMARY ou UNIQUE'],
+            ['CREATE TABLE t (a INT, b INT, UNIQUE(a,b)); CREATE TABLE c (a INT REFERENCES t(a));', 'PRIMARY ou UNIQUE'],
         ];
     }
 

@@ -236,6 +236,68 @@ class RelationalBoard extends Component
         ];
     }
 
+    public function deleteColumn(string $tableId, string $columnId): void
+    {
+        foreach ($this->tables as &$table) {
+            if ($table['id'] !== $tableId) {
+                continue;
+            }
+            $column = collect($table['columns'])->firstWhere('id', $columnId);
+            if ($column === null) {
+                return;
+            }
+            if (count($table['columns']) === 1) {
+                $this->dispatch('relational-edit-rejected', message: 'A tabela precisa ter ao menos uma coluna. Exclua a tabela para removê-la.');
+
+                return;
+            }
+            $table['columns'] = array_values(array_filter($table['columns'], fn (array $item): bool => $item['id'] !== $columnId));
+            $table['primaryKey'] = array_values(array_diff($table['primaryKey'], [$column['name']]));
+            $table['uniqueKeys'] = array_values(array_filter($table['uniqueKeys'] ?? [], fn (array $key): bool => ! in_array($column['name'], $key, true)));
+            unset($table);
+            $this->removeForeignKeysWhere(fn (array $key): bool =>
+                ($key['fromTable'] === $tableId && (($key['fromColumnId'] ?? '') === $columnId || $key['fromColumn'] === $column['name']))
+                || ($key['toTable'] === $tableId && (($key['toColumnId'] ?? '') === $columnId || $key['toColumn'] === $column['name'])));
+            $this->commitLogicalEdit();
+
+            return;
+        }
+    }
+
+    public function deleteSelection(array $tableIds, array $edgeIds = []): void
+    {
+        $previous = array_column($this->tables, 'id');
+        $this->tables = array_values(array_filter($this->tables, fn (array $table): bool => ! in_array($table['id'], $tableIds, true)));
+        $this->removeForeignKeysWhere(fn (array $key): bool => in_array($key['fromTable'], $tableIds, true)
+            || in_array($key['toTable'], $tableIds, true) || in_array($key['id'], $edgeIds, true));
+        $this->persistCurrentData(markCustomized: true);
+        $this->syncCanvas($previous);
+        $this->dispatch('relational-saved');
+    }
+
+    private function removeForeignKeysWhere(callable $matches): void
+    {
+        $groups = [];
+        foreach ($this->foreignKeys as $key) {
+            if ($matches($key) && ! empty($key['relationshipName'])) {
+                $groups[] = [$key['fromTable'], $key['toTable'], $key['relationshipName']];
+            }
+        }
+        $this->foreignKeys = array_values(array_filter($this->foreignKeys, fn (array $key): bool => ! $matches($key)
+            && ! in_array([$key['fromTable'], $key['toTable'], $key['relationshipName'] ?? null], $groups, true)));
+        foreach ($this->tables as &$table) {
+            foreach ($table['columns'] as &$column) {
+                $key = collect($this->foreignKeys)->first(fn (array $key): bool => $key['fromTable'] === $table['id'] && $key['fromColumn'] === $column['name']);
+                if ($key === null) {
+                    $column['key'] = implode('/', array_filter(explode('/', $column['key'] ?? ''), fn (string $flag): bool => $flag !== 'FK'));
+                    $column['references'] = null;
+                }
+            }
+            unset($column);
+        }
+        unset($table);
+    }
+
     public function save(): void
     {
         $this->persistCurrentData();

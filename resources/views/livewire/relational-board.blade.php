@@ -3,6 +3,8 @@ x-data="{
     dialect: @js($dialect),
     catalog: @js(\App\Support\DataTypeCatalog::forJs()),
     typeKind(type) { return this.catalog[this.dialect].kinds[type] ?? null; },
+    shortcutsCleanup: null,
+    destroy() { this.shortcutsCleanup?.destroy(); },
     guideOpen: false,
     notice: '',
     noticeKind: 'success',
@@ -29,7 +31,7 @@ x-data="{
         { label: 'Outros', types: ['boolean', 'uuid', 'json', 'xml', 'enum', 'custom'] },
     ],
 }"
-    x-init="$nextTick(() => window.installRelationalConnections($el.querySelector('.flow-container')))"
+    x-init="shortcutsCleanup = window.installBoardShortcuts($el, $wire, 'relational'); $nextTick(() => window.installRelationalConnections($el.querySelector('.flow-container')))"
     @relational-saved.window="showNotice('Alteração salva apenas no modelo Relacional.')"
     @relational-regenerated.window="showNotice('Modelo Relacional regenerado a partir do ER.')"
     @relational-edit-rejected.window="showNotice($event.detail.message, 'warning')"
@@ -73,6 +75,7 @@ x-data="{
     @endif
 
     <div x-show="guideOpen" x-cloak class="rel-guide" @keydown.escape.window="guideOpen = false">
+        <p><kbd>Ctrl/Cmd + S</kbd> salva. <kbd>Delete</kbd> exclui a seleção. Clique na linha de uma coluna e saia do campo de texto para excluí-la.</p>
         <div>
             <span class="rel-guide-step">1</span>
             <p><strong>ER descreve o domínio</strong><small>Entidades, atributos, papéis e cardinalidades.</small></p>
@@ -159,9 +162,13 @@ x-data="{
                                 <strong x-text="node.data.name"></strong>
                             </div>
                         </header>
+                        <template x-for="(key, index) in (node.data.uniqueKeys ?? []).filter(key => key.length > 1)" :key="'uq-' + index">
+                            <div class="px-3 text-xs text-amber-300 truncate" style="height: 24px; line-height: 24px"
+                                :title="'Unicidade composta: ' + key.join(', ')" x-text="'UNIQUE (' + key.join(', ') + ')'"></div>
+                        </template>
                         <div class="rel-columns">
                             <template x-for="column in node.data.columns" :key="column.id">
-                                <div class="rel-column relative" x-data="{
+                                <div class="rel-column relative" :data-board-table="node.id" :data-board-column="column.id" x-data="{
                                     enumEditorOpen: false,
                                     enumDraft: '',
                                     addEnumValue() {

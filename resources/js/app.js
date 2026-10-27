@@ -7,6 +7,7 @@ import './erd/node-measurement';
 import './erd/export-image';
 import { relationalSelfLoopPath } from './erd/relational-self-loop';
 import { installRelationalConnections } from './erd/relational-connections';
+import { installBoardShortcuts } from './erd/keyboard-shortcuts';
 import { copyBoardText } from './erd/clipboard';
 
 Alpine.plugin(AlpineFlow);
@@ -15,5 +16,6 @@ window.Alpine = Alpine;
 window.relationalSelfLoopPath = relationalSelfLoopPath;
 window.installRelationalConnections = installRelationalConnections;
 window.copyBoardText = copyBoardText;
+window.installBoardShortcuts = installBoardShortcuts;
 
 Livewire.start();

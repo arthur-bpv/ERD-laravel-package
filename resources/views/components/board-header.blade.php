@@ -72,7 +72,7 @@
                 </button>
             @endunless
             {{-- Both boards use this save button and display confirmation through their own saved event. --}}
-            <button type="button" class="board-toolbar-button board-toolbar-save" wire:click="save" wire:loading.attr="disabled" wire:target="save">
+            <button type="button" data-board-save class="board-toolbar-button board-toolbar-save" title="Salvar (Ctrl+S / Cmd+S)" aria-keyshortcuts="Control+s Meta+s" wire:click="save" wire:loading.attr="disabled" wire:target="save">
                 <span wire:loading.remove wire:target="save">Salvar</span>
                 <span wire:loading wire:target="save">Salvando…</span>
             </button>

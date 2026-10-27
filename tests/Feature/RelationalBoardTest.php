@@ -733,6 +733,35 @@ class RelationalBoardTest extends TestCase
             ->assertSeeHtml('edgesReconnectable');
     }
 
+    public function test_deleting_a_table_removes_foreign_keys_and_persists_only_the_relational_model(): void
+    {
+        $diagram = $this->generatedRelationalDiagram();
+        $sourceBefore = $diagram->sourceDiagram->data;
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('deleteSelection', ['staff'], [])
+            ->assertSet('foreignKeys', [])
+            ->assertSet('isCustomized', true);
+        $this->assertSame(['clients'], array_column($component->get('tables'), 'id'));
+        $this->assertSame(['clients'], array_column($diagram->fresh()->data['tables'], 'id'));
+        $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
+        $columns = $component->get('tables')[0]['columns'];
+        $this->assertSame('', $columns[1]['key']);
+        $this->assertNull($columns[1]['references']);
+    }
+
+    public function test_deleting_a_column_cleans_up_foreign_keys_and_preserves_remaining_columns(): void
+    {
+        $diagram = $this->generatedRelationalDiagram();
+        $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->call('deleteColumn', 'clients', 'clients.staff_no')
+            ->assertSet('foreignKeys', []);
+        $client = collect($component->get('tables'))->firstWhere('id', 'clients');
+        $this->assertCount(1, $client['columns']);
+        $this->assertSame('clientNo', $client['columns'][0]['name']);
+        $component->call('deleteColumn', 'clients', $client['columns'][0]['id'])
+            ->assertDispatched('relational-edit-rejected');
+    }
+
     private function addEmailToStaff(Diagram $source): void
     {
         $data = $source->data;

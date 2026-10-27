@@ -63,7 +63,7 @@ final class SqlDiagramImporter
                 $this->createTable($statement);
             } elseif (str_starts_with($head, 'ALTER TABLE ')) {
                 $this->alterTable($statement);
-            } elseif (preg_match('/^CREATE UNIQUE (?:INDEX|KEY)\b/', $head)) {
+            } elseif (preg_match('/^CREATE UNIQUE (?:(?:CLUSTERED|NONCLUSTERED) )?(?:INDEX|KEY)\b/', $head)) {
                 $this->uniqueIndex($statement);
             } else {
                 $routine = strtoupper($statement[0] ?? '') === 'CREATE'
@@ -105,7 +105,7 @@ final class SqlDiagramImporter
         $this->tables[$key] = [
             'id' => 'e'.($index + 1), 'name' => $name, 'kind' => 'strong',
             'x' => 60 + ($index % 3) * 460, 'y' => 60 + intdiv($index, 3) * 420,
-            'columns' => [], 'primaryKey' => [],
+            'columns' => [], 'primaryKey' => [], 'uniqueKeys' => [],
         ];
         foreach ($definitions as $definition) {
             $head = strtoupper($definition[0]);
@@ -173,11 +173,19 @@ final class SqlDiagramImporter
         }
         $tail = array_slice($tokens, $position);
         $syntax = strtoupper(implode(' ', array_filter($tail, fn (string $token): bool => ! str_starts_with($token, "'"))));
-        $primary = str_contains($syntax, 'PRIMARY KEY');
-        $column['nullable'] = ! $primary && ! str_contains($syntax, 'NOT NULL');
-        $column['key'] = $primary ? 'PK' : (preg_match('/\bUNIQUE\b/', $syntax) ? 'UQ' : '');
+        $primary = preg_match('/\bPRIMARY\s+KEY\b/', $syntax) === 1;
+        // UNIQUE pode aparecer inline como UNIQUE, UNIQUE KEY, UNIQUE INDEX
+        // ou com nome: CONSTRAINT uq_nome UNIQUE. O nome opcional não altera
+        // a semântica; basta reconhecer a palavra-chave fora dos literais.
+        $unique = ! $primary && preg_match('/\bUNIQUE\b/', $syntax) === 1;
+        $column['nullable'] = ! $primary && ! preg_match('/\bNOT\s+NULL\b/', $syntax);
+        $column['key'] = $primary ? 'PK' : ($unique ? 'UQ' : '');
         if ($primary) {
             $this->constraints[] = ['table' => $table, 'kind' => 'PRIMARY', 'columns' => [$name]];
+        } elseif ($unique) {
+            // Registra também a restrição inline para que todas as formas de
+            // UNIQUE sigam o mesmo caminho de validação do restante do importador.
+            $this->constraints[] = ['table' => $table, 'kind' => 'UNIQUE', 'columns' => [$name]];
         }
         $referencePosition = array_search('REFERENCES', array_map('strtoupper', $tail), true);
         if ($referencePosition !== false) {
@@ -212,9 +220,6 @@ final class SqlDiagramImporter
             }
             $this->reference($table, $columns, $tokens, $position);
         } else {
-            if ($kind === 'UNIQUE' && count($columns) > 1) {
-                throw new InvalidArgumentException('Chaves UNIQUE compostas ainda não são suportadas pelo editor.');
-            }
             $this->constraints[] = compact('table', 'kind', 'columns');
         }
     }
@@ -277,7 +282,17 @@ final class SqlDiagramImporter
         if (in_array('WHERE', array_map('strtoupper', $tokens), true)) {
             throw new InvalidArgumentException('Índices UNIQUE parciais ainda não são suportados pelo editor.');
         }
-        $position = 3;
+        $position = 2;
+        if (in_array(strtoupper($tokens[$position] ?? ''), ['CLUSTERED', 'NONCLUSTERED'], true)) {
+            $position++;
+        }
+        $position++; // INDEX or KEY
+        if (strtoupper($tokens[$position] ?? '') === 'CONCURRENTLY') {
+            $position++;
+        }
+        if (strtoupper($tokens[$position] ?? '') === 'IF') {
+            $position += 3; // IF NOT EXISTS
+        }
         SqlDdlTokenizer::qualifiedName($tokens, $position);
         if (strtoupper($tokens[$position++] ?? '') !== 'ON') {
             throw new InvalidArgumentException('CREATE UNIQUE INDEX inválido.');
@@ -297,6 +312,23 @@ final class SqlDiagramImporter
         throw new InvalidArgumentException("Coluna inexistente no SQL: {$table}.{$name}.");
     }
 
+    private function isUnique(string $table, array $columns): bool
+    {
+        $normalize = static function (array $names): array {
+            $names = array_map('strtolower', $names);
+            sort($names);
+
+            return $names;
+        };
+        foreach ([$this->tables[$table]['primaryKey'], ...$this->tables[$table]['uniqueKeys']] as $key) {
+            if ($key !== [] && $normalize($key) === $normalize($columns)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function buildDiagrams(string $dialect): array
     {
         foreach ($this->constraints as $constraint) {
@@ -307,6 +339,12 @@ final class SqlDiagramImporter
             if ($constraint['kind'] === 'FOREIGN') {
                 continue;
             }
+            if ($constraint['kind'] === 'UNIQUE') {
+                $names = array_map(fn (string $name): string => $this->tables[$table]['columns'][$this->columnIndex($table, $name)]['name'], $constraint['columns']);
+                if (! in_array($names, $this->tables[$table]['uniqueKeys'], true)) {
+                    $this->tables[$table]['uniqueKeys'][] = $names;
+                }
+            }
             foreach ($constraint['columns'] as $name) {
                 $index = $this->columnIndex($table, $name);
                 $column = &$this->tables[$table]['columns'][$index];
@@ -314,7 +352,7 @@ final class SqlDiagramImporter
                     $column['key'] = 'PK';
                     $column['nullable'] = false;
                     $this->tables[$table]['primaryKey'][] = $column['name'];
-                } elseif ($column['key'] !== 'PK') {
+                } elseif (count($constraint['columns']) === 1 && $column['key'] !== 'PK') {
                     $column['key'] = 'UQ';
                 }
                 unset($column);
@@ -345,19 +383,15 @@ final class SqlDiagramImporter
             foreach ($constraint['columns'] as $name) {
                 $this->columnIndex($source, $name);
             }
-            $targetIndexes = array_map(fn (string $name): int => $this->columnIndex($target, $name), $targets);
-            $targetNames = array_map(fn (int $index): string => $this->tables[$target]['columns'][$index]['name'], $targetIndexes);
-            $primaryNames = $this->tables[$target]['primaryKey'];
-            sort($targetNames);
-            sort($primaryNames);
-            $singleUnique = count($targets) === 1 && str_contains($this->tables[$target]['columns'][$targetIndexes[0]]['key'], 'UQ');
-            if ($targetNames !== $primaryNames && ! $singleUnique) {
+            foreach ($targets as $name) {
+                $this->columnIndex($target, $name);
+            }
+            if (! $this->isUnique($target, $targets)) {
                 throw new InvalidArgumentException('A chave estrangeira precisa referenciar uma chave PRIMARY ou UNIQUE completa.');
             }
             $relationId = 'r'.(count($relations) + 1);
             $first = $this->columnIndex($source, $constraint['columns'][0]);
-            $unique = count($constraint['columns']) === 1 && ($this->tables[$source]['columns'][$first]['key'] === 'UQ'
-                || $this->tables[$source]['primaryKey'] === [$constraint['columns'][0]]);
+            $unique = $this->isUnique($source, $constraint['columns']);
             $nullable = false;
             foreach ($constraint['columns'] as $name) {
                 $nullable = $nullable || $this->tables[$source]['columns'][$this->columnIndex($source, $name)]['nullable'];

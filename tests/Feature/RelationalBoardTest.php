@@ -403,8 +403,6 @@ class RelationalBoardTest extends TestCase
             ->assertDontSee('renameColumn')
             ->assertDontSee('Clique para renomear a tabela');
 
-        $this->assertFalse(method_exists(RelationalBoard::class, 'renameTable'));
-        $this->assertFalse(method_exists(RelationalBoard::class, 'renameColumn'));
     }
 
     public function test_nullable_edit_updates_the_existing_canvas_node_without_replacing_it(): void
@@ -724,7 +722,6 @@ class RelationalBoardTest extends TestCase
 
     public function test_the_column_editor_has_no_add_or_remove_controls_and_edges_cannot_be_reconnected(): void
     {
-        $this->assertFalse(method_exists(RelationalBoard::class, 'addColumn'));
         $this->assertFalse(method_exists(RelationalBoard::class, 'removeColumn'));
 
         Livewire::test(RelationalBoard::class, ['diagram' => $this->generatedRelationalDiagram()])
@@ -736,14 +733,16 @@ class RelationalBoardTest extends TestCase
     public function test_deleting_a_table_removes_foreign_keys_and_persists_only_the_relational_model(): void
     {
         $diagram = $this->generatedRelationalDiagram();
-        $sourceBefore = $diagram->sourceDiagram->data;
+        $source = $diagram->sourceDiagram;
+        $sourceBefore = $source->data;
+        $diagram->update(['source_diagram_id' => null]);
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->call('deleteSelection', ['staff'], [])
             ->assertSet('foreignKeys', [])
             ->assertSet('isCustomized', true);
         $this->assertSame(['clients'], array_column($component->get('tables'), 'id'));
         $this->assertSame(['clients'], array_column($diagram->fresh()->data['tables'], 'id'));
-        $this->assertSame($sourceBefore, $diagram->sourceDiagram->fresh()->data);
+        $this->assertSame($sourceBefore, $source->fresh()->data);
         $columns = $component->get('tables')[0]['columns'];
         $this->assertSame('', $columns[1]['key']);
         $this->assertNull($columns[1]['references']);
@@ -752,6 +751,7 @@ class RelationalBoardTest extends TestCase
     public function test_deleting_a_column_cleans_up_foreign_keys_and_preserves_remaining_columns(): void
     {
         $diagram = $this->generatedRelationalDiagram();
+        $diagram->update(['source_diagram_id' => null]);
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->call('deleteColumn', 'clients', 'clients.staff_no')
             ->assertSet('foreignKeys', []);

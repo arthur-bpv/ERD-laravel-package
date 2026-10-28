@@ -3,10 +3,10 @@
 namespace Tests\Feature;
 
 use App\Livewire\ProjectDashboard;
+use App\Livewire\RelationalBoard;
 use App\Livewire\SchemaBoard;
 use App\Models\Diagram;
 use App\Services\ErToRelationalTransformer;
-use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Support\ErDiagramImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -149,7 +149,7 @@ class ProjectDashboardTest extends TestCase
         $this->assertSame(0, Diagram::count());
     }
 
-    public function test_sql_import_creates_linked_boards_and_displays_the_identified_database(): void
+    public function test_sql_import_creates_only_a_relational_project_and_displays_the_identified_database(): void
     {
         $sql = 'PRAGMA foreign_keys=ON; CREATE TABLE parents (id INTEGER PRIMARY KEY);'
             .' CREATE TABLE children (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parents(id));';
@@ -164,18 +164,75 @@ class ProjectDashboardTest extends TestCase
             ->call('importSqlProject')
             ->assertRedirect();
 
-        $source = Diagram::where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->sole();
-        $this->assertSame('sqlite', $source->data['dialect']);
-        $this->assertCount(2, $source->data['entities']);
-        $this->assertCount(1, $source->data['relations']);
-        $relational = $source->relationalDiagram;
-        $this->assertSame('Banco importado — Relacional', $relational->name);
+        $relational = Diagram::sole();
+        $this->assertSame(Diagram::TYPE_RELATIONAL, $relational->type);
+        $this->assertNull($relational->source_diagram_id);
+        $this->assertSame('Banco importado', $relational->name);
         $this->assertSame('sqlite', $relational->data['dialect']);
+        $this->assertCount(2, $relational->data['tables']);
         $this->assertCount(1, $relational->data['foreignKeys']);
-        $this->assertFalse(app(RelationalDiagramDriftAnalyzer::class)->isOutdated($source->data, $relational->data));
-        $this->get('/')->assertSee('Banco: SQLite');
-        $this->get(route('boards.er', $source))->assertOk();
-        $this->get(route('boards.relational', $relational))->assertOk();
+        $this->get('/')->assertSee('Banco: SQLite')->assertSee(route('boards.relational', $relational));
+        $this->get(route('boards.er', $relational))->assertNotFound();
+        $this->get(route('boards.relational', $relational))->assertOk()
+            ->assertDontSee('Regenerar do ER')->assertDontSee('>Modelo ER</a>', false);
+    }
+
+    public function test_sql_project_can_be_renamed_and_deleted_from_the_dashboard(): void
+    {
+        Livewire::test(ProjectDashboard::class)
+            ->set('importSql', 'CREATE TABLE books (id INTEGER PRIMARY KEY);')
+            ->set('importDialect', 'sqlite')
+            ->call('importSqlProject');
+        $diagram = Diagram::sole();
+
+        Livewire::test(ProjectDashboard::class)
+            ->call('startRename', $diagram->id)
+            ->set('editingProjectName', 'Acervo SQL')
+            ->call('renameProject')
+            ->assertSee('Acervo SQL')
+            ->assertDontSeeHtml('wire:click="createRelational('.$diagram->id.')"');
+        $this->assertSame('Acervo SQL', $diagram->fresh()->name);
+
+        Livewire::test(ProjectDashboard::class)->call('deleteProject', $diagram->id);
+        $this->assertDatabaseCount('diagrams', 0);
+    }
+
+    public function test_sql_project_remains_editable_without_an_er_source(): void
+    {
+        Livewire::test(ProjectDashboard::class)
+            ->set('importSql', 'CREATE TABLE books (id INTEGER PRIMARY KEY, title VARCHAR(80));')
+            ->set('importDialect', 'sqlite')
+            ->call('importSqlProject');
+        $diagram = Diagram::sole();
+        $table = $diagram->data['tables'][0];
+        $column = $table['columns'][1];
+
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->assertSet('sourceDiagramId', null)
+            ->call('updateColumnType', $table['id'], $column['id'], 'varchar')
+            ->call('updateColumnSize', $table['id'], $column['id'], 120)
+            ->call('toggleColumnNullable', $table['id'], $column['id'])
+            ->call('setDialect', 'pgsql')
+            ->call('onNodeDragEnd', $table['id'], ['x' => 300, 'y' => 200])
+            ->call('save')
+            ->assertDispatched('relational-saved')
+            ->call('openSqlPreview')
+            ->assertSet('sqlError', null)
+            ->assertDontSee('Regenerar do ER');
+
+        $diagram->refresh();
+        $this->assertDatabaseCount('diagrams', 1);
+        $this->assertSame('pgsql', $diagram->data['dialect']);
+        $this->assertSame(120, $diagram->data['tables'][0]['columns'][1]['length']);
+        $this->assertFalse($diagram->data['tables'][0]['columns'][1]['nullable']);
+        $this->assertSame(300, $diagram->data['tables'][0]['x']);
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->assertSet('tables', $diagram->data['tables'])
+            ->assertViewHas('isOutdated', false)
+            ->call('deleteColumn', $table['id'], $column['id']);
+        $this->assertCount(1, $diagram->fresh()->data['tables'][0]['columns']);
+        Livewire::test(RelationalBoard::class, ['diagram' => $diagram->fresh()])
+            ->call('regenerate')->assertForbidden();
     }
 
     public function test_sql_import_requests_a_database_for_ambiguous_sql_and_allows_a_manual_choice(): void
@@ -189,7 +246,7 @@ class ProjectDashboardTest extends TestCase
             ->assertSet('importError', '')
             ->assertRedirect();
 
-        $this->assertSame('oracle', Diagram::where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)->sole()->data['dialect']);
+        $this->assertSame('oracle', Diagram::where('type', Diagram::TYPE_RELATIONAL)->sole()->data['dialect']);
     }
 
     public function test_invalid_sql_never_creates_a_partial_project_or_executes_statements(): void

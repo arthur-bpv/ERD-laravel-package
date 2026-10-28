@@ -17,7 +17,7 @@
                 <p class="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-indigo-700 dark:text-indigo-300">Workspace de modelagem</p>
                 <h1 class="text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">Do conceito ao banco, sem pular etapas.</h1>
                 <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-400">
-                    Cada projeto começa no modelo entidade-relacionamento. Quando ele estiver maduro, avance para o modelo relacional vinculado à mesma ideia.
+                    Projetos criados no editor começam no modelo entidade-relacionamento. Importações SQL criam apenas um modelo relacional editável. Quando ele estiver maduro, avance para o modelo relacional vinculado à mesma ideia.
                 </p>
             </div>
 
@@ -80,7 +80,7 @@
                 @error('importProjectName') <p class="er-import-error" role="alert">{{ $message }}</p> @enderror
 
                 @if ($importFormat === 'sql')
-                    <p>Tabelas, colunas e chaves serão convertidas em modelos ER e relacional. Dados, rotinas, defaults, checks e geração automática não são importados. Chaves PRIMARY, UNIQUE e FOREIGN simples ou compostas são reconhecidas inline, no CREATE TABLE ou via ALTER TABLE; índices UNIQUE também são importados.</p>
+                    <p>Tabelas, colunas e chaves serão importadas apenas como um modelo relacional editável, sem criar um modelo ER. Dados, rotinas, defaults, checks e geração automática não são importados. Chaves PRIMARY, UNIQUE e FOREIGN simples ou compostas são reconhecidas inline, no CREATE TABLE ou via ALTER TABLE; índices UNIQUE também são importados.</p>
                     <label class="er-import-drop">
                         <span>Selecionar arquivo SQL</span>
                         <small>Máximo de 2 MB</small>
@@ -179,7 +179,7 @@
             <div class="mb-6 flex items-center justify-between">
                 <div>
                     <h2 class="text-xl font-semibold text-slate-950 dark:text-white">Seus projetos</h2>
-                    <p class="mt-1 text-sm text-slate-600 dark:text-slate-500">O progresso segue ER → Relacional.</p>
+                    <p class="mt-1 text-sm text-slate-600 dark:text-slate-500">Projetos ER → Relacional e modelos relacionais importados.</p>
                 </div>
                 <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 dark:border-white/10 dark:bg-transparent dark:text-slate-400">{{ $this->projects->count() }} projetos</span>
             </div>
@@ -229,7 +229,7 @@
                                     <button
                                         type="button"
                                         wire:click="deleteProject({{ $project->id }})"
-                                        wire:confirm="Excluir o projeto '{{ $project->name }}' e seu modelo relacional? Esta ação não pode ser desfeita."
+                                        wire:confirm="Excluir o projeto '{{ $project->name }}' e seus modelos? Esta ação não pode ser desfeita."
                                         wire:loading.attr="disabled"
                                         wire:target="deleteProject({{ $project->id }})"
                                         aria-label="Excluir projeto {{ $project->name }}"
@@ -241,6 +241,15 @@
                                 </div>
                             </div>
 
+                            @if ($project->type === \App\Models\Diagram::TYPE_RELATIONAL)
+                                <div class="p-5">
+                                    <a wire:navigate href="{{ route('boards.relational', $project) }}" class="block rounded-2xl border border-cyan-200 bg-cyan-50 p-5 dark:border-cyan-400/20 dark:bg-cyan-400/10">
+                                        <strong class="block text-base">Modelo relacional</strong>
+                                        <span class="mt-1 block text-sm">Importado do SQL · edição independente · sem modelo ER</span>
+                                        <span class="mt-5 block text-sm font-medium text-cyan-800 dark:text-cyan-300">Abrir board →</span>
+                                    </a>
+                                </div>
+                            @else
                             <div class="grid gap-3 p-5 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch">
                                 <a wire:navigate href="{{ route('boards.er', $project) }}" class="group rounded-2xl border border-indigo-200 bg-indigo-50 p-5 transition hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:hover:border-indigo-300/40 dark:hover:bg-indigo-400/15">
                                     <span class="text-xs font-semibold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">Etapa 1</span>
@@ -274,6 +283,7 @@
                                     </button>
                                 @endif
                             </div>
+                            @endif
                         </article>
                     @endforeach
                 </div>

@@ -12,6 +12,7 @@ test('save shortcuts persist, deletion calls the server, and cleanup removes lis
     const previousDocument = globalThis.document;
     const root = new EventTarget();
     root.isConnected = true;
+    root.dataset = { structureEditable: 'true' };
     root.querySelectorAll = () => [];
     root.querySelector = selector => selector === '[data-board-save]' ? { click() { saves++; } } : {};
     let saves = 0;
@@ -39,6 +40,10 @@ test('save shortcuts persist, deletion calls the server, and cleanup removes lis
         assert.equal(saves, 2);
         await press('Delete');
         assert.equal(deletes, 1);
+        root.dataset.structureEditable = 'false';
+        await press('Delete');
+        assert.equal(deletes, 1, 'linked relational boards must not delete a selection');
+        root.dataset.structureEditable = 'true';
         await press('Delete', { repeat: true });
         assert.equal(deletes, 1);
         targetWindow.closest = () => ({});

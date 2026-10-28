@@ -45,7 +45,7 @@ class ProjectDashboard extends Component
     public function projects(): Collection
     {
         return Diagram::query()
-            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->projects()
             ->with('relationalDiagram:id,name,type,source_diagram_id,updated_at,data')
             ->latest('updated_at')
             ->get(['id', 'name', 'type', 'updated_at', 'data']);
@@ -112,23 +112,13 @@ class ProjectDashboard extends Component
             return;
         }
 
-        $diagram = DB::transaction(function () use ($data): Diagram {
-            $diagram = Diagram::create([
-                'name' => trim($this->importProjectName),
-                'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
-                'data' => $data['er'],
-            ]);
-            Diagram::create([
-                'name' => $diagram->name.' — Relacional',
-                'type' => Diagram::TYPE_RELATIONAL,
-                'source_diagram_id' => $diagram->id,
-                'data' => $data['relational'],
-            ]);
+        $diagram = Diagram::create([
+            'name' => trim($this->importProjectName),
+            'type' => Diagram::TYPE_RELATIONAL,
+            'data' => $data['relational'],
+        ]);
 
-            return $diagram;
-        });
-
-        $this->redirectRoute('boards.er', $diagram, navigate: true);
+        $this->redirectRoute('boards.relational', $diagram, navigate: true);
     }
 
     public function importProject(): void
@@ -179,7 +169,7 @@ class ProjectDashboard extends Component
     {
         $project = Diagram::query()
             ->whereKey($projectId)
-            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->projects()
             ->firstOrFail();
 
         $this->editingProjectId = $project->id;
@@ -205,7 +195,7 @@ class ProjectDashboard extends Component
 
         $project = Diagram::query()
             ->whereKey($this->editingProjectId)
-            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->projects()
             ->with('relationalDiagram')
             ->firstOrFail();
 
@@ -226,7 +216,7 @@ class ProjectDashboard extends Component
     {
         Diagram::query()
             ->whereKey($projectId)
-            ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)
+            ->projects()
             ->firstOrFail()
             ->delete();
     }

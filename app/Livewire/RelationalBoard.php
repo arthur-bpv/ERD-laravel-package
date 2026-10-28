@@ -8,6 +8,7 @@ use App\Services\ErToRelationalTransformer;
 use App\Services\RelationalColumnUpdater;
 use App\Services\RelationalDiagramDriftAnalyzer;
 use App\Services\RelationalSqlGenerator;
+use App\Services\RelationalStructureEditor;
 use App\Support\BoardLayout;
 use App\Support\DataTypeCatalog;
 use App\Support\RelationalForeignKeyEdgeProjector;
@@ -39,7 +40,7 @@ class RelationalBoard extends Component
     public int $diagramId;
 
     #[Locked]
-    public int $sourceDiagramId;
+    public ?int $sourceDiagramId = null;
 
     #[Locked]
     public string $diagramName;
@@ -77,18 +78,18 @@ class RelationalBoard extends Component
 
     public function mount(Diagram $diagram, ErToRelationalTransformer $transformer): void
     {
-        abort_unless($diagram->type === Diagram::TYPE_RELATIONAL && $diagram->source_diagram_id, 404);
+        abort_unless($diagram->type === Diagram::TYPE_RELATIONAL, 404);
 
-        $source = $diagram->sourceDiagram()->firstOrFail();
-        abort_unless($source->type === Diagram::TYPE_ENTITY_RELATIONSHIP, 404);
+        $source = $diagram->source_diagram_id ? $diagram->sourceDiagram()->firstOrFail() : null;
+        abort_if($source && $source->type !== Diagram::TYPE_ENTITY_RELATIONSHIP, 404);
 
         $this->diagramId = $diagram->id;
-        $this->sourceDiagramId = $source->id;
+        $this->sourceDiagramId = $source?->id;
         $this->diagramName = $diagram->name;
-        $this->sourceDiagramName = $source->name;
+        $this->sourceDiagramName = $source?->name ?? $diagram->name;
 
         $data = $diagram->data;
-        if (! isset($data['tables'], $data['foreignKeys'])) {
+        if ($source && ! isset($data['tables'], $data['foreignKeys'])) {
             $data = $transformer->transform($source->data ?? []);
             $diagram->update(['data' => $data]);
         }
@@ -99,6 +100,8 @@ class RelationalBoard extends Component
 
     public function regenerate(ErToRelationalTransformer $transformer): void
     {
+        abort_if($this->sourceDiagramId === null, 403);
+
         $oldTableIds = array_column($this->tables, 'id');
         $source = Diagram::query()
             ->whereKey($this->sourceDiagramId)
@@ -236,8 +239,82 @@ class RelationalBoard extends Component
         ];
     }
 
+    public bool $showStructureEditor = false;
+
+    private function authorizeStructureEdit(): void
+    {
+        abort_unless($this->sourceDiagramId === null && Diagram::query()
+            ->whereKey($this->diagramId)->where('type', Diagram::TYPE_RELATIONAL)
+            ->whereNull('source_diagram_id')->exists(), 403);
+    }
+
+    public function openStructureEditor(): void
+    {
+        $this->authorizeStructureEdit();
+        $this->showStructureEditor = true;
+    }
+
+    private function editStructure(callable $edit): void
+    {
+        $this->authorizeStructureEdit();
+        $editor = new RelationalStructureEditor($this->tables, $this->foreignKeys);
+        try {
+            $edit($editor);
+        } catch (InvalidArgumentException $exception) {
+            $this->dispatch('relational-edit-rejected', message: $exception->getMessage());
+
+            return;
+        }
+        $previous = array_column($this->tables, 'id');
+        $this->tables = $editor->tables;
+        $this->foreignKeys = $editor->foreignKeys;
+        $this->persistCurrentData(markCustomized: true);
+        if ($previous !== []) {
+            $this->syncCanvas($previous);
+        }
+        $this->dispatch('relational-saved');
+    }
+
+    public function addTable(string $name): void
+    {
+        $this->editStructure(fn (RelationalStructureEditor $editor) => $editor->addTable($name, $this->dialect));
+    }
+
+    public function renameTable(string $tableId, string $name): void
+    {
+        $this->editStructure(fn (RelationalStructureEditor $editor) => $editor->renameTable($tableId, $name));
+    }
+
+    public function addColumn(string $tableId, string $name, string $type = 'varchar', string $key = ''): void
+    {
+        $this->editStructure(fn (RelationalStructureEditor $editor) => $editor->addColumn($tableId, $name, $type, $key, $this->dialect));
+    }
+
+    public function renameColumn(string $tableId, string $columnId, string $name): void
+    {
+        $this->editStructure(fn (RelationalStructureEditor $editor) => $editor->renameColumn($tableId, $columnId, $name));
+    }
+
+    public function addRelationship(string $name, string $fromTable, array $fromColumns, string $toTable, array $toColumns): void
+    {
+        $this->editStructure(fn (RelationalStructureEditor $editor) => $editor->addRelationship($name, $fromTable, $fromColumns, $toTable, $toColumns));
+    }
+
+    public function renameRelationship(string $id, string $name): void
+    {
+        $this->editStructure(fn (RelationalStructureEditor $editor) => $editor->renameRelationship($id, $name));
+    }
+
+    public function deleteRelationship(string $id): void
+    {
+        $this->authorizeStructureEdit();
+        $this->removeForeignKeysWhere(fn (array $key): bool => $key['id'] === $id);
+        $this->commitLogicalEdit();
+    }
+
     public function deleteColumn(string $tableId, string $columnId): void
     {
+        $this->authorizeStructureEdit();
         foreach ($this->tables as &$table) {
             if ($table['id'] !== $tableId) {
                 continue;
@@ -255,8 +332,7 @@ class RelationalBoard extends Component
             $table['primaryKey'] = array_values(array_diff($table['primaryKey'], [$column['name']]));
             $table['uniqueKeys'] = array_values(array_filter($table['uniqueKeys'] ?? [], fn (array $key): bool => ! in_array($column['name'], $key, true)));
             unset($table);
-            $this->removeForeignKeysWhere(fn (array $key): bool =>
-                ($key['fromTable'] === $tableId && (($key['fromColumnId'] ?? '') === $columnId || $key['fromColumn'] === $column['name']))
+            $this->removeForeignKeysWhere(fn (array $key): bool => ($key['fromTable'] === $tableId && (($key['fromColumnId'] ?? '') === $columnId || $key['fromColumn'] === $column['name']))
                 || ($key['toTable'] === $tableId && (($key['toColumnId'] ?? '') === $columnId || $key['toColumn'] === $column['name'])));
             $this->commitLogicalEdit();
 
@@ -266,6 +342,7 @@ class RelationalBoard extends Component
 
     public function deleteSelection(array $tableIds, array $edgeIds = []): void
     {
+        $this->authorizeStructureEdit();
         $previous = array_column($this->tables, 'id');
         $this->tables = array_values(array_filter($this->tables, fn (array $table): bool => ! in_array($table['id'], $tableIds, true)));
         $this->removeForeignKeysWhere(fn (array $key): bool => in_array($key['fromTable'], $tableIds, true)
@@ -378,12 +455,23 @@ class RelationalBoard extends Component
 
     public function buildEdges(): array
     {
-        return (new RelationalForeignKeyEdgeProjector)->build($this->tables, $this->foreignKeys, RelationalTableNodeProjector::WIDTH);
+        $edges = (new RelationalForeignKeyEdgeProjector)->build($this->tables, $this->foreignKeys, RelationalTableNodeProjector::WIDTH);
+        if ($this->sourceDiagramId === null) {
+            $keys = array_column($this->foreignKeys, null, 'id');
+            foreach ($edges as &$edge) {
+                $name = $keys[$edge['id']]['relationshipName'] ?? '';
+                if ($name !== '' && ! str_starts_with($edge['label'], $name.' · ')) {
+                    $edge['label'] = $name.' · '.$edge['label'];
+                }
+            }
+        }
+
+        return $edges;
     }
 
     public function render(RelationalDiagramDriftAnalyzer $drift): View
     {
-        $report = $drift->report($this->sourceDiagramData(), [
+        $report = $this->sourceDiagramId === null ? ['outdated' => false, 'changes' => []] : $drift->report($this->sourceDiagramData(), [
             'dialect' => $this->dialect,
             'tables' => $this->tables,
             'foreignKeys' => $this->foreignKeys,
@@ -447,6 +535,10 @@ class RelationalBoard extends Component
     /** Store the dialect on the ER source that the project exports. */
     private function persistDialectOnSource(): void
     {
+        if ($this->sourceDiagramId === null) {
+            return;
+        }
+
         $source = Diagram::query()
             ->whereKey($this->sourceDiagramId)
             ->where('type', Diagram::TYPE_ENTITY_RELATIONSHIP)

@@ -23,6 +23,7 @@ export function installBoardShortcuts(root, wire, mode) {
         }
         event.preventDefault();
         event.stopImmediatePropagation(); // Keep canvas-only deletion from bypassing server state.
+        if (remove && mode === 'relational' && root.dataset.structureEditable === 'false') return;
         if (busy || event.repeat) return;
         busy = true;
         try {

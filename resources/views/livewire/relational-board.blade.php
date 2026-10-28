@@ -1,4 +1,4 @@
-<main class="relational-board flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100"
+<main data-structure-editable="{{ $sourceDiagramId === null ? 'true' : 'false' }}" class="relational-board flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100"
 x-data="{
     dialect: @js($dialect),
     catalog: @js(\App\Support\DataTypeCatalog::forJs()),
@@ -75,7 +75,8 @@ x-data="{
     @endif
 
     <div x-show="guideOpen" x-cloak class="rel-guide" @keydown.escape.window="guideOpen = false">
-        <p><kbd>Ctrl/Cmd + S</kbd> salva. <kbd>Delete</kbd> exclui a seleção. Clique na linha de uma coluna e saia do campo de texto para excluí-la.</p>
+        <p><kbd>Ctrl/Cmd + S</kbd> salva. @if ($sourceDiagramId === null) <kbd>Delete</kbd> exclui a seleção. Use <strong>Editar estrutura</strong> para adicionar, renomear e remover tabelas, colunas e relacionamentos. @endif</p>
+        @if ($sourceDiagramId)
         <div>
             <span class="rel-guide-step">1</span>
             <p><strong>ER descreve o domínio</strong><small>Entidades, atributos, papéis e cardinalidades.</small></p>
@@ -86,8 +87,15 @@ x-data="{
             <p><strong>Relacional implementa</strong><small>PKs, FKs, nulabilidade e tabelas associativas.</small></p>
         </div>
         <span class="rel-guide-rule">1:N põe a FK no lado N · N:N cria tabela associativa · 1:1 preserva unicidade</span>
+        @else
+            <p>Modelo importado do SQL. Edite tipos, tamanhos e nulabilidade das colunas diretamente no quadro. As alterações são salvas neste modelo relacional independente.</p>
+        @endif
         <button type="button" @click="guideOpen = false" aria-label="Fechar guia">✕</button>
     </div>
+
+    @if ($sourceDiagramId === null)
+        @include('livewire.partials.relational-structure-editor')
+    @endif
 
     <x-json-modal title="JSON do modelo Relacional" />
 
@@ -281,8 +289,8 @@ x-data="{
             <div class="flex h-full items-center justify-center p-8 text-center">
                 <div>
                     <div class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-cyan-400/10 font-bold text-cyan-300">SQL</div>
-                    <h2 class="mt-5 text-lg font-semibold text-white">O modelo ER ainda está vazio</h2>
-                    <p class="mt-2 text-sm text-slate-500">Adicione entidades ao modelo conceitual e regenere esta etapa.</p>
+                    <h2 class="mt-5 text-lg font-semibold text-white">{{ $sourceDiagramId ? 'O modelo ER ainda está vazio' : 'Nenhuma tabela no modelo' }}</h2>
+                    <p class="mt-2 text-sm text-slate-500">{{ $sourceDiagramId ? 'Adicione entidades ao modelo conceitual e regenere esta etapa.' : 'Use Editar estrutura para adicionar uma tabela.' }}</p>
                 </div>
             </div>
         @endif

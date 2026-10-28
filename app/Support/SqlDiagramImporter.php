@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Services\ErToRelationalTransformer;
 use InvalidArgumentException;
 
 /** Reads schema definitions as data; imported SQL is never executed. */
@@ -45,7 +44,7 @@ final class SqlDiagramImporter
         return count($matches) === 1 ? $matches[0] : null;
     }
 
-    /** @return array{er:array,relational:array} */
+    /** @return array{relational:array} */
     public function parse(string $sql, ?string $dialect = null): array
     {
         if (strlen($sql) > 2_000_000) {
@@ -82,7 +81,14 @@ final class SqlDiagramImporter
             throw new InvalidArgumentException('Limite: 250 tabelas e 1000 restrições.');
         }
 
-        return $this->buildDiagrams($dialect);
+        return $this->buildRelationalDiagram($dialect);
+    }
+
+    private function validateName(string $name): void
+    {
+        if (trim($name) === '' || mb_strlen($name) > 80) {
+            throw new InvalidArgumentException('Tabelas e colunas precisam ter nome de até 80 caracteres.');
+        }
     }
 
     private function createTable(array $tokens): void
@@ -96,6 +102,7 @@ final class SqlDiagramImporter
             $position += 3; // IF NOT EXISTS
         }
         $name = SqlDdlTokenizer::qualifiedName($tokens, $position);
+        $this->validateName($name);
         $key = strtolower($name);
         if (isset($this->tables[$key])) {
             throw new InvalidArgumentException("Tabela duplicada: {$name}.");
@@ -124,6 +131,7 @@ final class SqlDiagramImporter
     {
         $position = 0;
         $name = SqlDdlTokenizer::identifier($tokens, $position);
+        $this->validateName($name);
         foreach ($this->tables[$table]['columns'] as $column) {
             if (strcasecmp($column['name'], $name) === 0) {
                 throw new InvalidArgumentException("Coluna duplicada: {$name}.");
@@ -329,7 +337,7 @@ final class SqlDiagramImporter
         return false;
     }
 
-    private function buildDiagrams(string $dialect): array
+    private function buildRelationalDiagram(string $dialect): array
     {
         foreach ($this->constraints as $constraint) {
             $table = $constraint['table'];
@@ -362,7 +370,8 @@ final class SqlDiagramImporter
             $table['primaryKey'] = array_values(array_unique($table['primaryKey']));
         }
         unset($table);
-        $relations = $foreignKeys = [];
+        $foreignKeys = [];
+        $relationshipCount = 0;
         foreach ($this->constraints as $constraint) {
             if ($constraint['kind'] !== 'FOREIGN') {
                 continue;
@@ -389,8 +398,7 @@ final class SqlDiagramImporter
             if (! $this->isUnique($target, $targets)) {
                 throw new InvalidArgumentException('A chave estrangeira precisa referenciar uma chave PRIMARY ou UNIQUE completa.');
             }
-            $relationId = 'r'.(count($relations) + 1);
-            $first = $this->columnIndex($source, $constraint['columns'][0]);
+            $relationId = 'r'.(++$relationshipCount);
             $unique = $this->isUnique($source, $constraint['columns']);
             $nullable = false;
             foreach ($constraint['columns'] as $name) {
@@ -421,35 +429,14 @@ final class SqlDiagramImporter
                 ];
                 unset($column);
             }
-            $relations[] = [
-                'id' => $relationId, 'name' => $relationId,
-                'from' => $this->tables[$source]['id'], 'fromAttr' => $this->tables[$source]['columns'][$first]['id'],
-                'to' => $this->tables[$target]['id'], 'toAttr' => $this->tables[$target]['columns'][$this->columnIndex($target, $targets[0])]['id'],
-                'childCard' => $sourceCard, 'parentCard' => $targetCard, 'attributes' => [],
-            ];
         }
-        if (count($relations) > 500) {
+        if ($relationshipCount > 500) {
             throw new InvalidArgumentException('Limite: 500 relacionamentos.');
         }
-        $entities = array_map(function (array $table): array {
-            $attributes = array_map(function (array $column): array {
-                $column['key'] = explode('/', $column['key'])[0];
-                unset($column['references'], $column['source']);
 
-                return $column;
-            }, $table['columns']);
-            unset($table['columns'], $table['primaryKey']);
-
-            return $table + ['attributes' => $attributes];
-        }, array_values($this->tables));
-        $er = ['dialect' => $dialect, 'entities' => $entities, 'relations' => $relations];
-        // Apply the existing import limits and validate every generated identifier.
-        $er = ErDiagramImporter::parse(json_encode($er, JSON_THROW_ON_ERROR));
-
-        return ['er' => $er, 'relational' => [
+        return ['relational' => [
             'dialect' => $dialect, 'tables' => array_values($this->tables), 'foreignKeys' => $foreignKeys,
             'warnings' => array_values(array_unique($this->warnings)),
-            'sourceFingerprint' => (new ErToRelationalTransformer)->fingerprint($er),
         ]];
     }
 }

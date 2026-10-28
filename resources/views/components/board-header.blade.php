@@ -38,12 +38,17 @@
                     <button type="button" wire:click="convertToRelational" wire:loading.attr="disabled" wire:target="convertToRelational">Modelo Relacional</button>
                 @endif
             @else
-                <a wire:navigate href="{{ route('boards.er', $sourceDiagramId) }}">Modelo ER</a>
+                @if ($sourceDiagramId)
+                    <a wire:navigate href="{{ route('boards.er', $sourceDiagramId) }}">Modelo ER</a>
+                @endif
                 <a class="is-active" aria-current="page">Modelo Relacional</a>
             @endif
         </nav>
 
         <div class="board-toolbar-actions">
+            @if (! $isEr && ! $sourceDiagramId)
+                <button type="button" class="board-toolbar-button" wire:click="openStructureEditor">Editar estrutura</button>
+            @endif
             @unless ($isEr)
                 <label class="board-dialect">
                     <span>Banco</span>
@@ -108,11 +113,11 @@
                             <p class="board-menu-flag">O modelo relacional está desatualizado. Ele só é regerado por você, no quadro relacional.</p>
                         @endif
                     @endif
-                    @unless ($isEr)
+                    @if (! $isEr && $sourceDiagramId)
                         <button type="button" class="board-menu-special" wire:click="regenerate"
                             wire:confirm="Regenerar substitui todas as edições manuais deste modelo Relacional pelos dados atuais do ER. Continuar?"
                             wire:loading.attr="disabled" wire:target="regenerate">Regenerar do ER</button>
-                    @endunless
+                    @endif
                     <a wire:navigate href="{{ route('dashboard') }}">Voltar aos projetos</a>
                 </div>
             </details>

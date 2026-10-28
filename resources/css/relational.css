@@ -391,3 +391,19 @@ html:not(.dark) .rel-modal-actions button:hover:not(:disabled) { border-color: #
     .rel-guide { align-items: flex-start; flex-wrap: wrap; padding-inline: 12px; }
     .rel-guide-rule { width: 100%; margin-left: 0; }
 }
+
+.rel-structure-editor { width: min(1040px, 100%); max-height: 88vh; }
+.rel-structure-body { overflow: auto; padding: 18px; }
+.rel-structure-body h2 { margin: 12px 0; font-weight: 700; }
+.rel-structure-item { margin: 12px 0; padding: 12px; border: 1px solid #334155; border-radius: 10px; }
+.rel-structure-item summary { cursor: pointer; font-weight: 600; }
+.rel-structure-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+.rel-structure-row input, .rel-structure-row select { min-width: 120px; flex: 1; border: 1px solid #475569; border-radius: 6px; padding: 7px; background: #0f172a; color: #e2e8f0; font-size: 12px; }
+.rel-structure-row button { border: 1px solid #0e7490; border-radius: 6px; padding: 7px 10px; background: #164e63; color: #ecfeff; font-size: 12px; }
+.rel-structure-row button:disabled { opacity: .5; }
+.rel-structure-row button.is-danger { border-color: #9f1239; background: #4c0519; color: #fecdd3; }
+.rel-structure-help { font-size: 12px; color: #94a3b8; }
+.rel-structure-key { min-width: 40px; font-size: 11px; color: #22d3ee; }
+html:not(.dark) .rel-structure-item { border-color: #cbd5e1; }
+html:not(.dark) .rel-structure-row input, html:not(.dark) .rel-structure-row select { background: #fff; color: #0f172a; border-color: #cbd5e1; }
+html:not(.dark) .rel-structure-help { color: #475569; }

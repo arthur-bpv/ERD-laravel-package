@@ -26,10 +26,11 @@ class SqlDiagramImporterTest extends TestCase
     {
         $this->assertSame($dialect, SqlDiagramImporter::detectDialect($sql));
         $data = (new SqlDiagramImporter)->parse($sql);
-        $this->assertSame($dialect, $data['er']['dialect']);
+        $this->assertArrayNotHasKey('er', $data);
+        $this->assertArrayNotHasKey('sourceFingerprint', $data['relational']);
         $this->assertSame($dialect, $data['relational']['dialect']);
-        $this->assertCount(1, $data['er']['entities']);
-        $this->assertSame('PK', $data['er']['entities'][0]['attributes'][0]['key']);
+        $this->assertCount(1, $data['relational']['tables']);
+        $this->assertSame('PK', $data['relational']['tables'][0]['columns'][0]['key']);
         $this->assertFalse($data['relational']['tables'][0]['columns'][0]['nullable']);
         $this->assertNotEmpty((new RelationalSqlGenerator)->generate($data['relational']));
     }
@@ -49,8 +50,7 @@ class SqlDiagramImporterTest extends TestCase
         $this->assertSame(80, $tables[0]['columns'][2]['length']);
         $this->assertSame('UQ', $tables[0]['columns'][2]['key']);
         $this->assertCount(2, $data['relational']['foreignKeys']);
-        $this->assertCount(1, $data['er']['relations']);
-        $this->assertSame('cf-zero-one', $data['er']['relations'][0]['parentCard']);
+        $this->assertSame('cf-zero-one', $data['relational']['foreignKeys'][0]['targetCard']);
         $this->assertStringContainsString('FOREIGN KEY ("tenant_id", "parent_id") REFERENCES "parents" ("tenant", "id")', (new RelationalSqlGenerator)->generate($data['relational']));
     }
 
@@ -61,17 +61,17 @@ class SqlDiagramImporterTest extends TestCase
             CREATE TABLE parents (id INTEGER PRIMARY KEY, email TEXT UNIQUE);
             SQL, 'sqlite');
 
-        $this->assertCount(2, $data['er']['relations']);
+        $this->assertCount(2, $data['relational']['foreignKeys']);
         $this->assertSame('e2', $data['relational']['foreignKeys'][0]['toTable']);
-        $this->assertSame('cf-one-one', $data['er']['relations'][0]['parentCard']);
-        $this->assertSame('e1', $data['er']['relations'][1]['to']);
+        $this->assertSame('cf-one-one', $data['relational']['foreignKeys'][0]['targetCard']);
+        $this->assertSame('e1', $data['relational']['foreignKeys'][1]['toTable']);
     }
 
     public function test_generic_sql_needs_an_explicit_database_and_literals_do_not_select_one(): void
     {
         $sql = "CREATE TABLE things (id INTEGER PRIMARY KEY, note TEXT DEFAULT 'AUTO_INCREMENT VARCHAR2 PRAGMA');";
         $this->assertNull(SqlDiagramImporter::detectDialect($sql));
-        $this->assertSame('sqlite', (new SqlDiagramImporter)->parse($sql, 'sqlite')['er']['dialect']);
+        $this->assertSame('sqlite', (new SqlDiagramImporter)->parse($sql, 'sqlite')['relational']['dialect']);
         $this->expectException(InvalidArgumentException::class);
         (new SqlDiagramImporter)->parse($sql);
     }
@@ -87,9 +87,9 @@ class SqlDiagramImporterTest extends TestCase
             INSERT INTO "a""b" VALUES ('CREATE TABLE fake3 (id INT);', 1);
             SQL, 'pgsql');
 
-        $this->assertCount(1, $data['er']['entities']);
-        $this->assertSame('a"b', $data['er']['entities'][0]['name']);
-        $this->assertSame('c,d', $data['er']['entities'][0]['attributes'][0]['name']);
+        $this->assertCount(1, $data['relational']['tables']);
+        $this->assertSame('a"b', $data['relational']['tables'][0]['name']);
+        $this->assertSame('c,d', $data['relational']['tables'][0]['columns'][0]['name']);
         $this->assertNotEmpty($data['relational']['warnings']);
     }
 
@@ -118,7 +118,7 @@ class SqlDiagramImporterTest extends TestCase
         $this->assertSame([['trip_id', 'slug']], $table['uniqueKeys']);
         $this->assertSame('', $table['columns'][1]['key']);
         $this->assertSame('', $table['columns'][2]['key']);
-        $this->assertSame('cf-zero-one', $data['er']['relations'][0]['childCard']);
+        $this->assertSame('cf-zero-one', $data['relational']['foreignKeys'][0]['sourceCard']);
         $export = (new RelationalSqlGenerator)->generate($data['relational']);
         $this->assertStringContainsString('UNIQUE ("trip_id", "slug")', $export);
         $this->assertStringNotContainsString('UNIQUE ("trip_id")', $export);

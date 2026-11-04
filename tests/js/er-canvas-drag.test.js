@@ -34,10 +34,14 @@ test('flushes recursive connection nodes and paths during dragging, including th
         $el: { closest: () => container }, $flow: flow, $wire: { on() {} },
     });
     canvas.init();
+    listeners.get('erd-node-resized')({ detail: { nodeId: entity.id } });
+    assert.deepEqual(calls[0], ['edges', [entity.id]], 'redraws ordinary connections after measuring the footer');
+    assert.equal(calls.length, 3, 'also redraws the recursive ports');
+    calls.length = 0;
     const emit = (name, node, position = node.position) => listeners.get(`flow-node-${name}`)({ detail: { node, position } });
     emit('drag-start', entity);
     entity.position = { x: 300, y: 350 };
-    emit('drag', entity);
+    emit('drag', entity, { x: 999, y: 999 }); // Raw pointer position can differ after clamping.
     assert.deepEqual(diamond.position, { x: 300, y: 190 });
     const expected = selfRelationshipPortPositions(entity, diamond);
     assert.deepEqual(ports.map((port) => port.position), Object.values(expected));

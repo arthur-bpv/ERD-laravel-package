@@ -404,10 +404,16 @@ class RelationalBoard extends Component
     public function deleteSelection(array $tableIds, array $edgeIds = []): void
     {
         $this->authorizeStructureEdit();
+        $selectedKeys = [];
+        foreach ($this->buildEdges() as $index => $edge) {
+            if (in_array($edge['id'], $edgeIds, true)) {
+                $selectedKeys[] = $this->foreignKeys[$index];
+            }
+        }
         $previous = array_column($this->tables, 'id');
         $this->tables = array_values(array_filter($this->tables, fn (array $table): bool => ! in_array($table['id'], $tableIds, true)));
         $this->removeForeignKeysWhere(fn (array $key): bool => in_array($key['fromTable'], $tableIds, true)
-            || in_array($key['toTable'], $tableIds, true) || in_array($key['id'], $edgeIds, true));
+            || in_array($key['toTable'], $tableIds, true) || in_array($key, $selectedKeys, true));
         $this->persistCurrentData(markCustomized: true);
         $this->syncCanvas($previous);
         $this->dispatch('relational-saved');
@@ -518,9 +524,8 @@ class RelationalBoard extends Component
     {
         $edges = (new RelationalForeignKeyEdgeProjector)->build($this->tables, $this->foreignKeys, RelationalTableNodeProjector::WIDTH);
         if ($this->sourceDiagramId === null) {
-            $keys = array_column($this->foreignKeys, null, 'id');
-            foreach ($edges as &$edge) {
-                $name = $keys[$edge['id']]['relationshipName'] ?? '';
+            foreach ($edges as $index => &$edge) {
+                $name = $this->foreignKeys[$index]['relationshipName'] ?? '';
                 if ($name !== '' && ! str_starts_with($edge['label'], $name.' · ')) {
                     $edge['label'] = $name.' · '.$edge['label'];
                 }

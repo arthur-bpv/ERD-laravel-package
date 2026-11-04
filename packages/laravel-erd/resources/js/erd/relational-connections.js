@@ -65,9 +65,18 @@ export function installRelationalConnections(container) {
     // WireFlow's fast redraw writes a generic path after the drag event. Its
     // path omits column handles and custom edge types. Observe that write so
     // our correction runs in the same frame, after WireFlow has moved the node.
-    const observer = new MutationObserver(() => refreshRelationalConnections(container, flow));
-    observer.observe(container, { subtree: true, childList: true, attributes: true, attributeFilter: ['d'] });
-    refreshRelationalConnections(container, flow);
+    const options = { subtree: true, childList: true, attributes: true, attributeFilter: ['d'] };
+    const refresh = () => {
+        // Our own path corrections must not enqueue another observer pass.
+        observer.disconnect();
+        try {
+            refreshRelationalConnections(container, flow);
+        } finally {
+            observer.observe(container, options);
+        }
+    };
+    const observer = new MutationObserver(refresh);
+    refresh();
 
     return () => observer.disconnect();
 }

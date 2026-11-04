@@ -31,8 +31,12 @@ export function selfRelationshipPortPositions(entity, diamond, entityPosition = 
     }
     const points = {
         entityOut, entityIn,
-        diamondOut: { x: diamond.position.x + diamondWidth + 8, y: diamondCenter.y },
-        diamondIn: { x: diamond.position.x - 8, y: diamondCenter.y },
+        diamondOut: horizontal
+            ? { x: diamondCenter.x, y: diamond.position.y + diamondHeight + 6 }
+            : { x: diamond.position.x + diamondWidth + 8, y: diamondCenter.y },
+        diamondIn: horizontal
+            ? { x: diamondCenter.x, y: diamond.position.y - 6 }
+            : { x: diamond.position.x - 8, y: diamondCenter.y },
     };
 
     return Object.fromEntries(Object.entries(points).map(([role, point]) => [role, {

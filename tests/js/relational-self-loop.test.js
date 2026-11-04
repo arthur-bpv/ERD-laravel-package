@@ -92,10 +92,17 @@ test('keeps a dragged recursive FK attached to its column rows', () => {
     assert.equal(label.style.top, '165.5px');
 
     let onMutation;
+    let observing = false;
+    let ownMutations = 0;
+    const writePath = path.setAttribute;
+    path.setAttribute = (name, value) => {
+        if (observing) ownMutations++;
+        writePath(name, value);
+    };
     globalThis.MutationObserver = class {
         constructor(callback) { onMutation = callback; }
-        observe() {}
-        disconnect() {}
+        observe() { observing = true; }
+        disconnect() { observing = false; }
     };
     globalThis.window = { Alpine: { $data: () => flow } };
     const cleanup = installRelationalConnections(container);
@@ -111,5 +118,11 @@ test('keeps a dragged recursive FK attached to its column rows', () => {
     onMutation();
     assert.match(attributes.d, /^M280\.5,190\.5 /);
     assert.match(attributes.d, / L286\.5,140\.5$/);
+    // Legacy duplicate IDs used to overwrite one SVG path indefinitely.
+    flow.edges.push({ ...flow.edges[0], sourceHandle: 'col-id-right', targetHandle: 'col-parent-right' });
+    onMutation();
+    assert.equal(ownMutations, 0, 'corrections cannot trigger their own observer');
+    assert.equal(observing, true, 'external engine redraws remain observed');
     cleanup();
+    assert.equal(observing, false);
 });

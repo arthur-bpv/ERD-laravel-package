@@ -4,7 +4,8 @@ x-data="{
     catalog: @js(\Makermind\Erd4dev\Support\DataTypeCatalog::forJs()),
     typeKind(type) { return this.catalog[this.dialect].kinds[type] ?? null; },
     shortcutsCleanup: null,
-    destroy() { this.shortcutsCleanup?.destroy(); },
+    connectionsCleanup: null,
+    destroy() { this.shortcutsCleanup?.destroy(); this.connectionsCleanup?.(); },
     guideOpen: false,
     notice: '',
     noticeKind: 'success',
@@ -31,7 +32,7 @@ x-data="{
         { label: 'Other', types: ['boolean', 'uuid', 'json', 'xml', 'enum', 'custom'] },
     ],
 }"
-    x-init="shortcutsCleanup = window.installBoardShortcuts($el, $wire, 'relational'); $nextTick(() => window.installRelationalConnections($el.querySelector('.flow-container')))"
+    x-init="shortcutsCleanup = window.installBoardShortcuts($el, $wire, 'relational'); $nextTick(() => connectionsCleanup = window.installRelationalConnections($el.querySelector('.flow-container')))"
     @relational-saved.window="showNotice('Changes saved to the relational model only.')"
     @relational-regenerated.window="showNotice('Relational model regenerated from ER.')"
     @relational-edit-rejected.window="showNotice($event.detail.message, 'warning')"

@@ -1,3 +1,5 @@
+import { selfRelationshipPortPositions } from './self-relationship-ports.js';
+
 function entitySide(port, entity) {
     const x = port.position.x + 1;
     const y = port.position.y + 1;
@@ -13,6 +15,20 @@ function entitySide(port, entity) {
 
 /** Orthogonal legs with a tighter departure and a broader return bend. */
 export function selfRelationshipPath(start, end, diamondSide, side, reverse = false) {
+    // Route in one coordinate frame and transform points before rendering.
+    const vertical = diamondSide === 'top' || diamondSide === 'bottom';
+    const toCanvas = ({ x, y }) => vertical ? { x: y, y: x } : { x, y };
+    const coordinate = (point) => {
+        const { x, y } = toCanvas(point);
+        return `${x},${y}`;
+    };
+    if (vertical) {
+        start = toCanvas(start);
+        end = toCanvas(end);
+        const rotatedSide = { top: 'left', bottom: 'right', left: 'top', right: 'bottom' };
+        diamondSide = rotatedSide[diamondSide];
+        side = rotatedSide[side];
+    }
     const direction = diamondSide === 'right' ? 1 : -1;
     const outerX = direction > 0 ? Math.max(start.x + 32, end.x + 24) : Math.min(start.x - 32, end.x - 24);
     let points;
@@ -27,23 +43,30 @@ export function selfRelationshipPath(start, end, diamondSide, side, reverse = fa
     const segments = points.slice(1).map((point, i) => ({ a: points[i], b: point,
         length: Math.hypot(point.x - points[i].x, point.y - points[i].y) }));
     const longest = segments.reduce((best, segment) => segment.length > best.length ? segment : best);
-    const labelPosition = { x: (longest.a.x + longest.b.x) / 2, y: (longest.a.y + longest.b.y) / 2 };
-    const bends = points.slice(1, -1).map((point, i) => ({ point, radius: i === 0 ? 8 : 20 }));
-    if (reverse) { points.reverse(); bends.reverse(); }
-    let path = `M${points[0].x},${points[0].y}`;
+    const labelPosition = toCanvas({ x: (longest.a.x + longest.b.x) / 2, y: (longest.a.y + longest.b.y) / 2 });
+    // Keep the bend nearest the table square, in either edge direction.
+    const radii = points.slice(1, -1).map((_, i) => i === points.length - 3 ? 0 : (i === 0 ? 8 : 20));
+    if (reverse) { points.reverse(); radii.reverse(); }
+    let path = `M${coordinate(points[0])}`;
     for (let i = 1; i < points.length - 1; i++) {
         const [a, b, c] = [points[i - 1], points[i], points[i + 1]];
         const before = Math.hypot(b.x - a.x, b.y - a.y);
         const after = Math.hypot(c.x - b.x, c.y - b.y);
-        const radius = Math.min(bends[i - 1].radius, before / 2, after / 2);
-        path += ` L${b.x + (a.x - b.x) * radius / before},${b.y + (a.y - b.y) * radius / before}`;
-        path += ` Q${b.x},${b.y} ${b.x + (c.x - b.x) * radius / after},${b.y + (c.y - b.y) * radius / after}`;
+        const radius = Math.min(radii[i - 1], before / 2, after / 2);
+        if (radius === 0) {
+            path += ` L${coordinate(b)}`;
+            continue;
+        }
+        path += ` L${coordinate({ x: b.x + (a.x - b.x) * radius / before, y: b.y + (a.y - b.y) * radius / before })}`;
+        path += ` Q${coordinate(b)} ${coordinate({ x: b.x + (c.x - b.x) * radius / after, y: b.y + (c.y - b.y) * radius / after })}`;
     }
-    path += ` L${points.at(-1).x},${points.at(-1).y}`;
+    path += ` L${coordinate(points.at(-1))}`;
     return { path, labelPosition };
 }
 
 export function refreshSelfRelationshipConnections(container, flow) {
+    // Read the live nodes after Flow's drag/snap writes, including server updates.
+    // Never let an auxiliary port retain an old entity position.
     for (const edge of flow.edges) {
         if (!edge.data?.isSelf || edge.data?.isAttributeLink) continue;
         const source = flow.getNode(edge.source);
@@ -54,7 +77,13 @@ export function refreshSelfRelationshipConnections(container, flow) {
         const diamond = flow.getNode(`relation-${edge.data.relationId}`);
         const entity = diamond && flow.getNode(diamond.data.from);
         if (!entity) continue;
-        const diamondSide = diamondPort.data.role === 'diamondOut' ? 'right' : 'left';
+        const positions = selfRelationshipPortPositions(entity, diamond);
+        Object.assign(entityPort.position, positions[entityPort.data.role]);
+        Object.assign(diamondPort.position, positions[diamondPort.data.role]);
+        const verticalTips = positions.diamondOut.x === positions.diamondIn.x;
+        const diamondSide = diamondPort.data.role === 'diamondOut'
+            ? (verticalTips ? 'bottom' : 'right')
+            : (verticalTips ? 'top' : 'left');
         const side = entitySide(entityPort, entity);
         const result = selfRelationshipPath(
             { x: diamondPort.position.x + 1, y: diamondPort.position.y + 1 },

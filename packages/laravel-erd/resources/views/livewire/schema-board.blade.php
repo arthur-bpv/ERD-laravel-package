@@ -154,11 +154,6 @@
                     <div class="er-anchor er-anchor-right"  x-flow-handle:source.right="'right'"></div>
                     <div class="er-anchor er-anchor-bottom" x-flow-handle:source.bottom="'bottom'"></div>
                     <div class="er-anchor er-anchor-left"   x-flow-handle:source.left="'left'"></div>
-                    {{-- Structural handles for recursive relationships are separate from manual connection targets. --}}
-                    <div class="er-self-anchor er-self-anchor-top" x-flow-handle:target.top="'self-top'"></div>
-                    <div class="er-self-anchor er-self-anchor-right" x-flow-handle:target.right="'self-right'"></div>
-                    <div class="er-self-anchor er-self-anchor-bottom" x-flow-handle:target.bottom="'self-bottom'"></div>
-                    <div class="er-self-anchor er-self-anchor-left" x-flow-handle:target.left="'self-left'"></div>
 
                     <div class="er-anchor er-anchor-tl" x-flow-handle:target.top.left="'tl'"     x-flow-handle-connectable.end="node.data.canBeParent"></div>
                     <div class="er-anchor er-anchor-tr" x-flow-handle:target.top.right="'tr'"    x-flow-handle-connectable.end="node.data.canBeParent"></div>

@@ -20,6 +20,24 @@ class RelationalBoardEditingTest extends TestCase
         ]);
     }
 
+    public function test_duplicate_legacy_fk_ids_keep_labels_and_delete_the_selected_relationship(): void
+    {
+        $data = (new SqlDiagramImporter)->parse('CREATE TABLE authors (id INT PRIMARY KEY); CREATE TABLE books (id INT PRIMARY KEY, author_id INT, editor_id INT, CONSTRAINT fk_author FOREIGN KEY(author_id) REFERENCES authors(id), CONSTRAINT fk_editor FOREIGN KEY(editor_id) REFERENCES authors(id));', 'sqlite')['relational'];
+        $data['foreignKeys'][1]['id'] = $data['foreignKeys'][0]['id'];
+        $diagram = Diagram::create(['name' => 'Legacy', 'type' => Diagram::TYPE_RELATIONAL, 'data' => $data]);
+        $board = Livewire::test(RelationalBoard::class, ['diagram' => $diagram]);
+        $edges = $board->instance()->buildEdges();
+        $this->assertCount(2, $edges);
+        $this->assertNotSame($edges[0]['id'], $edges[1]['id']);
+        $this->assertStringStartsWith('fk_author · ', $edges[0]['label']);
+        $this->assertStringStartsWith('fk_editor · ', $edges[1]['label']);
+
+        $board->call('deleteSelection', [], [$edges[1]['id']]);
+        $remaining = $diagram->fresh()->data['foreignKeys'];
+        $this->assertCount(1, $remaining);
+        $this->assertSame('fk_author', $remaining[0]['relationshipName']);
+    }
+
     public function test_inline_keys_update_cardinality_without_allowing_broken_target_keys(): void
     {
         $diagram = $this->diagram();

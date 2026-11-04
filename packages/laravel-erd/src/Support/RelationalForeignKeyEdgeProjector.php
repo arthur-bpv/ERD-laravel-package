@@ -24,10 +24,20 @@ final class RelationalForeignKeyEdgeProjector
         }
 
         $edges = [];
+        $usedIds = [];
         foreach ($foreignKeys as $foreignKey) {
-            $edges[] = $this->edgeFor(
+            $edge = $this->edgeFor(
                 $foreignKey, $tables, $tablePositions, $pairTotals, $tableWidth, $recursiveSlots,
             );
+            // Older diagrams can contain repeated FK IDs. Each rendered edge
+            // needs its own SVG path, even when the stored IDs collide.
+            $baseId = $edge['id'];
+            $suffix = 2;
+            while (isset($usedIds[$edge['id']])) {
+                $edge['id'] = $baseId.'-'.$suffix++;
+            }
+            $usedIds[$edge['id']] = true;
+            $edges[] = $edge;
         }
 
         return $edges;

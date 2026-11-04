@@ -190,17 +190,7 @@
 .er-anchor-tr { top: -6px; right: -6px; }
 .er-anchor-bl { bottom: -6px; left: -6px; }
 .er-anchor-br { bottom: -6px; right: -6px; }
-.er-self-anchor {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
-}
-.er-self-anchor-top { top: 0; left: 50%; }
-.er-self-anchor-right { top: 50%; right: 0; }
-.er-self-anchor-bottom { bottom: 0; left: 50%; }
-.er-self-anchor-left { top: 50%; left: 0; }
+
 
 
 .er-node:hover .er-anchor { opacity: .55; }

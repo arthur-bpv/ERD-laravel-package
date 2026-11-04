@@ -66,7 +66,7 @@ document.addEventListener('alpine:init', () => {
                     return;
                 }
 
-                if (!node.data?.kind) this.moveSelfRelationshipsWithEntity(node, ev.detail?.position);
+                if (!node.data?.kind) this.moveSelfRelationshipsWithEntity(node);
             });
 
             container.addEventListener('flow-node-drag-end', (ev) => {
@@ -81,6 +81,9 @@ document.addEventListener('alpine:init', () => {
                 const entity = this.$flow?.getNode(ev.detail?.nodeId);
                 if (!entity || entity.data?.kind) return;
 
+                // Ordinary edges also depend on the full box, including the
+                // attribute form and footer. Refresh them after measurement.
+                this.$flow._refreshEdgePaths(new Set([entity.id]));
                 for (const relationId of this.selfRelationshipIds(entity)) {
                     const diamond = this.$flow.getNode(`relation-${relationId}`);
                     if (diamond) this.updateSelfRelationshipGeometry(entity, diamond);

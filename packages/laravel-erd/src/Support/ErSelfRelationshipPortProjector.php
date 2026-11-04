@@ -31,8 +31,12 @@ final class ErSelfRelationshipPortProjector
         $points = [
             'entityOut' => $entityOut,
             'entityIn' => $entityIn,
-            'diamondOut' => ['x' => $diamond['x'] + 128.0, 'y' => $diamondCenterY],
-            'diamondIn' => ['x' => $diamond['x'] - 8.0, 'y' => $diamondCenterY],
+            'diamondOut' => $horizontal
+                ? ['x' => $diamondCenterX, 'y' => $diamond['y'] + 50.0]
+                : ['x' => $diamond['x'] + 128.0, 'y' => $diamondCenterY],
+            'diamondIn' => $horizontal
+                ? ['x' => $diamondCenterX, 'y' => $diamond['y'] - 6.0]
+                : ['x' => $diamond['x'] - 8.0, 'y' => $diamondCenterY],
         ];
 
         $prefix = 'relation-'.$relationId.'-port-';

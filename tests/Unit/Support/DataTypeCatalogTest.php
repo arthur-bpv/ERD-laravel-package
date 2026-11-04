@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Support;
 
-use App\Support\DataTypeCatalog;
+use Makermind\Erd4dev\Support\DataTypeCatalog;
 use PHPUnit\Framework\TestCase;
 
 class DataTypeCatalogTest extends TestCase

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "title": "Análise de alternativas ER → relacional",
+  "title": "ER to relational conversion examples",
   "entities": [
     {
       "id": "case_zero_one_zero_one_plain_a",
@@ -1040,8 +1040,7 @@
           "type": "int",
           "key": "PK"
         }
-      ],
-      "kind": "weak"
+      ]
     },
     {
       "id": "customer",
@@ -1059,70 +1058,13 @@
           "id": "customer.phone",
           "name": "phone",
           "type": "varchar",
-          "key": "",
-          "multivalued": true
+          "key": ""
         },
         {
           "id": "customer.address",
           "name": "address",
           "type": "varchar",
-          "key": "",
-          "components": [
-            {
-              "id": "customer.street",
-              "name": "street",
-              "type": "varchar",
-              "key": ""
-            },
-            {
-              "id": "customer.city",
-              "name": "city",
-              "type": "varchar",
-              "key": ""
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "supplier",
-      "name": "supplier",
-      "x": 40,
-      "y": 4580,
-      "attributes": [
-        {
-          "id": "supplier.id",
-          "name": "id",
-          "type": "bigint",
-          "key": "PK"
-        }
-      ]
-    },
-    {
-      "id": "product",
-      "name": "product",
-      "x": 500,
-      "y": 4580,
-      "attributes": [
-        {
-          "id": "product.id",
-          "name": "id",
-          "type": "bigint",
-          "key": "PK"
-        }
-      ]
-    },
-    {
-      "id": "project",
-      "name": "project",
-      "x": 960,
-      "y": 4580,
-      "attributes": [
-        {
-          "id": "project.id",
-          "name": "id",
-          "type": "bigint",
-          "key": "PK"
+          "key": ""
         }
       ]
     },
@@ -1828,42 +1770,6 @@
       "childCard": "cf-one-many",
       "parentCard": "cf-one-one",
       "attributes": []
-    },
-    {
-      "id": "supplies_for",
-      "name": "supplies_for",
-      "from": "supplier",
-      "fromAttr": "",
-      "to": "product",
-      "toAttr": "product.id",
-      "childCard": "cf-zero-many",
-      "parentCard": "cf-zero-many",
-      "attributes": [
-        {
-          "id": "supplies_for.price",
-          "name": "price",
-          "type": "decimal",
-          "key": ""
-        }
-      ],
-      "kind": "complex",
-      "participants": [
-        {
-          "entity": "supplier",
-          "role": "supplier",
-          "many": true
-        },
-        {
-          "entity": "product",
-          "role": "product",
-          "many": true
-        },
-        {
-          "entity": "project",
-          "role": "project",
-          "many": true
-        }
-      ]
     },
     {
       "id": "has_profile",

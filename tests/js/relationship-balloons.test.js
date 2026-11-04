@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installRelationshipBalloons, setRelationshipAttributeFollowing } from '../../resources/js/erd/relationship-balloons.js';
+import { installRelationshipBalloons, setRelationshipAttributeFollowing } from '../../packages/laravel-erd/resources/js/erd/relationship-balloons.js';
 
 test('enables smooth following without affecting manual dragging', () => {
     const classes = new Set();

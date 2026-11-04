@@ -1,96 +1,224 @@
 {
   "version": 1,
-  "title": "Marketplace — pedidos, catálogo e fornecedores",
-  "description": "Fluxo realista de compra com atributos multivalorados, relações 1:N, 1:1 e N:N com atributos próprios.",
+  "title": "Marketplace — orders, catalog and suppliers",
+  "description": "A shopping workflow with 1:N, 1:1 and N:N relationships and relationship attributes.",
   "entities": [
     {
       "id": "customers",
       "name": "Customer",
-      "kind": "strong",
       "x": 40,
       "y": 300,
       "attributes": [
-        { "id": "customers.id", "name": "customer_id", "type": "bigint", "key": "PK" },
-        { "id": "customers.name", "name": "full_name", "type": "varchar", "key": "" },
-        { "id": "customers.email", "name": "email", "type": "varchar", "key": "UQ" },
-        { "id": "customers.phone", "name": "phone", "type": "varchar", "key": "", "multivalued": true }
+        {
+          "id": "customers.id",
+          "name": "customer_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "customers.name",
+          "name": "full_name",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "customers.email",
+          "name": "email",
+          "type": "varchar",
+          "key": "UQ"
+        },
+        {
+          "id": "customers.phone",
+          "name": "phone",
+          "type": "varchar",
+          "key": ""
+        }
       ]
     },
     {
       "id": "orders",
       "name": "Order",
-      "kind": "strong",
       "x": 400,
       "y": 300,
       "attributes": [
-        { "id": "orders.id", "name": "order_id", "type": "bigint", "key": "PK" },
-        { "id": "orders.number", "name": "order_number", "type": "varchar", "key": "UQ" },
-        { "id": "orders.placed_at", "name": "placed_at", "type": "datetime", "key": "" },
-        { "id": "orders.status", "name": "status", "type": "varchar", "key": "" }
+        {
+          "id": "orders.id",
+          "name": "order_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "orders.number",
+          "name": "order_number",
+          "type": "varchar",
+          "key": "UQ"
+        },
+        {
+          "id": "orders.placed_at",
+          "name": "placed_at",
+          "type": "datetime",
+          "key": ""
+        },
+        {
+          "id": "orders.status",
+          "name": "status",
+          "type": "varchar",
+          "key": ""
+        }
       ]
     },
     {
       "id": "products",
       "name": "Product",
-      "kind": "strong",
       "x": 800,
       "y": 300,
       "attributes": [
-        { "id": "products.id", "name": "product_id", "type": "bigint", "key": "PK" },
-        { "id": "products.sku", "name": "sku", "type": "varchar", "key": "UQ" },
-        { "id": "products.name", "name": "name", "type": "varchar", "key": "" },
-        { "id": "products.price", "name": "list_price", "type": "decimal(10,2)", "key": "" }
+        {
+          "id": "products.id",
+          "name": "product_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "products.sku",
+          "name": "sku",
+          "type": "varchar",
+          "key": "UQ"
+        },
+        {
+          "id": "products.name",
+          "name": "name",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "products.price",
+          "name": "list_price",
+          "type": "decimal(10,2)",
+          "key": ""
+        }
       ]
     },
     {
       "id": "categories",
       "name": "Category",
-      "kind": "strong",
       "x": 1160,
       "y": 60,
       "attributes": [
-        { "id": "categories.id", "name": "category_id", "type": "bigint", "key": "PK" },
-        { "id": "categories.name", "name": "name", "type": "varchar", "key": "UQ" }
+        {
+          "id": "categories.id",
+          "name": "category_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "categories.name",
+          "name": "name",
+          "type": "varchar",
+          "key": "UQ"
+        }
       ]
     },
     {
       "id": "addresses",
       "name": "Delivery Address",
-      "kind": "strong",
       "x": 40,
       "y": 680,
       "attributes": [
-        { "id": "addresses.id", "name": "address_id", "type": "bigint", "key": "PK" },
-        { "id": "addresses.label", "name": "label", "type": "varchar", "key": "" },
-        { "id": "addresses.street", "name": "street", "type": "varchar", "key": "" },
-        { "id": "addresses.city", "name": "city", "type": "varchar", "key": "" },
-        { "id": "addresses.postal_code", "name": "postal_code", "type": "varchar", "key": "" }
+        {
+          "id": "addresses.id",
+          "name": "address_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "addresses.label",
+          "name": "label",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "addresses.street",
+          "name": "street",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "addresses.city",
+          "name": "city",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "addresses.postal_code",
+          "name": "postal_code",
+          "type": "varchar",
+          "key": ""
+        }
       ]
     },
     {
       "id": "payments",
       "name": "Payment",
-      "kind": "strong",
       "x": 400,
       "y": 680,
       "attributes": [
-        { "id": "payments.id", "name": "payment_id", "type": "bigint", "key": "PK" },
-        { "id": "payments.reference", "name": "provider_reference", "type": "varchar", "key": "UQ" },
-        { "id": "payments.method", "name": "method", "type": "varchar", "key": "" },
-        { "id": "payments.amount", "name": "amount", "type": "decimal(10,2)", "key": "" },
-        { "id": "payments.paid_at", "name": "paid_at", "type": "datetime", "key": "" }
+        {
+          "id": "payments.id",
+          "name": "payment_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "payments.reference",
+          "name": "provider_reference",
+          "type": "varchar",
+          "key": "UQ"
+        },
+        {
+          "id": "payments.method",
+          "name": "method",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "payments.amount",
+          "name": "amount",
+          "type": "decimal(10,2)",
+          "key": ""
+        },
+        {
+          "id": "payments.paid_at",
+          "name": "paid_at",
+          "type": "datetime",
+          "key": ""
+        }
       ]
     },
     {
       "id": "suppliers",
       "name": "Supplier",
-      "kind": "strong",
       "x": 1160,
       "y": 680,
       "attributes": [
-        { "id": "suppliers.id", "name": "supplier_id", "type": "bigint", "key": "PK" },
-        { "id": "suppliers.tax_id", "name": "tax_id", "type": "varchar", "key": "UQ" },
-        { "id": "suppliers.name", "name": "legal_name", "type": "varchar", "key": "" }
+        {
+          "id": "suppliers.id",
+          "name": "supplier_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "suppliers.tax_id",
+          "name": "tax_id",
+          "type": "varchar",
+          "key": "UQ"
+        },
+        {
+          "id": "suppliers.name",
+          "name": "legal_name",
+          "type": "varchar",
+          "key": ""
+        }
       ]
     }
   ],

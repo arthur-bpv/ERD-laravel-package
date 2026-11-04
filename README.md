@@ -1,80 +1,85 @@
-# Editor de diagramas ER e modelos relacionais
+# ERD4Dev development application
 
-Aplicação Laravel 12 com Livewire 4, Alpine e WireFlow para desenhar um modelo entidade-relacionamento, convertê-lo em tabelas relacionais e gerar SQL para MySQL, PostgreSQL, Oracle ou SQL Server.
+Laravel 12, Livewire 4, Alpine and WireFlow application for drawing ER diagrams, converting them to relational models, importing SQL/database schemas, and exporting SQL or Laravel Blueprint drafts.
 
-## Executar
+The distributable package is in [`packages/laravel-erd`](packages/laravel-erd/README.md). The root application consumes `makermind/erd4dev` through a Composer path repository and preserves the development database and routes.
 
-O ambiente de desenvolvimento usa dois containers: `app` (PHP 8.3, Laravel e SQLite) e `vite` (assets).
+## Run
 
 ```bash
 docker compose up
 ```
 
-Abra [http://localhost:8000](http://localhost:8000). O primeiro início instala as dependências e executa as migrações. Os arquivos do projeto são montados nos containers; alterações em PHP, Blade, CSS e JavaScript aparecem sem reconstruir a imagem.
+Open `http://localhost:8000/erd`. The PHP container installs dependencies and runs migrations on its first start; the Vite container supplies development assets. Source changes are mounted into both containers.
 
-Se o Docker estiver em outra máquina, defina `DEV_HOST` no `.env` com o host acessível pelo navegador, sem protocolo ou porta, e recrie o serviço Vite:
+For access from another machine, set `DEV_HOST` in `.env` to the Docker server IP/hostname, without a protocol or port:
 
 ```dotenv
-DEV_HOST=192.168.0.10
+DEV_HOST=192.168.88.245
 ```
 
 ```bash
 docker compose up -d --force-recreate vite
 ```
 
-As portas 8000 e 5173 precisam estar acessíveis ao navegador. Consulte `docker compose logs app` e `docker compose logs vite` em caso de erro.
+Ports 8000 and 5173 must be reachable by the browser. Inspect `docker compose logs app` and `docker compose logs vite` when troubleshooting.
 
-## Páginas
+Without Docker, use PHP 8.3+, Composer and Node 22. Install dependencies, configure `.env`, run `php artisan migrate`, then `composer run dev`.
 
-| Rota | Função |
+## Pages and workflows
+
+| Route | Purpose |
 | --- | --- |
-| `/` | Painel de projetos: criar, importar e abrir diagramas. |
-| `/schema` | Editor ER de demonstração. |
-| `/boards/er/{diagram}` | Editor ER de um projeto salvo. |
-| `/boards/relational/{diagram}` | Modelo relacional gerado a partir do ER ou importado de SQL, com edição de tipos e exportação SQL. |
-| `/health` e `/up` | Verificações HTTP da aplicação. |
+| `/erd` | Project dashboard: create, import, rename and open diagrams. |
+| `/erd/schema` | ER editor demonstration. |
+| `/erd/boards/er/{diagram}` | Saved ER diagram. |
+| `/erd/boards/relational/{diagram}` | Linked or independently imported relational model. |
+| `/health`, `/up` | Application health checks. |
 
-## Importar SQL
+ER projects can generate linked relational models. Structural editing remains in the ER source; regeneration is an explicit action that can replace manual relational adjustments. Drift detection reports changes without automatically overwriting a saved model.
 
-Na página inicial, use **Importar projeto SQL**, ao lado da importação JSON. Selecione um arquivo `.sql` de até 2 MB ou cole o script. O banco é identificado por sintaxe específica ou pelo cabeçalho dos SQLs exportados pela aplicação: SQLite, MySQL/MariaDB, PostgreSQL, Oracle ou SQL Server. Se o script usar apenas SQL genérico, escolha o banco no formulário. O banco escolhido é salvo no projeto e aparece no cartão do painel.
+SQL and database imports create independent relational boards without an ER model. SQL is parsed as text, never executed. Connection import reads metadata only from connections configured by the user in Laravel. Board edits do not modify source tables or records; diagram records themselves are saved in the application's configured diagram table.
 
-A importação cria apenas um modelo relacional independente e editável, sem gerar ER nem oferecer regeneração a partir de ER. Projetos criados no editor e importados por JSON mantêm o fluxo ER → Relacional. A importação preserva tabelas, colunas, tipos e tamanhos, nulabilidade, PKs simples ou compostas, UNIQUE simples e FKs simples ou compostas. Aceita chaves em `CREATE TABLE`, `ALTER TABLE … ADD CONSTRAINT` e índices UNIQUE simples. Referências a tabelas que não estão no arquivo são recusadas. O SQL é analisado como texto e nunca executado.
+On imported boards, create tables with **New table**, edit table/column names and keys directly on the canvas, and configure foreign keys through **Relationships**. Cardinality follows uniqueness and nullability. Composite and recursive references are supported by the board.
 
-Este é um importador de estrutura, não um restaurador de backups. Exporte preferencialmente apenas o esquema; blocos de rotinas sem dollar-quote e comandos `DELIMITER` são recusados. Dados, views, rotinas, defaults, checks, geração automática, collations e opções de índices não são representados; o modelo relacional lista avisos sobre as omissões. UNIQUE composto, chaves por expressão, múltiplas referências na mesma coluna e alterações estruturais via `ALTER TABLE` além da adição de chaves são recusados. A cópia relacional guarda as FKs importadas diretamente; regenerá-la posteriormente aplica as regras de conversão ER da aplicação.
+**More** contains SQL, image, JSON and Blueprint exports. JSON copying works over HTTP through a clipboard fallback and offers manual selection if the browser blocks it.
 
-## Onde está cada regra
+## SQL import limits
 
-| Etapa | Arquivos principais |
+Import a schema-only `.sql` file up to 2 MB or paste SQL. Dialect detection recognizes SQLite, MySQL/MariaDB, PostgreSQL, Oracle and SQL Server. Generic SQL may require selecting a dialect.
+
+Tables, columns, types, sizes, nullability, primary/unique keys and foreign keys are represented. Data, views, routines, defaults, checks, automatic generation, collations and ordinary index options are outside the SQL diagram representation. Warnings explain omissions. Expression keys, multiple references on a single column and unsupported ALTER TABLE operations are rejected. Remove unsupported routine bodies and DELIMITER commands before import.
+
+## Blueprint drafts
+
+**More → Generate Blueprint draft** saves a new versionable YAML file under the consumer project's `blueprints/` directory on every click. Existing files are not overwritten. The result dialog includes review warnings and a command to generate models/migrations with the included Blueprint package. The editor does not run that command or execute migrations automatically.
+
+Database configuration, review and execution remain the user's responsibility. See the [package documentation](packages/laravel-erd/README.md#blueprint-drafts) for naming, migration and representation limits.
+
+## Code map
+
+| Responsibility | Location |
 | --- | --- |
-| Editar ER | `app/Livewire/SchemaBoard.php`, `resources/views/livewire/schema-board.blade.php`, `resources/js/erd/canvas-controller.js` e `resources/js/erd/relationship-editor.js`. |
-| Projetar nós ER | `app/Support/ErEntityNodeProjector.php` monta os nós das entidades; `app/Support/ErSelfRelationshipPortProjector.php` e `resources/js/erd/self-relationship-ports.js` posicionam as portas de autorrelação no servidor e durante o arrasto. |
-| Editar atributos de relação | `app/Services/ErRelationshipAttributeEditor.php` aplica inclusão, renomeação e remoção; `SchemaBoard` mantém os eventos e a sincronização visual. |
-| Posicionar elementos | `app/Support/BoardLayout.php` e `app/Support/ErRelationshipAttributePositioner.php`. |
-| Converter ER para relacional | `app/Services/ErToRelationalTransformer.php` e `app/Services/ReferencedKeyCopier.php`. |
-| Editar e desenhar o modelo relacional | `app/Livewire/RelationalBoard.php`, `app/Services/RelationalColumnUpdater.php`, `app/Support/RelationalTableNodeProjector.php` e `app/Support/RelationalForeignKeyEdgeProjector.php`. |
-| Detectar mudanças no ER e gerar SQL | `app/Services/RelationalDiagramDriftAnalyzer.php` e `app/Services/RelationalSqlGenerator.php`. |
-| Importar JSON | `app/Support/ErDiagramImporter.php`. |
-| Importar SQL e identificar o banco | `app/Support/SqlDiagramImporter.php` e `app/Support/SqlDdlTokenizer.php`. |
+| ER editor | `packages/laravel-erd/src/Livewire/SchemaBoard.php` and its Blade view. |
+| Relational editor | `packages/laravel-erd/src/Livewire/RelationalBoard.php`, `Services/RelationalStructureEditor.php`. |
+| ER conversion | `packages/laravel-erd/src/Services/ErToRelationalTransformer.php`. |
+| SQL/database import | `packages/laravel-erd/src/Support/SqlDiagramImporter.php`, `DatabaseDiagramImporter.php`. |
+| SQL/Blueprint export | `packages/laravel-erd/src/Services/RelationalSqlGenerator.php`, `BlueprintDraftGenerator.php`, `BlueprintDraftWriter.php`. |
+| Canvas interactions | `packages/laravel-erd/resources/js/erd/`. |
+| Shared UI | `packages/laravel-erd/resources/views/components/`. |
 
-O estado do diagrama fica no servidor. As ações Livewire atualizam entidades, relações, tabelas e posições; o WireFlow recebe comandos para atualizar o canvas. O editor ER não usa sincronização bidirecional automática do canvas. A transformação é determinística e grava `sourceFingerprint`; a cópia relacional só é regenerada quando o usuário decide. As regras de cardinalidade e seus limites estão em [docs/conversao-er-relacional.md](docs/conversao-er-relacional.md).
+Livewire owns diagram state. WireFlow receives incremental canvas updates. Public ER examples contain only features configurable in the current interface. Legacy file readers retain compatibility; user-authored names and saved data are not translated automatically.
 
-## Verificar mudanças
+## Verify and build
 
 ```bash
 docker compose exec -T app php artisan test --compact
+docker compose exec -T app vendor/bin/phpunit -c packages/laravel-erd/phpunit.xml.dist
 docker compose exec -T vite npm test
 docker compose exec -T vite npm run build
+docker compose exec -T vite npm run build:package
 ```
 
-O diagnóstico e as prioridades de organização do código estão em [docs/plano-qualidade-codigo.md](docs/plano-qualidade-codigo.md). O Sloppy pode ser executado como PHAR temporário no container PHP, sem alterar `composer.json` ou instalar hooks.
+The package's compiled `dist/` files are included in distribution. Consumers do not require Vite or Node. Run `php artisan vendor:publish --tag=erd-assets --force` in the development app when refreshing its published assets.
 
-## Dependências e ambiente
-
-```bash
-docker compose exec app composer install
-docker compose exec vite npm install
-```
-
-O WireFlow já fornece o AlpineFlow em `vendor/getartisanflow/wireflow/dist/`; Alpine vem do Livewire. O SQLite fica em `database/database.sqlite`. Quem optar por rodar sem Docker precisa de PHP 8.3+, Composer e Node 22; use `composer install`, `npm install`, `php artisan migrate` e `composer run dev`.
-
-Nos projetos com apenas o modelo relacional, **Editar estrutura** permite adicionar, renomear e remover tabelas, colunas e relacionamentos, incluindo FKs compostas e recursivas. Renomeações preservam as referências; excluir uma tabela ou coluna remove os relacionamentos dependentes. O destino de uma FK precisa ser uma chave PRIMARY ou UNIQUE completa. Projetos relacionais vinculados a ER não permitem essas alterações estruturais; mantenha a estrutura no ER e regenere o relacional. Os controles existentes de tipos, tamanhos e nulabilidade continuam disponíveis.
+The root demonstration uses the historical `diagrams` table. Fresh package installations use `erd_diagrams`; migrating historical data requires a separate plan.

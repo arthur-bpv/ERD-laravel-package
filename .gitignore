@@ -22,3 +22,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+/public/vendor/erd
+/packages/laravel-erd/vendor
+/packages/laravel-erd/.phpunit.result.cache

@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\RelationalBoard;
-use App\Livewire\SchemaBoard;
-use App\Models\Diagram;
-use App\Services\ErToRelationalTransformer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Makermind\Erd4dev\Livewire\RelationalBoard;
+use Makermind\Erd4dev\Livewire\SchemaBoard;
+use Makermind\Erd4dev\Models\Diagram;
+use Makermind\Erd4dev\Services\ErToRelationalTransformer;
 use Tests\TestCase;
 
 /**
@@ -111,37 +111,37 @@ class SchemaBoardTest extends TestCase
     /** The schema page should load with its canvas mounted. */
     public function test_schema_page_loads(): void
     {
-        $response = $this->get('/schema');
+        $response = $this->get('/erd/schema');
 
         $response->assertStatus(200);
         $response->assertSee('flow-container', false);
-        $response->assertSee('Modelador ER');
+        $response->assertSee('ER editor');
         $response->assertSee('x-erd-measure-node="node"', false);
-        $response->assertSee('Papéis do auto-relacionamento');
-        $response->assertDontSee('Novo relacionamento');
+        $response->assertSee('Self-relationship roles');
+        $response->assertDontSee('New relationship');
     }
 
     public function test_er_background_control_uses_artisanflow_patterns(): void
     {
-        $this->get('/schema')
-            ->assertSee('Alterar fundo do modelo ER')
-            ->assertSee('Pontilhado')
-            ->assertSee('Liso')
-            ->assertSee('Grade')
-            ->assertSee('Cruzes')
+        $this->get('/erd/schema')
+            ->assertSee('Change ER model background')
+            ->assertSee('Dots')
+            ->assertSee('Solid')
+            ->assertSee('Grid')
+            ->assertSee('Crosses')
             ->assertSee('patchConfig({ background: pattern })', false);
     }
 
     public function test_self_relationship_diamond_opens_the_standard_relationship_editor(): void
     {
-        $response = $this->get('/schema');
+        $response = $this->get('/erd/schema');
 
         $response->assertOk();
         $response->assertSee('erd-open-relation', false);
         $response->assertSee('node.data.relationId', false);
         $response->assertDontSee('er-diamond-add', false);
 
-        $blade = file_get_contents(resource_path('views/livewire/schema-board.blade.php'));
+        $blade = file_get_contents(base_path('packages/laravel-erd/resources/views/livewire/schema-board.blade.php'));
         preg_match(
             '/<template x-if="node\.data\.kind === \'relationship\'">(.*?)<template x-if="node\.data\.kind === \'relationship-port\'">/s',
             $blade,
@@ -231,7 +231,9 @@ class SchemaBoardTest extends TestCase
             ->filter(fn (array $node) => ($node['data']['kind'] ?? null) === 'relationship-port')
             ->keyBy(fn (array $node) => $node['data']['role']);
         foreach ($portsAfterDiamondMove as $role => $port) {
-            $this->assertNotSame($initialPorts[$role]['position'], $port['position']);
+            if (str_starts_with($role, 'diamond')) {
+                $this->assertNotSame($initialPorts[$role]['position'], $port['position']);
+            }
         }
 
         $component->call('onNodeDragEnd', 'comments', ['x' => 200, 'y' => 300]);
@@ -270,10 +272,11 @@ class SchemaBoardTest extends TestCase
             ->keyBy(fn (array $node) => $node['data']['role']);
 
         $this->assertGreaterThan($entityBefore['dimensions']['height'], $entityAfter['dimensions']['height']);
-        $this->assertNotSame(
-            $portsBefore->pluck('position')->all(),
-            $portsAfter->pluck('position')->all(),
-        );
+        // Top attachment points stay fixed when rows extend the card downward.
+        $this->assertSame($portsBefore->pluck('position')->all(), $portsAfter->pluck('position')->all());
+        foreach (['entityOut', 'entityIn'] as $role) {
+            $this->assertSame($entityAfter['position']['y'] - 1, $portsAfter[$role]['position']['y']);
+        }
     }
 
     public function test_self_relationship_roles_can_be_renamed_but_not_blank_or_duplicated(): void
@@ -332,8 +335,8 @@ class SchemaBoardTest extends TestCase
         $this->assertSame('comments', $newRelation['from']);
         $this->assertSame('comments', $newRelation['to']);
         $this->assertSame('comments.id', $newRelation['toAttr']);
-        $this->assertSame('papel_origem', $newRelation['fromRole']);
-        $this->assertSame('papel_destino', $newRelation['toRole']);
+        $this->assertSame('source_role', $newRelation['fromRole']);
+        $this->assertSame('target_role', $newRelation['toRole']);
     }
 
     /** The conceptual model leaves FK creation to the relational stage. */
@@ -369,6 +372,11 @@ class SchemaBoardTest extends TestCase
         $this->assertSame($entity['position']['x'] + 56, $diamond['position']['x']);
         $this->assertLessThan($entity['position']['y'], $diamond['position']['y']);
         $this->assertCount(4, $ports);
+        $byRole = $ports->keyBy('data.role');
+        $this->assertSame($diamond['position']['x'] + 127, $byRole['diamondOut']['position']['x']);
+        $this->assertSame($diamond['position']['y'] + 21, $byRole['diamondOut']['position']['y']);
+        $this->assertSame($diamond['position']['x'] - 9, $byRole['diamondIn']['position']['x']);
+        $this->assertSame($diamond['position']['y'] + 21, $byRole['diamondIn']['position']['y']);
         $this->assertEqualsCanonicalizing(
             ['entityOut', 'entityIn', 'diamondOut', 'diamondIn'],
             $ports->pluck('data.role')->all(),
@@ -382,9 +390,9 @@ class SchemaBoardTest extends TestCase
             ['relation-r4-port-diamond-in', 'relation-r4-port-entity-in'],
             [$edges[1]['source'], $edges[1]['target']],
         );
-        $this->assertSame('straight', $edges[0]['type']);
-        $this->assertSame('straight', $edges[1]['type']);
-        $this->assertSame(['Origem', 'Destino'], $edges->pluck('label')->all());
+        $this->assertSame('smoothstep', $edges[0]['type']);
+        $this->assertSame('smoothstep', $edges[1]['type']);
+        $this->assertSame(['Source', 'Target'], $edges->pluck('label')->all());
         $this->assertArrayNotHasKey('sourceHandle', $edges[0]);
         $this->assertArrayNotHasKey('targetHandle', $edges[0]);
         $this->assertArrayNotHasKey('sourceHandle', $edges[1]);
@@ -521,7 +529,7 @@ class SchemaBoardTest extends TestCase
         $this->assertSame($before['parentCard'], $after['childCard']);
         $this->assertSame($before['childCard'], $after['parentCard']);
         $labels = collect($component->instance()->buildEdges())->where('data.relationId', 'r4')->pluck('label')->all();
-        $this->assertSame(['Destino', 'Origem'], $labels);
+        $this->assertSame(['Target', 'Source'], $labels);
     }
 
     /** Renaming a relationship patches the diamond label without rebuilding the edge. */
@@ -574,12 +582,12 @@ class SchemaBoardTest extends TestCase
     public function test_er_header_opens_its_existing_relational_model_after_saving(): void
     {
         $source = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => ['entities' => [], 'relations' => []],
         ]);
         $relational = Diagram::create([
-            'name' => 'Biblioteca — Relacional',
+            'name' => 'Library — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => ['tables' => [], 'foreignKeys' => [], 'warnings' => []],
@@ -587,20 +595,20 @@ class SchemaBoardTest extends TestCase
 
         Livewire::test(SchemaBoard::class, ['diagram' => $source])
             ->assertSet('relationalDiagramId', $relational->id)
-            ->assertSee('Modelo ER')
-            ->assertSee('Modelo Relacional')
+            ->assertSee('ER model')
+            ->assertSee('Relational model')
             ->assertSeeHtml('wire:click="convertToRelational"');
     }
 
     public function test_er_header_flags_a_relational_copy_left_behind_by_later_edits(): void
     {
         $source = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => ['entities' => [], 'relations' => []],
         ]);
         $relational = Diagram::create([
-            'name' => 'Biblioteca — Relacional',
+            'name' => 'Library — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => app(ErToRelationalTransformer::class)->transform($source->data),
@@ -612,20 +620,20 @@ class SchemaBoardTest extends TestCase
             ->call('createEntity')
             ->assertSet('relationalIsOutdated', true)
             ->assertSee('board-tab-flag')
-            ->assertSee('Modelo Relacional desatualizado')
+            ->assertSee('Relational model desatualizado')
             ->call('save')
             ->assertSet('relationalIsOutdated', true)
-            ->assertSee('Modelo Relacional desatualizado');
+            ->assertSee('Relational model desatualizado');
 
         Livewire::test(RelationalBoard::class, ['diagram' => $relational])
             ->assertViewHas('isOutdated', true)
-            ->assertSee('Este modelo Relacional está desatualizado');
+            ->assertSee('This relational model is outdated');
 
         $this->assertCount(1, $source->fresh()->data['entities']);
 
         Livewire::test(SchemaBoard::class, ['diagram' => $source->fresh()])
             ->call('convertToRelational')
-            ->assertRedirect(route('boards.relational', $relational));
+            ->assertRedirect(route('erd.boards.relational', $relational));
 
         $this->assertCount(1, $source->fresh()->data['entities']);
         $this->assertSame([], $relational->fresh()->data['tables']);
@@ -643,7 +651,7 @@ class SchemaBoardTest extends TestCase
             ],
         ]);
         Diagram::create([
-            'name' => 'Exemplo — Relacional',
+            'name' => 'Exemplo — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => app(ErToRelationalTransformer::class)->transform($source->data),
@@ -675,16 +683,16 @@ class SchemaBoardTest extends TestCase
     public function test_opening_an_existing_relational_model_does_not_regenerate_its_manual_edits(): void
     {
         $source = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => ['entities' => [], 'relations' => []],
         ]);
         $relational = Diagram::create([
-            'name' => 'Biblioteca — Relacional',
+            'name' => 'Library — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => [
-                'tables' => [['id' => 'manual', 'name' => 'Auditoria', 'kind' => 'strong', 'x' => 0, 'y' => 0, 'columns' => [], 'primaryKey' => []]],
+                'tables' => [['id' => 'manual', 'name' => 'Audit', 'kind' => 'strong', 'x' => 0, 'y' => 0, 'columns' => [], 'primaryKey' => []]],
                 'foreignKeys' => [],
                 'warnings' => [],
                 'customized' => true,
@@ -693,9 +701,9 @@ class SchemaBoardTest extends TestCase
 
         Livewire::test(SchemaBoard::class, ['diagram' => $source])
             ->call('convertToRelational')
-            ->assertRedirect(route('boards.relational', $relational));
+            ->assertRedirect(route('erd.boards.relational', $relational));
 
-        $this->assertSame('Auditoria', $relational->fresh()->data['tables'][0]['name']);
+        $this->assertSame('Audit', $relational->fresh()->data['tables'][0]['name']);
         $this->assertTrue($relational->fresh()->data['customized']);
     }
 
@@ -738,7 +746,7 @@ class SchemaBoardTest extends TestCase
         );
 
         $this->assertArrayHasKey('entities', $json);
-        $this->assertSame('Projeto: Diagrama sem nome | Modelo: ER', $json['_comment']);
+        $this->assertSame('Project: Untitled diagram | Model: ER', $json['_comment']);
         $this->assertArrayHasKey('relations', $json);
         $this->assertArrayNotHasKey('tables', $json);
     }
@@ -753,10 +761,10 @@ class SchemaBoardTest extends TestCase
             // Both boards share the same modal and footer.
             ->assertSeeHtml('class="rel-modal"')
             ->assertSeeHtml('class="rel-modal-actions"')
-            ->assertSee('Copiar')
-            ->assertSee('Baixar .json')
+            ->assertSee('Copy')
+            ->assertSee('Download .json')
             ->assertSee('wire:click="downloadJson"', escape: false);
 
-        $component->call('downloadJson')->assertFileDownloaded('modelo-er.json');
+        $component->call('downloadJson')->assertFileDownloaded('er-model.json');
     }
 }

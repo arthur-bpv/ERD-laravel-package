@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { copyBoardText } from '../../resources/js/erd/clipboard.js';
+import { copyBoardText } from '../../packages/laravel-erd/resources/js/erd/clipboard.js';
 
 test('copies SQL with Clipboard API and falls back when it is unavailable or rejected', async () => {
     const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');

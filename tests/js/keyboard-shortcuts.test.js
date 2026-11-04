@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installBoardShortcuts, isTyping } from '../../resources/js/erd/keyboard-shortcuts.js';
+import { installBoardShortcuts, isTyping } from '../../packages/laravel-erd/resources/js/erd/keyboard-shortcuts.js';
 
 test('typing targets include form controls and editable text', () => {
     assert.equal(isTyping({ closest: selector => selector.includes('select') ? {} : null }), true);

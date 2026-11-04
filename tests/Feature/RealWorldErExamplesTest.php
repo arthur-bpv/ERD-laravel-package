@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Services\ErToRelationalTransformer;
-use App\Services\RelationalSqlGenerator;
-use App\Support\ErDiagramImporter;
+use Makermind\Erd4dev\Services\ErToRelationalTransformer;
+use Makermind\Erd4dev\Services\RelationalSqlGenerator;
+use Makermind\Erd4dev\Support\ErDiagramImporter;
 use Tests\TestCase;
 
 class RealWorldErExamplesTest extends TestCase
@@ -19,7 +19,7 @@ class RealWorldErExamplesTest extends TestCase
                     'relation_order_items' => ['quantity', 'unit_price', 'discount_percent'],
                     'relation_supplier_catalog' => ['supplier_sku', 'cost_price', 'lead_time_days'],
                     'orders' => ['delivery_instructions'],
-                    'customers_phone' => ['phone'],
+                    'customers' => ['phone'],
                 ],
             ],
             'clinic-er.json' => [
@@ -29,7 +29,7 @@ class RealWorldErExamplesTest extends TestCase
                     'relation_doctor_specialties' => ['certified_at'],
                     'relation_prescription_items' => ['dosage', 'frequency', 'duration_days'],
                     'doctors' => ['mentorDoctor_id', 'mentorship_started_at'],
-                    'patients_phone' => ['phone'],
+                    'patients' => ['phone'],
                 ],
             ],
         ];
@@ -51,7 +51,7 @@ class RealWorldErExamplesTest extends TestCase
                 $this->assertNotNull($table, "{$filename}: tabela {$tableId} não foi criada.");
                 $this->assertEmpty(
                     array_diff($columnNames, array_column($table['columns'], 'name')),
-                    "{$filename}: colunas esperadas ausentes em {$tableId}.",
+                    "{$filename}: columns esperadas ausentes em {$tableId}.",
                 );
             }
         }

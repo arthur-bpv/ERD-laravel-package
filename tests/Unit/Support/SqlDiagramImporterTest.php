@@ -2,14 +2,21 @@
 
 namespace Tests\Unit\Support;
 
-use App\Services\RelationalSqlGenerator;
-use App\Support\SqlDiagramImporter;
 use InvalidArgumentException;
+use Makermind\Erd4dev\Services\RelationalSqlGenerator;
+use Makermind\Erd4dev\Support\SqlDiagramImporter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class SqlDiagramImporterTest extends TestCase
 {
+    public function test_it_reads_legacy_export_headers_after_the_english_language_change(): void
+    {
+        $sql = "-- C\u{00F3}digo SQL para: PostgreSQL\nCREATE TABLE users (id INTEGER PRIMARY KEY);";
+        $this->assertSame('pgsql', SqlDiagramImporter::detectDialect($sql));
+        $this->assertSame('pgsql', (new SqlDiagramImporter)->parse($sql)['relational']['dialect']);
+    }
+
     public static function dialects(): array
     {
         return [
@@ -38,7 +45,7 @@ class SqlDiagramImporterTest extends TestCase
     public function test_it_preserves_composite_keys_alter_constraints_and_quoted_names(): void
     {
         $data = (new SqlDiagramImporter)->parse(<<<'SQL'
-            -- Código SQL para: PostgreSQL
+            -- SQL code for: PostgreSQL
             CREATE TABLE "parents" ("tenant" INT, "id" INT, "label" VARCHAR(80), PRIMARY KEY (tenant, id));
             CREATE TABLE children (id INT PRIMARY KEY, tenant_id INT NOT NULL, parent_id INT, note TEXT DEFAULT 'a,b; -- text');
             ALTER TABLE children ADD CONSTRAINT children_parent FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant, id);
@@ -130,20 +137,20 @@ class SqlDiagramImporterTest extends TestCase
     public static function invalidSchemas(): array
     {
         return [
-            ['CREATE TABLE t (id INT,', 'Parênteses'],
-            ['CREATE TABLE t (id INT, id INT);', 'duplicada'],
-            ['CREATE TABLE t (id INT); CREATE TABLE t (id INT);', 'duplicada'],
-            ['CREATE TABLE t (id INT REFERENCES missing(id));', 'ausente'],
-            ['CREATE TABLE t (id INT, FOREIGN KEY (missing) REFERENCES t(id));', 'inexistente'],
+            ['CREATE TABLE t (id INT,', 'parentheses'],
+            ['CREATE TABLE t (id INT, id INT);', 'Duplicate'],
+            ['CREATE TABLE t (id INT); CREATE TABLE t (id INT);', 'Duplicate'],
+            ['CREATE TABLE t (id INT REFERENCES missing(id));', 'missing'],
+            ['CREATE TABLE t (id INT, FOREIGN KEY (missing) REFERENCES t(id));', 'Missing'],
             ['CREATE TABLE t (id INT); ALTER TABLE t DROP COLUMN id;', 'ALTER TABLE'],
-            ['CREATE TABLE t (id INT, FOREIGN KEY(id) REFERENCES t(id, other));', 'quantidade'],
-            ["CREATE TABLE t (id TEXT DEFAULT 'broken);", 'fechado'],
+            ['CREATE TABLE t (id INT, FOREIGN KEY(id) REFERENCES t(id, other));', 'same number'],
+            ["CREATE TABLE t (id TEXT DEFAULT 'broken);", 'closed'],
             ['DROP TABLE diagrams;', 'CREATE TABLE'],
-            ['CREATE TABLE t (id INT); DELIMITER ;; CREATE PROCEDURE p() BEGIN SELECT 1; CREATE TABLE fake (id INT); END;', 'rotinas'],
-            ['CREATE TABLE t (id INT); CREATE TRIGGER p AFTER INSERT ON t BEGIN SELECT 1; CREATE TABLE fake (id INT); END;', 'rotinas'],
-            ['CREATE TABLE t (id INT); CREATE UNIQUE INDEX partial ON t(id) WHERE id > 0;', 'parciais'],
-            ['CREATE TABLE t (id INT REFERENCES t(id));', 'PRIMARY ou UNIQUE'],
-            ['CREATE TABLE t (a INT, b INT, UNIQUE(a,b)); CREATE TABLE c (a INT REFERENCES t(a));', 'PRIMARY ou UNIQUE'],
+            ['CREATE TABLE t (id INT); DELIMITER ;; CREATE PROCEDURE p() BEGIN SELECT 1; CREATE TABLE fake (id INT); END;', 'routines'],
+            ['CREATE TABLE t (id INT); CREATE TRIGGER p AFTER INSERT ON t BEGIN SELECT 1; CREATE TABLE fake (id INT); END;', 'routines'],
+            ['CREATE TABLE t (id INT); CREATE UNIQUE INDEX partial ON t(id) WHERE id > 0;', 'Partial'],
+            ['CREATE TABLE t (id INT REFERENCES t(id));', 'PRIMARY or UNIQUE'],
+            ['CREATE TABLE t (a INT, b INT, UNIQUE(a,b)); CREATE TABLE c (a INT REFERENCES t(a));', 'PRIMARY or UNIQUE'],
         ];
     }
 

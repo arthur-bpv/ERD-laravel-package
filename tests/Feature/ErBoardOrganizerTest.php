@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\SchemaBoard;
-use App\Models\Diagram;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Makermind\Erd4dev\Livewire\SchemaBoard;
+use Makermind\Erd4dev\Models\Diagram;
 use Tests\TestCase;
 
 class ErBoardOrganizerTest extends TestCase
@@ -14,10 +14,10 @@ class ErBoardOrganizerTest extends TestCase
 
     public function test_toolbar_exposes_the_organizer_action(): void
     {
-        $this->get('/schema')
+        $this->get('/erd/schema')
             ->assertOk()
             ->assertSee('wire:click="organizeBoard"', false)
-            ->assertSee('Organizar quadro');
+            ->assertSee('Arrange board');
     }
 
     public function test_it_organizes_only_entities_and_keeps_the_classic_relationship_edges(): void

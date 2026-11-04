@@ -1,12 +1,13 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
-    "name": "projeto-livewire",
+    "name": "erd4dev-workbench",
     "private": true,
     "type": "module",
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test": "node --test tests/js/*.test.js"
+        "test": "node --test tests/js/*.test.js",
+        "build:package": "vite build --config vite.package.config.js"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

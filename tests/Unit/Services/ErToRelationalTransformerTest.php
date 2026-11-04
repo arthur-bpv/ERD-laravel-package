@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\ErToRelationalTransformer;
+use Makermind\Erd4dev\Services\ErToRelationalTransformer;
 use PHPUnit\Framework\TestCase;
 
 class ErToRelationalTransformerTest extends TestCase
@@ -238,8 +238,8 @@ class ErToRelationalTransformerTest extends TestCase
         ]);
 
         $this->assertSame([
-            'A relação Catalog não possui chave PK/UQ para ser referenciada.',
-            'O relacionamento missing_items referencia uma entidade inexistente.',
+            'Table Catalog has no PK/UQ key to reference.',
+            'Relationship missing_items references a missing entity.',
         ], $result['warnings']);
         $this->assertSame([], $result['foreignKeys']);
     }

@@ -14,7 +14,7 @@
     </testsuites>
     <source>
         <include>
-            <directory>app</directory>
+            <directory>packages/laravel-erd/src</directory>
         </include>
     </source>
     <php>

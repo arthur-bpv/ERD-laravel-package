@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\ErToRelationalTransformer;
-use App\Services\RelationalDiagramDriftAnalyzer;
+use Makermind\Erd4dev\Services\ErToRelationalTransformer;
+use Makermind\Erd4dev\Services\RelationalDiagramDriftAnalyzer;
 use PHPUnit\Framework\TestCase;
 
 class RelationalDiagramDriftAnalyzerTest extends TestCase
@@ -54,7 +54,7 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
         $report = $this->drift->report($changed, $relational);
 
         $this->assertTrue($report['outdated']);
-        $this->assertContains('Coluna "isbn" foi adicionada em "Livros".', $report['changes']);
+        $this->assertContains('Column "isbn" was added to "Books".', $report['changes']);
     }
 
     public function test_moving_a_table_in_the_relational_board_is_not_a_drift(): void
@@ -96,7 +96,7 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
         $relational = $this->generated($source);
         $source['relations'][] = [
             'id' => 'books-parent',
-            'name' => 'Substitui',
+            'name' => 'Replaces',
             'from' => 'books',
             'fromAttr' => '',
             'to' => 'books',
@@ -124,7 +124,7 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
         $relational = $this->generated($source);
         $relational['tables'][] = [
             'id' => 'audit',
-            'name' => 'Auditoria',
+            'name' => 'Audit',
             'kind' => 'strong',
             'x' => 0,
             'y' => 0,
@@ -135,7 +135,7 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
 
         $report = $this->drift->report($source, $relational);
 
-        $this->assertContains('A tabela "Auditoria" não existe no ER e seria removida.', $report['changes']);
+        $this->assertContains('Table "Audit" does not exist in the ER model and would be removed.', $report['changes']);
         $this->assertFalse($report['outdated']);
     }
 
@@ -167,9 +167,9 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
         $report = $this->drift->report($changed, $relational);
 
         $this->assertTrue($report['outdated']);
-        $this->assertContains('A coluna "book_id" não existe no ER e seria removida de "Empréstimos".', $report['changes']);
+        $this->assertContains('Column "book_id" does not exist in the ER model and would be removed from "Loans".', $report['changes']);
         $this->assertContains(
-            'A chave estrangeira loans.book_id → books.id não existe no ER e seria removida.',
+            'Foreign key loans.book_id → books.id does not exist in the ER model and would be removed.',
             $report['changes'],
         );
     }
@@ -190,10 +190,10 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
 
         $changes = $this->drift->report($changed, $relational)['changes'];
 
-        $this->assertContains('A coluna "id" de "Livros" passou de bigint para integer.', $changes);
-        $this->assertContains('A coluna "id" de "Livros" passou a ser sem chave no ER.', $changes);
-        $this->assertContains('A coluna "id" de "Livros" passou a aceitar NULL.', $changes);
-        $this->assertContains('A chave primária de "Livros" mudou de id para sem chave primária.', $changes);
+        $this->assertContains('Column "id" in "Books" changed from bigint to integer.', $changes);
+        $this->assertContains('Column "id" in "Books" is now no key in the ER model.', $changes);
+        $this->assertContains('Column "id" in "Books" now accepts NULL.', $changes);
+        $this->assertContains('The primary key of "Books" changed from id to no primary key.', $changes);
     }
 
     public function test_a_foreign_key_that_moves_to_another_column_is_reported_as_two_changes(): void
@@ -207,9 +207,9 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
 
         $changes = $this->drift->report($changed, $relational)['changes'];
 
-        $this->assertContains('A coluna "book_id" de "Empréstimos" deixou de ser chave estrangeira.', $changes);
-        $this->assertContains('Chave estrangeira nova no ER: books.id → loans.id (1:1).', $changes);
-        $this->assertContains('A chave estrangeira loans.book_id → books.id não existe no ER e seria removida.', $changes);
+        $this->assertContains('Column "book_id" in "Loans" is no longer a foreign key.', $changes);
+        $this->assertContains('New foreign key in the ER model: books.id → loans.id (1:1).', $changes);
+        $this->assertContains('Foreign key loans.book_id → books.id does not exist in the ER model and would be removed.', $changes);
     }
 
     public function test_a_manual_column_size_would_be_reported_before_regeneration(): void
@@ -233,8 +233,8 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
 
         $changes = $this->drift->report($changed, $relational)['changes'];
 
-        $this->assertContains('A coluna "title" de "Livros" mudou de tamanho 120 para 255.', $changes);
-        $this->assertContains('Coluna "isbn" foi adicionada em "Livros".', $changes);
+        $this->assertContains('Column "title" in "Books" changed size from 120 to 255.', $changes);
+        $this->assertContains('Column "isbn" was added to "Books".', $changes);
     }
 
     private function generated(array $source): array
@@ -248,7 +248,7 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
             'entities' => [
                 [
                     'id' => 'books',
-                    'name' => 'Livros',
+                    'name' => 'Books',
                     'x' => 40,
                     'y' => 40,
                     'attributes' => [
@@ -258,7 +258,7 @@ class RelationalDiagramDriftAnalyzerTest extends TestCase
                 ],
                 [
                     'id' => 'loans',
-                    'name' => 'Empréstimos',
+                    'name' => 'Loans',
                     'x' => 420,
                     'y' => 180,
                     'attributes' => [

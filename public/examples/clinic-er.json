@@ -1,92 +1,186 @@
 {
   "version": 1,
-  "title": "Clínica — agenda, equipe e prescrições",
-  "description": "Atendimento clínico com atributo composto e multivalorado, autorrelacionamento e relações N:N convertíveis.",
+  "title": "Clinic — appointments, staff and prescriptions",
+  "description": "Clinical appointments with self-relationships and N:N relationships.",
   "entities": [
     {
       "id": "patients",
       "name": "Patient",
-      "kind": "strong",
       "x": 40,
       "y": 300,
       "attributes": [
-        { "id": "patients.id", "name": "patient_id", "type": "bigint", "key": "PK" },
-        { "id": "patients.name", "name": "full_name", "type": "varchar", "key": "" },
-        { "id": "patients.document", "name": "document", "type": "varchar", "key": "UQ" },
-        { "id": "patients.birth_date", "name": "birth_date", "type": "date", "key": "" },
-        { "id": "patients.phone", "name": "phone", "type": "varchar", "key": "", "multivalued": true },
+        {
+          "id": "patients.id",
+          "name": "patient_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "patients.name",
+          "name": "full_name",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "patients.document",
+          "name": "document",
+          "type": "varchar",
+          "key": "UQ"
+        },
+        {
+          "id": "patients.birth_date",
+          "name": "birth_date",
+          "type": "date",
+          "key": ""
+        },
+        {
+          "id": "patients.phone",
+          "name": "phone",
+          "type": "varchar",
+          "key": ""
+        },
         {
           "id": "patients.address",
           "name": "address",
-          "type": "composite",
-          "key": "",
-          "components": [
-            { "id": "patients.address.street", "name": "street", "type": "varchar", "key": "" },
-            { "id": "patients.address.city", "name": "city", "type": "varchar", "key": "" },
-            { "id": "patients.address.postal_code", "name": "postal_code", "type": "varchar", "key": "" }
-          ]
+          "type": "varchar",
+          "key": ""
         }
       ]
     },
     {
       "id": "appointments",
       "name": "Appointment",
-      "kind": "strong",
       "x": 400,
       "y": 300,
       "attributes": [
-        { "id": "appointments.id", "name": "appointment_id", "type": "bigint", "key": "PK" },
-        { "id": "appointments.starts_at", "name": "starts_at", "type": "datetime", "key": "" },
-        { "id": "appointments.status", "name": "status", "type": "varchar", "key": "" },
-        { "id": "appointments.reason", "name": "reason", "type": "text", "key": "" }
+        {
+          "id": "appointments.id",
+          "name": "appointment_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "appointments.starts_at",
+          "name": "starts_at",
+          "type": "datetime",
+          "key": ""
+        },
+        {
+          "id": "appointments.status",
+          "name": "status",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "appointments.reason",
+          "name": "reason",
+          "type": "text",
+          "key": ""
+        }
       ]
     },
     {
       "id": "doctors",
       "name": "Doctor",
-      "kind": "strong",
       "x": 800,
       "y": 300,
       "attributes": [
-        { "id": "doctors.id", "name": "doctor_id", "type": "bigint", "key": "PK" },
-        { "id": "doctors.name", "name": "full_name", "type": "varchar", "key": "" },
-        { "id": "doctors.license", "name": "medical_license", "type": "varchar", "key": "UQ" }
+        {
+          "id": "doctors.id",
+          "name": "doctor_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "doctors.name",
+          "name": "full_name",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "doctors.license",
+          "name": "medical_license",
+          "type": "varchar",
+          "key": "UQ"
+        }
       ]
     },
     {
       "id": "specialties",
       "name": "Specialty",
-      "kind": "strong",
       "x": 1160,
       "y": 60,
       "attributes": [
-        { "id": "specialties.id", "name": "specialty_id", "type": "bigint", "key": "PK" },
-        { "id": "specialties.name", "name": "name", "type": "varchar", "key": "UQ" }
+        {
+          "id": "specialties.id",
+          "name": "specialty_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "specialties.name",
+          "name": "name",
+          "type": "varchar",
+          "key": "UQ"
+        }
       ]
     },
     {
       "id": "rooms",
       "name": "Consulting Room",
-      "kind": "strong",
       "x": 400,
       "y": 680,
       "attributes": [
-        { "id": "rooms.id", "name": "room_id", "type": "bigint", "key": "PK" },
-        { "id": "rooms.code", "name": "code", "type": "varchar", "key": "UQ" },
-        { "id": "rooms.floor", "name": "floor", "type": "integer", "key": "" }
+        {
+          "id": "rooms.id",
+          "name": "room_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "rooms.code",
+          "name": "code",
+          "type": "varchar",
+          "key": "UQ"
+        },
+        {
+          "id": "rooms.floor",
+          "name": "floor",
+          "type": "integer",
+          "key": ""
+        }
       ]
     },
     {
       "id": "medicines",
       "name": "Medicine",
-      "kind": "strong",
       "x": 860,
       "y": 680,
       "attributes": [
-        { "id": "medicines.id", "name": "medicine_id", "type": "bigint", "key": "PK" },
-        { "id": "medicines.name", "name": "commercial_name", "type": "varchar", "key": "" },
-        { "id": "medicines.active_ingredient", "name": "active_ingredient", "type": "varchar", "key": "" },
-        { "id": "medicines.registration", "name": "registration_code", "type": "varchar", "key": "UQ" }
+        {
+          "id": "medicines.id",
+          "name": "medicine_id",
+          "type": "bigint",
+          "key": "PK"
+        },
+        {
+          "id": "medicines.name",
+          "name": "commercial_name",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "medicines.active_ingredient",
+          "name": "active_ingredient",
+          "type": "varchar",
+          "key": ""
+        },
+        {
+          "id": "medicines.registration",
+          "name": "registration_code",
+          "type": "varchar",
+          "key": "UQ"
+        }
       ]
     }
   ],

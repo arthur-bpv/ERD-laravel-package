@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\RelationalSqlGenerator;
 use InvalidArgumentException;
+use Makermind\Erd4dev\Services\RelationalSqlGenerator;
 use PHPUnit\Framework\TestCase;
 
 class RelationalSqlGeneratorTest extends TestCase
@@ -24,7 +24,7 @@ class RelationalSqlGeneratorTest extends TestCase
         ]);
 
         $this->assertStringContainsString('CREATE TABLE "User Accounts"', $sql);
-        $this->assertStringStartsWith("-- Código SQL para: PostgreSQL\n", $sql);
+        $this->assertStringStartsWith("-- SQL code for: PostgreSQL\n", $sql);
         $this->assertStringContainsString('"user_id" UUID NOT NULL', $sql);
         $this->assertStringContainsString('"email" VARCHAR(120) NOT NULL', $sql);
         $this->assertStringContainsString('"balance" NUMERIC(12, 4) NULL', $sql);
@@ -125,7 +125,7 @@ class RelationalSqlGeneratorTest extends TestCase
     public function test_it_rejects_a_foreign_key_to_an_unindexed_column(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('precisa ser PK ou UQ');
+        $this->expectExceptionMessage('must be PK or UNIQUE');
 
         (new RelationalSqlGenerator)->generate([
             'tables' => [

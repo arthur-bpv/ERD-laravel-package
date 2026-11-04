@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\ProjectDashboard;
-use App\Livewire\RelationalBoard;
-use App\Livewire\SchemaBoard;
-use App\Models\Diagram;
-use App\Services\ErToRelationalTransformer;
-use App\Support\ErDiagramImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Makermind\Erd4dev\Livewire\ProjectDashboard;
+use Makermind\Erd4dev\Livewire\RelationalBoard;
+use Makermind\Erd4dev\Livewire\SchemaBoard;
+use Makermind\Erd4dev\Models\Diagram;
+use Makermind\Erd4dev\Services\ErToRelationalTransformer;
+use Makermind\Erd4dev\Support\ErDiagramImporter;
 use Tests\TestCase;
 
 class ProjectDashboardTest extends TestCase
@@ -18,19 +18,19 @@ class ProjectDashboardTest extends TestCase
 
     public function test_dashboard_is_the_application_entry_point(): void
     {
-        $this->get('/')
+        $this->get('/erd')
             ->assertOk()
             ->assertSeeLivewire(ProjectDashboard::class)
-            ->assertSee('Do conceito ao banco')
+            ->assertSee('From concept to database')
             ->assertSee('window.setErdTheme', escape: false)
-            ->assertSee('Ativar tema claro')
+            ->assertSee('Switch to light theme')
             ->assertSee('dark:bg-slate-950');
     }
 
     public function test_project_starts_with_an_er_diagram(): void
     {
         Livewire::test(ProjectDashboard::class)
-            ->set('projectName', 'Biblioteca')
+            ->set('projectName', 'Library')
             ->call('createProject')
             ->assertRedirect();
 
@@ -43,34 +43,34 @@ class ProjectDashboardTest extends TestCase
     public function test_project_can_be_renamed_from_the_dashboard(): void
     {
         $project = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => [],
         ]);
         $relational = Diagram::create([
-            'name' => 'Biblioteca — Relacional',
+            'name' => 'Library — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $project->id,
             'data' => [],
         ]);
 
         Livewire::test(ProjectDashboard::class)
-            ->assertSee('Renomear projeto Biblioteca')
+            ->assertSee('Rename project Library')
             ->call('startRename', $project->id)
-            ->assertSet('editingProjectName', 'Biblioteca')
-            ->set('editingProjectName', '  Acervo  ')
+            ->assertSet('editingProjectName', 'Library')
+            ->set('editingProjectName', '  Collection  ')
             ->call('renameProject')
             ->assertSet('editingProjectId', null)
-            ->assertSee('Acervo');
+            ->assertSee('Collection');
 
-        $this->assertSame('Acervo', $project->fresh()->name);
-        $this->assertSame('Acervo — Relacional', $relational->fresh()->name);
+        $this->assertSame('Collection', $project->fresh()->name);
+        $this->assertSame('Collection — Relational', $relational->fresh()->name);
     }
 
     public function test_renaming_rejects_an_empty_name_and_preserves_a_custom_relational_name(): void
     {
         $project = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => [],
         ]);
@@ -86,10 +86,10 @@ class ProjectDashboardTest extends TestCase
             ->set('editingProjectName', '   ')
             ->call('renameProject')
             ->assertHasErrors(['editingProjectName' => 'required'])
-            ->set('editingProjectName', 'Acervo')
+            ->set('editingProjectName', 'Collection')
             ->call('renameProject');
 
-        $this->assertSame('Acervo', $project->fresh()->name);
+        $this->assertSame('Collection', $project->fresh()->name);
         $this->assertSame('Modelo físico', $relational->fresh()->name);
     }
 
@@ -97,11 +97,11 @@ class ProjectDashboardTest extends TestCase
     {
         Livewire::test(ProjectDashboard::class)
             ->set('importProjectName', '')
-            ->set('projectName', 'Biblioteca')
+            ->set('projectName', 'Library')
             ->call('createProject')
             ->assertRedirect();
 
-        $this->assertSame('Biblioteca', Diagram::sole()->name);
+        $this->assertSame('Library', Diagram::sole()->name);
     }
 
     public function test_dashboard_imports_json_as_a_new_project(): void
@@ -119,7 +119,7 @@ class ProjectDashboardTest extends TestCase
         $this->assertSame('Cenários de conversão', $diagram->name);
         $this->assertSame(Diagram::TYPE_ENTITY_RELATIONSHIP, $diagram->type);
         $this->assertNull($diagram->source_diagram_id);
-        $this->assertCount(41, $diagram->data['relations']);
+        $this->assertCount(40, $diagram->data['relations']);
     }
 
     public function test_dashboard_import_preserves_the_database_dialect_for_the_relational_conversion(): void
@@ -144,7 +144,7 @@ class ProjectDashboardTest extends TestCase
             ->set('importProjectName', 'Inválido')
             ->set('importJson', '{"entities":[],"relations":[{"id":"r1"}]}')
             ->call('importProject')
-            ->assertSet('importError', 'relations[0].name precisa ter nome de até 80 caracteres.');
+            ->assertSet('importError', 'relations[0].name requires a name of up to 80 characters.');
 
         $this->assertSame(0, Diagram::count());
     }
@@ -154,27 +154,27 @@ class ProjectDashboardTest extends TestCase
         $sql = 'PRAGMA foreign_keys=ON; CREATE TABLE parents (id INTEGER PRIMARY KEY);'
             .' CREATE TABLE children (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parents(id));';
         Livewire::test(ProjectDashboard::class)
-            ->assertSee('Importar projeto SQL')
+            ->assertSee('Import SQL project')
             ->call('toggleImport', 'sql')
             ->assertSet('showImport', true)
-            ->assertSee('Selecionar arquivo SQL')
+            ->assertSee('Select SQL file')
             ->set('importSql', $sql)
             ->assertSee('SQLite')
-            ->set('importProjectName', 'Banco importado')
+            ->set('importProjectName', 'Database importado')
             ->call('importSqlProject')
             ->assertRedirect();
 
         $relational = Diagram::sole();
         $this->assertSame(Diagram::TYPE_RELATIONAL, $relational->type);
         $this->assertNull($relational->source_diagram_id);
-        $this->assertSame('Banco importado', $relational->name);
+        $this->assertSame('Database importado', $relational->name);
         $this->assertSame('sqlite', $relational->data['dialect']);
         $this->assertCount(2, $relational->data['tables']);
         $this->assertCount(1, $relational->data['foreignKeys']);
-        $this->get('/')->assertSee('Banco: SQLite')->assertSee(route('boards.relational', $relational));
-        $this->get(route('boards.er', $relational))->assertNotFound();
-        $this->get(route('boards.relational', $relational))->assertOk()
-            ->assertDontSee('Regenerar do ER')->assertDontSee('>Modelo ER</a>', false);
+        $this->get('/erd')->assertSee('Database: SQLite')->assertSee(route('erd.boards.relational', $relational));
+        $this->get(route('erd.boards.er', $relational))->assertNotFound();
+        $this->get(route('erd.boards.relational', $relational))->assertOk()
+            ->assertDontSee('Regenerate from ER')->assertDontSee('>ER model</a>', false);
     }
 
     public function test_sql_project_can_be_renamed_and_deleted_from_the_dashboard(): void
@@ -187,11 +187,11 @@ class ProjectDashboardTest extends TestCase
 
         Livewire::test(ProjectDashboard::class)
             ->call('startRename', $diagram->id)
-            ->set('editingProjectName', 'Acervo SQL')
+            ->set('editingProjectName', 'Collection SQL')
             ->call('renameProject')
-            ->assertSee('Acervo SQL')
+            ->assertSee('Collection SQL')
             ->assertDontSeeHtml('wire:click="createRelational('.$diagram->id.')"');
-        $this->assertSame('Acervo SQL', $diagram->fresh()->name);
+        $this->assertSame('Collection SQL', $diagram->fresh()->name);
 
         Livewire::test(ProjectDashboard::class)->call('deleteProject', $diagram->id);
         $this->assertDatabaseCount('diagrams', 0);
@@ -218,7 +218,7 @@ class ProjectDashboardTest extends TestCase
             ->assertDispatched('relational-saved')
             ->call('openSqlPreview')
             ->assertSet('sqlError', null)
-            ->assertDontSee('Regenerar do ER');
+            ->assertDontSee('Regenerate from ER');
 
         $diagram->refresh();
         $this->assertDatabaseCount('diagrams', 1);
@@ -240,7 +240,7 @@ class ProjectDashboardTest extends TestCase
         Livewire::test(ProjectDashboard::class)
             ->set('importSql', 'CREATE TABLE books (id INTEGER PRIMARY KEY);')
             ->call('importSqlProject')
-            ->assertSet('importError', 'Não foi possível identificar o banco com segurança. Selecione o banco de dados para importar.')
+            ->assertSet('importError', 'Could not identify the database reliably. Select a database dialect to import.')
             ->set('importDialect', 'oracle')
             ->call('importSqlProject')
             ->assertSet('importError', '')
@@ -255,7 +255,7 @@ class ProjectDashboardTest extends TestCase
             ->set('importDialect', 'sqlite')
             ->set('importSql', 'DROP TABLE diagrams; CREATE TABLE books (id INT REFERENCES missing(id));')
             ->call('importSqlProject')
-            ->assertSet('importError', 'Tabela referenciada ausente do SQL: missing.');
+            ->assertSet('importError', 'Referenced table is missing from SQL: missing.');
 
         $this->assertSame(0, Diagram::count());
     }
@@ -269,24 +269,24 @@ class ProjectDashboardTest extends TestCase
             ->assertSet('showImport', true)
             ->assertSet('importFormat', 'json')
             ->assertSet('importError', '')
-            ->assertSee('Selecionar arquivo JSON')
-            ->assertDontSee('Selecionar arquivo SQL')
+            ->assertSee('Select JSON file')
+            ->assertDontSee('Select SQL file')
             ->call('toggleImport', 'json')
             ->assertSet('showImport', false);
     }
 
     public function test_import_controls_exist_only_on_the_dashboard(): void
     {
-        $this->get('/')
+        $this->get('/erd')
             ->assertOk()
-            ->assertSee('Importar projeto')
+            ->assertSee('Import JSON project')
             ->assertSee('readingImportFile', escape: false)
-            ->assertSee('Lendo arquivo…')
+            ->assertSee('Reading file…')
             ->assertSee('$wire.set(\'importJson\', text)', escape: false);
 
-        $this->get('/schema')
+        $this->get('/erd/schema')
             ->assertOk()
-            ->assertDontSee('Importar diagrama ER');
+            ->assertDontSee('Import ER diagram');
     }
 
     public function test_analysis_example_always_creates_a_new_project(): void
@@ -295,10 +295,10 @@ class ProjectDashboardTest extends TestCase
         Livewire::test(ProjectDashboard::class)->call('createAnalysisProject')->assertRedirect();
 
         $this->assertSame(2, Diagram::query()
-            ->where('name', 'Análise de alternativas ER → relacional')
+            ->where('name', 'ER to relational conversion examples')
             ->count());
-        $this->assertCount(41, Diagram::latest('id')->first()->data['relations']);
-        $this->assertCount(41, ErDiagramImporter::parse(
+        $this->assertCount(40, Diagram::latest('id')->first()->data['relations']);
+        $this->assertCount(40, ErDiagramImporter::parse(
             file_get_contents(public_path('examples/er-conversion-cases.json')),
         )['relations']);
     }
@@ -343,7 +343,7 @@ class ProjectDashboardTest extends TestCase
     public function test_er_board_saves_current_state_and_converts_directly(): void
     {
         $diagram = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => [],
         ]);
@@ -373,7 +373,7 @@ class ProjectDashboardTest extends TestCase
     public function test_relational_diagram_is_independent_and_references_its_er_source(): void
     {
         $er = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => [
                 'entities' => [[
@@ -406,7 +406,7 @@ class ProjectDashboardTest extends TestCase
     public function test_one_er_diagram_has_at_most_one_relational_board(): void
     {
         $er = Diagram::create([
-            'name' => 'Biblioteca',
+            'name' => 'Library',
             'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => [],
         ]);
@@ -425,7 +425,7 @@ class ProjectDashboardTest extends TestCase
             'data' => [],
         ]);
         $relational = Diagram::create([
-            'name' => 'Descartável — Relacional',
+            'name' => 'Descartável — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $er->id,
             'data' => [],
@@ -443,7 +443,7 @@ class ProjectDashboardTest extends TestCase
 
         $fresh = Diagram::create(['name' => 'Em dia', 'type' => Diagram::TYPE_ENTITY_RELATIONSHIP, 'data' => $this->erData()]);
         Diagram::create([
-            'name' => 'Em dia — Relacional',
+            'name' => 'Em dia — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $fresh->id,
             'data' => $transformer->transform($fresh->data),
@@ -451,7 +451,7 @@ class ProjectDashboardTest extends TestCase
 
         $late = Diagram::create(['name' => 'Atrasado', 'type' => Diagram::TYPE_ENTITY_RELATIONSHIP, 'data' => $this->erData()]);
         Diagram::create([
-            'name' => 'Atrasado — Relacional',
+            'name' => 'Atrasado — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $late->id,
             'data' => $transformer->transform($late->data),
@@ -468,7 +468,7 @@ class ProjectDashboardTest extends TestCase
         $component = Livewire::test(ProjectDashboard::class);
 
         $this->assertSame([$late->id], $component->instance()->outdatedRelational);
-        $this->assertSame(1, substr_count($component->html(), 'Desatualizada'));
+        $this->assertSame(1, substr_count($component->html(), 'Outdated'));
         $this->assertStringContainsString('Em dia', $component->html());
     }
 

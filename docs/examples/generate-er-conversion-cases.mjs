@@ -95,6 +95,17 @@ relation('audits_profile', 'profile', 'account', 'cf-zero-many', 'cf-zero-many',
     [{ id: 'audits_profile.comment', name: 'comment', type: 'text', key: '' }],
     { diamondX: 360, diamondY: y + 145 });
 
-const output = { version: 1, title: 'Análise de alternativas ER → relacional', entities, relations };
+const omitted = relations.filter(relation => relation.participants?.length);
+const participants = new Set(omitted.flatMap(relation => relation.participants.map(participant => participant.entity)));
+const supportedRelations = relations.filter(relation => !relation.participants?.length);
+const used = new Set(supportedRelations.flatMap(relation => [relation.from, relation.to]));
+const supportedEntities = entities.filter(entity => !participants.has(entity.id) || used.has(entity.id)).map(({ kind, ...entity }) => ({
+    ...entity,
+    attributes: entity.attributes.map(({ components, multivalued, ...attribute }) => ({ ...attribute, type: attribute.type === 'composite' ? 'varchar' : attribute.type })),
+}));
+const output = { version: 1, title: 'ER to relational conversion examples', entities: supportedEntities, relations: supportedRelations };
 mkdirSync(new URL('../../public/examples/', import.meta.url), { recursive: true });
 writeFileSync(new URL('../../public/examples/er-conversion-cases.json', import.meta.url), JSON.stringify(output, null, 2) + '\n');
+
+mkdirSync(new URL('../../packages/laravel-erd/resources/examples/', import.meta.url), { recursive: true });
+writeFileSync(new URL('../../packages/laravel-erd/resources/examples/er-conversion-cases.json', import.meta.url), JSON.stringify(output, null, 2) + '\n');

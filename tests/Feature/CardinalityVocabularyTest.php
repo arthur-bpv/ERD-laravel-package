@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\SchemaBoard;
+use Makermind\Erd4dev\Livewire\SchemaBoard;
 use Tests\TestCase;
 
 /**
@@ -57,7 +57,7 @@ class CardinalityVocabularyTest extends TestCase
      */
     private function acceptedByImport(): array
     {
-        $source = file_get_contents((string) app_path('Support/ErDiagramImporter.php'));
+        $source = file_get_contents((string) base_path('packages/laravel-erd/src/Support/ErDiagramImporter.php'));
 
         preg_match_all("/'(cf-[a-z-]+)'/", (string) $source, $matches);
 
@@ -71,7 +71,7 @@ class CardinalityVocabularyTest extends TestCase
      */
     private function cardinalitiesKnownToTheTransformer(): array
     {
-        $source = file_get_contents((string) app_path('Services/ErToRelationalTransformer.php'));
+        $source = file_get_contents((string) base_path('packages/laravel-erd/src/Services/ErToRelationalTransformer.php'));
 
         preg_match_all("/'(cf-[a-z-]+)'/", (string) $source, $matches);
 
@@ -83,7 +83,7 @@ class CardinalityVocabularyTest extends TestCase
      */
     private function cardinalitiesWithAJsMarker(): array
     {
-        $source = file_get_contents(resource_path('js/erd/markers.js'));
+        $source = file_get_contents(base_path('packages/laravel-erd/resources/js/erd/markers.js'));
 
         // Match registrations, not the file's verification list.
         preg_match_all("/registerCardinality\('(cf-[a-z-]+)'/", (string) $source, $matches);
@@ -98,7 +98,7 @@ class CardinalityVocabularyTest extends TestCase
      */
     private function cardinalitiesOfferedByTheEdgeEditor(): array
     {
-        $source = file_get_contents(resource_path('js/erd/relationship-editor.js'));
+        $source = file_get_contents(base_path('packages/laravel-erd/resources/js/erd/relationship-editor.js'));
 
         preg_match_all("/m: '(cf-[a-z-]+)'/", (string) $source, $matches);
 

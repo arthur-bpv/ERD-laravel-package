@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 globalThis.window = {};
-const { exportImageSize } = await import('../../resources/js/erd/export-image.js');
+const { exportImageSize } = await import('../../packages/laravel-erd/resources/js/erd/export-image.js');
 
 test('image export grows with the diagram bounds and caps the canvas size', () => {
     assert.deepEqual(exportImageSize([]), { width: 2560, height: 1440 });

@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('diagrams', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->default('Diagrama sem nome');
+            $table->string('name')->default('Untitled diagram');
             $table->json('data');
             $table->timestamps();
         });

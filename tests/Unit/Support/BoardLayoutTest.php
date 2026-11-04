@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Support;
 
-use App\Support\BoardLayout;
+use Makermind\Erd4dev\Support\BoardLayout;
 use Tests\TestCase;
 
 class BoardLayoutTest extends TestCase
@@ -118,8 +118,8 @@ class BoardLayoutTest extends TestCase
                 $a = $positions[$left['id']];
                 $b = $positions[$right['id']];
                 $this->assertTrue(
-                    $a['x'] + 380 + 80 <= $b['x'] || $b['x'] + 380 + 80 <= $a['x']
-                    || $a['y'] + $left['height'] + 80 <= $b['y'] || $b['y'] + $right['height'] + 80 <= $a['y'],
+                    $b['x'] >= $a['x'] + 380 + 80 || $a['x'] >= $b['x'] + 380 + 80
+                    || $b['y'] >= $a['y'] + $left['height'] + 80 || $a['y'] >= $b['y'] + $right['height'] + 80,
                 );
             }
         }

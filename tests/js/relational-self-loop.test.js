@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { relationalSelfLoopPath } from '../../resources/js/erd/relational-self-loop.js';
-import { installRelationalConnections, refreshRelationalConnections } from '../../resources/js/erd/relational-connections.js';
+import { relationalSelfLoopPath } from '../../packages/laravel-erd/resources/js/erd/relational-self-loop.js';
+import { installRelationalConnections, refreshRelationalConnections } from '../../packages/laravel-erd/resources/js/erd/relational-connections.js';
 
 test('routes a recursive FK between two rows on the right side', () => {
     const result = relationalSelfLoopPath({

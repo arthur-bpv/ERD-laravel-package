@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\RelationalBoard;
-use App\Models\Diagram;
-use App\Services\ErToRelationalTransformer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Makermind\Erd4dev\Livewire\RelationalBoard;
+use Makermind\Erd4dev\Models\Diagram;
+use Makermind\Erd4dev\Services\ErToRelationalTransformer;
 use Tests\TestCase;
 
 class RelationalBoardTest extends TestCase
@@ -26,11 +26,11 @@ class RelationalBoardTest extends TestCase
     public function test_background_control_uses_artisanflow_patterns(): void
     {
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
-            ->assertSee('Alterar fundo do modelo relacional')
-            ->assertSee('Pontilhado')
-            ->assertSee('Liso')
-            ->assertSee('Grade')
-            ->assertSee('Cruzes')
+            ->assertSee('Change relational model background')
+            ->assertSee('Dots')
+            ->assertSee('Solid')
+            ->assertSee('Grid')
+            ->assertSee('Crosses')
             ->assertSee('patchConfig({ background: pattern })', escape: false);
     }
 
@@ -107,7 +107,7 @@ class RelationalBoardTest extends TestCase
             ],
         ]);
         $relational = Diagram::create([
-            'name' => 'Organograma — Relacional',
+            'name' => 'Organograma — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => [],
@@ -162,7 +162,7 @@ class RelationalBoardTest extends TestCase
             ],
         ]);
         $relational = Diagram::create([
-            'name' => 'Catálogo — Relacional',
+            'name' => 'Catálogo — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => [],
@@ -214,7 +214,7 @@ class RelationalBoardTest extends TestCase
             ->assertDispatched('flow:updateNode')
             ->assertDispatched('flow:fromObject')
             ->assertDispatched('flow:fitView')
-            ->assertSee('Organizar');
+            ->assertSee('Arrange');
 
         $tables = collect($component->get('tables'))->keyBy('id');
 
@@ -296,7 +296,7 @@ class RelationalBoardTest extends TestCase
                     || $left['x'] >= $right['x'] + 380 + 130
                     || $right['y'] >= $left['y'] + 74 + 40
                     || $left['y'] >= $right['y'] + 74 + 40,
-                    "As tabelas {$left['id']} e {$right['id']} ficaram próximas demais.",
+                    "As tables {$left['id']} e {$right['id']} ficaram próximas demais.",
                 );
             }
         }
@@ -315,7 +315,7 @@ class RelationalBoardTest extends TestCase
             'data' => $marketplace,
         ]);
         $diagram = Diagram::create([
-            'name' => 'Marketplace — Relacional',
+            'name' => 'Marketplace — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => [],
@@ -328,13 +328,10 @@ class RelationalBoardTest extends TestCase
         $top = $tables->min('y');
         $bottom = $tables->max(fn (array $table): int => $table['y'] + 74 + 44 * count($table['columns']));
 
-        $this->assertCount(10, $tables);
+        $this->assertCount(9, $tables);
         $this->assertLessThan(1_200, $bottom - $top);
         $byId = $tables->keyBy('id');
-        $this->assertSame(
-            $byId['customers']['y'] + 74 + 22 * count($byId['customers']['columns']),
-            $byId['customers_phone']['y'] + 74 + 22 * count($byId['customers_phone']['columns']),
-        );
+        $this->assertContains('phone', array_column($byId['customers']['columns'], 'name'));
     }
 
     public function test_organizing_a_connected_model_with_different_table_heights_stays_readable(): void
@@ -401,7 +398,7 @@ class RelationalBoardTest extends TestCase
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
             ->assertDontSee('renameTable')
             ->assertDontSee('renameColumn')
-            ->assertDontSee('Clique para renomear a tabela');
+            ->assertDontSee('Click to rename a tabela');
 
     }
 
@@ -440,7 +437,7 @@ class RelationalBoardTest extends TestCase
     {
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
             ->assertSet('dialect', 'mysql')
-            ->assertSee('Banco')
+            ->assertSee('Database')
             ->assertSee('MySQL')
             ->assertSee('PostgreSQL')
             ->assertSee('Oracle')
@@ -487,24 +484,24 @@ class RelationalBoardTest extends TestCase
     public function test_header_links_both_independent_models_and_explains_regeneration(): void
     {
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
-            ->assertSee('aria-label="Modelos do projeto"', escape: false)
-            ->assertSee('Modelo Relacional')
-            ->assertSee('Mais')
-            ->assertSee('Regenerar do ER');
+            ->assertSee('aria-label="Project models"', escape: false)
+            ->assertSee('Relational model')
+            ->assertSee('More')
+            ->assertSee('Regenerate from ER');
     }
 
     public function test_relational_header_exposes_the_shared_black_theme_control(): void
     {
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
             ->assertSee('window.setErdTheme', escape: false)
-            ->assertSee('Ativar tema escuro')
-            ->assertSee('Tema escuro');
+            ->assertSee('Switch to dark theme')
+            ->assertSee('Dark theme');
     }
 
     public function test_relational_model_has_an_explicit_save_action(): void
     {
         Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()])
-            ->assertSee('Salvar')
+            ->assertSee('Save')
             ->call('save')
             ->assertDispatched('relational-saved');
     }
@@ -521,10 +518,10 @@ class RelationalBoardTest extends TestCase
             ->assertSet('sqlError', null)
             ->assertSee('x-ref="sqlBox"', escape: false)
             ->assertSee('window.copyBoardText(this.$refs.sqlBox.textContent)', escape: false)
-            ->assertSee('Baixar .sql');
+            ->assertSee('Download .sql');
 
         $sql = $component->get('sqlPreview');
-        $this->assertStringStartsWith("-- Código SQL para: PostgreSQL\n-- Projeto: CRM\n", $sql);
+        $this->assertStringStartsWith("-- SQL code for: PostgreSQL\n-- Project: CRM\n", $sql);
         $this->assertStringContainsString('CREATE TABLE "Staff"', $sql);
         $this->assertStringContainsString('"staffNo" BIGINT NOT NULL', $sql);
         $this->assertStringContainsString('REFERENCES "Staff" ("staffNo")', $sql);
@@ -535,14 +532,14 @@ class RelationalBoardTest extends TestCase
         unset($sourceAfter['dialect']);
         $this->assertSame($sourceBefore, $sourceAfter);
 
-        $component->call('downloadSql')->assertFileDownloaded('modelo-relacional-pgsql.sql');
+        $component->call('downloadSql')->assertFileDownloaded('relational-model-pgsql.sql');
     }
 
     public function test_json_modal_copies_and_downloads_the_relational_model(): void
     {
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $this->relationalDiagram()]);
         $json = json_decode($component->instance()->getJsonPreviewProperty(), true);
-        $this->assertSame('Projeto: CRM | Modelo: CRM — Relacional', $json['_comment']);
+        $this->assertSame('Project: CRM | Model: CRM — Relational', $json['_comment']);
         $this->assertSame('mysql', $json['dialect']);
 
         $component
@@ -551,11 +548,11 @@ class RelationalBoardTest extends TestCase
             // Both boards share the same component and footer.
             ->assertSeeHtml('class="rel-modal"')
             ->assertSeeHtml('class="rel-modal-actions"')
-            ->assertSee('Copiar')
-            ->assertSee('Baixar .json')
+            ->assertSee('Copy')
+            ->assertSee('Download .json')
             ->assertSee('wire:click="downloadJson"', escape: false)
             ->call('downloadJson')
-            ->assertFileDownloaded('modelo-relacional.json');
+            ->assertFileDownloaded('relational-model.json');
     }
 
     public function test_custom_type_is_saved_and_immediately_sent_back_to_the_canvas(): void
@@ -581,9 +578,9 @@ class RelationalBoardTest extends TestCase
             ->call('updateColumnType', 'staff', 'staff.id', 'enum')
             ->call('updateColumnEnumValues', 'staff', 'staff.id', "active, suspended\npending")
             ->assertDispatched('flow:updateNode')
-            ->assertSee('Valores permitidos')
+            ->assertSee('Allowed values')
             ->assertSee('rel-enum-list', escape: false)
-            ->assertSee('Adicionar');
+            ->assertSee('Add');
 
         $column = collect($component->get('tables'))->firstWhere('id', 'staff')['columns'][0];
         $this->assertSame(['active', 'suspended', 'pending'], $column['enumValues']);
@@ -650,7 +647,7 @@ class RelationalBoardTest extends TestCase
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->assertViewHas('isOutdated', false)
             ->assertViewHas('drift', [])
-            ->assertDontSee('Este modelo Relacional está desatualizado');
+            ->assertDontSee('This relational model is outdated');
     }
 
     public function test_editing_the_er_only_warns_and_never_regenerates_the_relational_copy(): void
@@ -660,11 +657,11 @@ class RelationalBoardTest extends TestCase
 
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->assertViewHas('isOutdated', true)
-            ->assertSee('Este modelo Relacional está desatualizado')
-            ->assertSee('Nada foi regravado')
-            ->assertSee('Regenerar do ER')
+            ->assertSee('This relational model is outdated')
+            ->assertSee('Regenerate to apply its changes')
+            ->assertSee('Regenerate from ER')
             // Blade already escaped the text; avoid escaping it again.
-            ->assertSee('Coluna &quot;email&quot; foi adicionada em &quot;Staff&quot;.', escape: false);
+            ->assertSee('Column "email" was added to "Staff".');
 
         // Displaying the warning must not save the new column.
         $staff = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'staff');
@@ -681,7 +678,7 @@ class RelationalBoardTest extends TestCase
             ->call('regenerate')
             ->assertViewHas('isOutdated', false)
             ->assertViewHas('drift', [])
-            ->assertDontSee('Este modelo Relacional está desatualizado');
+            ->assertDontSee('This relational model is outdated');
 
         $staff = collect($diagram->fresh()->data['tables'])->firstWhere('id', 'staff');
         $this->assertContains('email', array_column($staff['columns'], 'name'));
@@ -695,7 +692,7 @@ class RelationalBoardTest extends TestCase
             ->call('updateColumnType', 'staff', 'staff.id', 'varchar')
             ->call('onNodeDragEnd', 'staff', ['x' => 900, 'y' => 40])
             ->assertViewHas('isOutdated', false)
-            ->assertDontSee('Este modelo Relacional está desatualizado');
+            ->assertDontSee('This relational model is outdated');
     }
 
     public function test_the_outdated_warning_reminds_that_manual_edits_will_be_replaced(): void
@@ -705,9 +702,9 @@ class RelationalBoardTest extends TestCase
 
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
             ->assertViewHas('isOutdated', true)
-            ->assertDontSee('As edições manuais deste quadro também serão substituídas.')
+            ->assertDontSee('Manual edits to this board will also be replaced.')
             ->call('updateColumnType', 'staff', 'staff.id', 'varchar')
-            ->assertSee('As edições manuais deste quadro também serão substituídas.');
+            ->assertSee('Manual edits to this board will also be replaced.');
     }
 
     public function test_node_height_accounts_for_column_rows(): void
@@ -779,7 +776,7 @@ class RelationalBoardTest extends TestCase
         $source = $this->sourceDiagram();
 
         return Diagram::create([
-            'name' => 'CRM — Relacional',
+            'name' => 'CRM — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => app(ErToRelationalTransformer::class)->transform($source->data),
@@ -791,7 +788,7 @@ class RelationalBoardTest extends TestCase
         $source = $this->sourceDiagram();
 
         return Diagram::create([
-            'name' => 'CRM — Relacional',
+            'name' => 'CRM — Relational',
             'type' => Diagram::TYPE_RELATIONAL,
             'source_diagram_id' => $source->id,
             'data' => [],

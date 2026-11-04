@@ -1,0 +1,131 @@
+# Gerado pelo ERD4Dev. Revise antes de executar blueprint:build.
+# Este draft não altera o banco de dados.
+# AVISO: Cópia da estrutura: dados, defaults, checks, views, triggers, índices comuns e ações ON DELETE/UPDATE não são representados. Editar o board não altera o banco de origem.
+# AVISO: Configure $primaryKey no model Cache para key.
+# AVISO: Configure $primaryKey no model CacheLock para key.
+# AVISO: Configure $primaryKey no model PasswordResetToken para email.
+models:
+  Cache:
+    meta:
+      table: cache
+    timestamps: false
+    id: false
+    key: 'string:255'
+    value: text
+    expiration: integer
+    indexes:
+      -
+        primary: key
+  CacheLock:
+    meta:
+      table: cache_locks
+    timestamps: false
+    id: false
+    key: 'string:255'
+    owner: 'string:255'
+    expiration: integer
+    indexes:
+      -
+        primary: key
+  Diagram:
+    meta:
+      table: diagrams
+    timestamps: false
+    id: 'integer autoIncrement'
+    name: 'string:255'
+    data: text
+    created_at: 'dateTime nullable'
+    updated_at: 'dateTime nullable'
+    type: integer
+    source_diagram_id: 'integer nullable foreign:diagrams.id onDelete:no_action onUpdate:no_action'
+    indexes:
+      -
+        unique: source_diagram_id
+  FailedJob:
+    meta:
+      table: failed_jobs
+    timestamps: false
+    id: 'integer autoIncrement'
+    uuid: 'string:255'
+    connection: text
+    queue: text
+    payload: text
+    exception: text
+    failed_at: dateTime
+    indexes:
+      -
+        unique: uuid
+  JobBatch:
+    meta:
+      table: job_batches
+    timestamps: false
+    id: 'string:255'
+    name: 'string:255'
+    total_jobs: integer
+    pending_jobs: integer
+    failed_jobs: integer
+    failed_job_ids: text
+    options: 'text nullable'
+    cancelled_at: 'integer nullable'
+    created_at: integer
+    finished_at: 'integer nullable'
+    indexes:
+      -
+        primary: id
+  Job:
+    meta:
+      table: jobs
+    timestamps: false
+    id: 'integer autoIncrement'
+    queue: 'string:255'
+    payload: text
+    attempts: integer
+    reserved_at: 'integer nullable'
+    available_at: integer
+    created_at: integer
+  Migration:
+    meta:
+      table: migrations
+    timestamps: false
+    id: 'integer autoIncrement'
+    migration: 'string:255'
+    batch: integer
+  PasswordResetToken:
+    meta:
+      table: password_reset_tokens
+    timestamps: false
+    id: false
+    email: 'string:255'
+    token: 'string:255'
+    created_at: 'dateTime nullable'
+    indexes:
+      -
+        primary: email
+  Session:
+    meta:
+      table: sessions
+    timestamps: false
+    id: 'string:255'
+    user_id: 'integer nullable'
+    ip_address: 'string:255 nullable'
+    user_agent: 'text nullable'
+    payload: text
+    last_activity: integer
+    indexes:
+      -
+        primary: id
+  User:
+    meta:
+      table: users
+    timestamps: false
+    id: 'integer autoIncrement'
+    name: 'string:255'
+    email: 'string:255'
+    email_verified_at: 'dateTime nullable'
+    password: 'string:255'
+    remember_token: 'string:255 nullable'
+    created_at: 'dateTime nullable'
+    updated_at: 'dateTime nullable'
+    indexes:
+      -
+        unique: email

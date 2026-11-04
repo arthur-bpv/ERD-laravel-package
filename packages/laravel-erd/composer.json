@@ -1,0 +1,43 @@
+{
+    "name": "makermind/erd4dev",
+    "description": "Livewire ER diagram editor, relational conversion and SQL export for Laravel.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "illuminate/support": "^12.0",
+        "illuminate/database": "^12.0",
+        "illuminate/routing": "^12.0",
+        "illuminate/view": "^12.0",
+        "livewire/livewire": "^4.3",
+        "getartisanflow/wireflow": "^0.1.2@alpha",
+        "symfony/process": "^7.2",
+        "laravel-shift/blueprint": "^2.13",
+        "symfony/yaml": "^7.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Makermind\\Erd4dev\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Makermind\\Erd4dev\\ErdServiceProvider"
+            ]
+        }
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "authors": [
+        {
+            "name": "Professor Giovani's study group — IFRN (independent project)",
+            "role": "Developer"
+        }
+    ]
+}

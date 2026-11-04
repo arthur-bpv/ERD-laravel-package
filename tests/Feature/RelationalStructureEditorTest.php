@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Livewire\RelationalBoard;
-use App\Models\Diagram;
-use App\Services\RelationalSqlGenerator;
-use App\Support\SqlDiagramImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Makermind\Erd4dev\Livewire\RelationalBoard;
+use Makermind\Erd4dev\Models\Diagram;
+use Makermind\Erd4dev\Services\RelationalSqlGenerator;
+use Makermind\Erd4dev\Support\SqlDiagramImporter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -27,7 +27,7 @@ class RelationalStructureEditorTest extends TestCase
     {
         $diagram = $this->diagram();
         $component = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
-            ->assertSee('Editar estrutura')->call('openStructureEditor')->assertSet('showStructureEditor', true)
+            ->assertSee('Relationships')->call('openStructureEditor')->assertSet('showStructureEditor', true)
             ->call('addTable', 'books');
         $table = collect($component->get('tables'))->firstWhere('name', 'books');
         $component->call('renameTable', $table['id'], 'library')
@@ -42,7 +42,7 @@ class RelationalStructureEditorTest extends TestCase
             ->assertSee('library')->assertSee('code')
             ->call('deleteColumn', $table['id'], $column['id'])
             ->call('deleteSelection', array_column($diagram->fresh()->data['tables'], 'id'))
-            ->assertSet('tables', [])->assertSee('Nenhuma tabela no modelo')
+            ->assertSet('tables', [])->assertSee('No tables in the model')
             ->call('addTable', 'restart')->assertSee('restart');
         $this->assertCount(1, $diagram->fresh()->data['tables']);
         $this->assertDatabaseCount('diagrams', 1);
@@ -124,8 +124,8 @@ class RelationalStructureEditorTest extends TestCase
         $diagram->update(['source_diagram_id' => $source->id]);
         $before = $diagram->data;
         Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
-            ->assertDontSee('Editar estrutura')
-            ->assertDontSee('Adicionar tabela')
+            ->assertDontSee('Relationships')
+            ->assertDontSee('Add tabela')
             ->call(...$call)->assertForbidden();
         $this->assertSame($before, $diagram->fresh()->data);
         $this->assertSame([], $source->fresh()->data);

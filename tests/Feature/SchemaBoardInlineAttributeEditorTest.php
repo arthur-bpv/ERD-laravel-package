@@ -25,7 +25,7 @@ class SchemaBoardInlineAttributeEditorTest extends TestCase
 
     private function entityAttributeEditorMarkup(): string
     {
-        $blade = file_get_contents(resource_path('views/livewire/schema-board.blade.php'));
+        $blade = file_get_contents(base_path('packages/laravel-erd/resources/views/livewire/schema-board.blade.php'));
 
         preg_match(
             '/(?<editor><input\b[^>]*class="er-attr-name-input nodrag"[\s\S]*?\n\s*>)/',

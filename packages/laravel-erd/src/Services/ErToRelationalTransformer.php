@@ -1,0 +1,548 @@
+<?php
+
+namespace Makermind\Erd4dev\Services;
+
+use Illuminate\Support\Str;
+use Makermind\Erd4dev\Support\DataTypeCatalog;
+
+class ErToRelationalTransformer
+{
+    private array $warnings = [];
+
+    private ReferencedKeyCopier $foreignKeyBuilder;
+
+    private array $relationshipAttributeUsage = [];
+
+    public function transform(array $diagram): array
+    {
+        $this->warnings = [];
+        $entityKinds = [];
+        $this->relationshipAttributeUsage = [];
+
+        $tables = [];
+        $entityTable = [];
+        $relations = array_values(array_filter(
+            $diagram['relations'] ?? [],
+            fn (array $relation) => ! empty($relation['from']) && ! empty($relation['to']),
+        ));
+
+        foreach ($relations as $relation) {
+            foreach (['fromAttr', 'toAttr'] as $attributeField) {
+                $attributeId = (string) ($relation[$attributeField] ?? '');
+                if ($attributeId !== '') {
+                    $this->relationshipAttributeUsage[$attributeId] = ($this->relationshipAttributeUsage[$attributeId] ?? 0) + 1;
+                }
+            }
+        }
+
+        foreach ($diagram['entities'] ?? [] as $index => $entity) {
+            $tableId = (string) $entity['id'];
+            $entityTable[$tableId] = $tableId;
+            $entityKinds[$tableId] = $entity['kind'] ?? 'strong';
+            $tables[$tableId] = $this->tableFromEntity($entity, $index);
+        }
+
+        $this->foreignKeyBuilder = new ReferencedKeyCopier($entityKinds, $this->warnings);
+
+        foreach ($relations as $relation) {
+            $this->mapRelation($tables, $entityTable, $relation);
+        }
+
+        foreach ($diagram['entities'] ?? [] as $entity) {
+            $this->mapMultivaluedAttributes($tables, $entityTable, $entity);
+        }
+
+        // Equal ER models must produce byte for byte equal output. A timestamp
+        // would break that guarantee; sourceFingerprint records the source.
+        return [
+            // Keep the dialect with the project so imports reproduce the DDL.
+            'dialect' => DataTypeCatalog::has((string) ($diagram['dialect'] ?? ''))
+                ? $diagram['dialect']
+                : 'mysql',
+            'tables' => array_values($tables),
+            'foreignKeys' => $this->foreignKeys($tables),
+            'warnings' => array_values(array_unique($this->warnings)),
+            'sourceFingerprint' => $this->fingerprint($diagram),
+        ];
+    }
+
+    /**
+     * Fingerprint of the source ER model.
+     *
+     * Stored with the generated model so RelationalDiagramDriftAnalyzer can
+     * detect source changes. The relational copy's updated_at also advances
+     * after manual edits, so it cannot serve as the source fingerprint.
+     *
+     * Canvas coordinates are excluded. Moving a shape does not change the
+     * logical model, and object key order must not affect the result.
+     */
+    public function fingerprint(array $diagram): string
+    {
+        return 'v2:'.md5((string) json_encode($this->canonicalize($this->withoutLayout($diagram))));
+    }
+
+    /** Fingerprint used by copies created before layout was excluded. */
+    public function legacyFingerprint(array $diagram): string
+    {
+        return md5((string) json_encode($this->canonicalize($diagram)));
+    }
+
+    private function withoutLayout(array $value): array
+    {
+        // Dialect is copied separately and does not change ER structure.
+        foreach (['x', 'y', 'diamondX', 'diamondY', 'offsetX', 'offsetY', 'dialect'] as $field) {
+            unset($value[$field]);
+        }
+
+        return array_map(
+            fn (mixed $item): mixed => is_array($item) ? $this->withoutLayout($item) : $item,
+            $value,
+        );
+    }
+
+    private function canonicalize(array $value): array
+    {
+        $isList = array_is_list($value);
+        $value = array_map(
+            fn (mixed $item): mixed => is_array($item) ? $this->canonicalize($item) : $item,
+            $value,
+        );
+
+        if (! $isList) {
+            ksort($value);
+        }
+
+        return $value;
+    }
+
+    private function tableFromEntity(array $entity, int $index): array
+    {
+        $columns = [];
+
+        foreach ($entity['attributes'] ?? [] as $attribute) {
+            if ($attribute['multivalued'] ?? false) {
+                continue;
+            }
+
+            foreach ($this->simpleAttributes($attribute) as $simple) {
+                $columns[] = $this->columnFromAttribute($simple, $entity['id']);
+            }
+        }
+
+        return [
+            'id' => (string) $entity['id'],
+            'name' => (string) $entity['name'],
+            'kind' => $entity['kind'] ?? 'strong',
+            'x' => (int) ($entity['x'] ?? (($index % 3) * 340 + 40)),
+            'y' => (int) ($entity['y'] ?? (intdiv($index, 3) * 280 + 40)),
+            'columns' => $columns,
+            'primaryKey' => array_values(array_map(
+                fn (array $column) => $column['name'],
+                array_filter($columns, fn (array $column) => $column['key'] === 'PK'),
+            )),
+        ];
+    }
+
+    private function simpleAttributes(array $attribute): array
+    {
+        $components = $attribute['components'] ?? [];
+
+        return $components === [] ? [$attribute] : $components;
+    }
+
+    private function columnFromAttribute(array $attribute, string $source): array
+    {
+        return [
+            'id' => (string) ($attribute['id'] ?? $source.'.'.Str::snake($attribute['name'])),
+            'name' => (string) $attribute['name'],
+            'type' => (string) ($attribute['type'] ?? 'varchar'),
+            'key' => (string) ($attribute['key'] ?? ''),
+            'nullable' => (bool) ($attribute['nullable'] ?? false),
+            'references' => null,
+            'source' => $source,
+        ];
+    }
+
+    private function mapRelation(array &$tables, array $entityTable, array $relation): void
+    {
+        if (($relation['kind'] ?? null) === 'inheritance') {
+            $this->warnings[] = "Specialization {$relation['name']} requires explicit participation and disjointness in the ER model before conversion.";
+
+            return;
+        }
+
+        if (($relation['kind'] ?? null) === 'complex' || count($relation['participants'] ?? []) > 2) {
+            $this->createComplexTable($tables, $entityTable, $relation);
+
+            return;
+        }
+
+        $fromId = $entityTable[$relation['from']] ?? null;
+        $toId = $entityTable[$relation['to']] ?? null;
+
+        if (! $fromId || ! $toId || ! isset($tables[$fromId], $tables[$toId])) {
+            $this->warnings[] = "Relationship {$relation['name']} references a missing entity.";
+
+            return;
+        }
+
+        $fromCard = $this->cardinality($relation['childCard'] ?? 'cf-zero-many');
+        $toCard = $this->cardinality($relation['parentCard'] ?? 'cf-one-one');
+
+        if ($fromCard['many'] && $toCard['many']) {
+            $this->removeDedicatedRelationshipForeignKey($tables[$fromId], $relation['fromAttr'] ?? null);
+            $this->removeDedicatedRelationshipForeignKey($tables[$toId], $relation['toAttr'] ?? null);
+            $this->createAssociativeTable($tables, $fromId, $toId, $relation);
+
+            return;
+        }
+
+        if ($relation['from'] === $relation['to']) {
+            if (! $fromCard['many'] && ! $toCard['many']) {
+                $this->createRecursiveOneToOneTable($tables, $fromId, $relation);
+
+                if ($fromCard['min'] === 1 || $toCard['min'] === 1) {
+                    $this->warnings[] = "Mandatory participation in self-relationship {$relation['name']} requires additional validation; FKs enforce each pair but not participation by every row.";
+                }
+
+                return;
+            }
+
+            $this->mapRecursiveRelation($tables[$fromId], $relation, $fromCard, $toCard);
+
+            return;
+        }
+
+        if ($fromCard['many'] xor $toCard['many']) {
+            $this->mapOneToMany($tables, $fromId, $toId, $relation, $fromCard, $toCard);
+
+            return;
+        }
+
+        $this->mapOneToOne($tables, $fromId, $toId, $relation, $fromCard, $toCard);
+    }
+
+    private function mapOneToMany(array &$tables, string $fromId, string $toId, array $relation, array $fromCard, array $toCard): void
+    {
+        $childId = $fromCard['many'] ? $fromId : $toId;
+        $parentId = $fromCard['many'] ? $toId : $fromId;
+        $nullable = $fromCard['many'] ? $toCard['min'] === 0 : $fromCard['min'] === 0;
+        $childAttributeId = $childId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null);
+        $parentAttributeId = $parentId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null);
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $tables[$parentId],
+            $tables[$childId],
+            [
+                'nullable' => $nullable,
+                'sourceCard' => $fromCard['many'] ? $relation['childCard'] : $relation['parentCard'],
+                'targetCard' => $fromCard['many'] ? $relation['parentCard'] : $relation['childCard'],
+                'parentAttributeId' => $parentAttributeId,
+                'childAttributeId' => $childAttributeId,
+            ],
+        );
+        $this->appendRelationshipAttributes($tables[$childId], $relation, $nullable);
+    }
+
+    private function mapOneToOne(array &$tables, string $fromId, string $toId, array $relation, array $fromCard, array $toCard): void
+    {
+        // Markers describe counts at the opposite end. In 1:1, the side that
+        // requires a partner receives the FK; otherwise keep the drawn direction.
+        if ($toCard['min'] === 1 && $fromCard['min'] === 0) {
+            [$childId, $parentId] = [$fromId, $toId];
+        } elseif ($fromCard['min'] === 1 && $toCard['min'] === 0) {
+            [$childId, $parentId] = [$toId, $fromId];
+        } else {
+            [$childId, $parentId] = [$fromId, $toId];
+        }
+
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $tables[$parentId],
+            $tables[$childId],
+            [
+                'nullable' => $fromCard['min'] === 0 && $toCard['min'] === 0,
+                'unique' => true,
+                'cardinality' => '1:1',
+                'sourceCard' => $childId === $fromId ? $relation['childCard'] : $relation['parentCard'],
+                'targetCard' => $parentId === $toId ? $relation['parentCard'] : $relation['childCard'],
+                'parentAttributeId' => $parentId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null),
+                'childAttributeId' => $childId === $fromId ? ($relation['fromAttr'] ?? null) : ($relation['toAttr'] ?? null),
+            ],
+        );
+        $this->appendRelationshipAttributes($tables[$childId], $relation, $fromCard['min'] === 0 && $toCard['min'] === 0);
+    }
+
+    private function createAssociativeTable(array &$tables, string $fromId, string $toId, array $relation): void
+    {
+        $id = 'relation_'.Str::snake((string) $relation['id']);
+        $recursive = $fromId === $toId;
+        $table = [
+            'id' => $id,
+            'name' => (string) ($relation['name'] ?: Str::headline($relation['id'])),
+            'kind' => 'associative',
+            'x' => (int) (($tables[$fromId]['x'] + $tables[$toId]['x']) / 2),
+            'y' => (int) (($tables[$fromId]['y'] + $tables[$toId]['y']) / 2 + 220),
+            'columns' => [],
+            'primaryKey' => [],
+        ];
+
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $tables[$fromId],
+            $table,
+            [
+                'prefix' => $recursive ? $this->role($relation, 'from') : null,
+                'primary' => true,
+                'cardinality' => 'N:1',
+                'sourceCard' => 'cf-zero-many',
+                'targetCard' => 'cf-one-one',
+                'parentAttributeId' => $relation['fromAttr'] ?? null,
+            ],
+        );
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $tables[$toId],
+            $table,
+            [
+                'prefix' => $recursive ? $this->role($relation, 'to') : null,
+                'primary' => true,
+                'cardinality' => 'N:1',
+                'sourceCard' => 'cf-zero-many',
+                'targetCard' => 'cf-one-one',
+                'parentAttributeId' => $relation['toAttr'] ?? null,
+            ],
+        );
+        $this->appendRelationshipAttributes($table, $relation);
+        $tables[$id] = $table;
+    }
+
+    /**
+     * Recursive 1:N, N:1, or N:N relationship mapped into its own table.
+     *
+     * The caller handles 1:1 separately. One end here is always "many". Copy
+     * the PK with the opposite role and allow null when that end is optional.
+     */
+    private function mapRecursiveRelation(array &$table, array $relation, array $fromCard, array $toCard): void
+    {
+        $manyIsFrom = $fromCard['many'];
+        $prefix = $this->role($relation, $manyIsFrom ? 'to' : 'from');
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $table,
+            $table,
+            [
+                'prefix' => $prefix,
+                'nullable' => ($manyIsFrom ? $toCard['min'] : $fromCard['min']) === 0,
+                'sourceCard' => $manyIsFrom ? $relation['childCard'] : $relation['parentCard'],
+                'targetCard' => $manyIsFrom ? $relation['parentCard'] : $relation['childCard'],
+                'parentAttributeId' => $manyIsFrom ? ($relation['toAttr'] ?? null) : ($relation['fromAttr'] ?? null),
+                'relationshipName' => $relation['name'] ?? null,
+            ],
+        );
+        $this->appendRelationshipAttributes(
+            $table,
+            $relation,
+            ($manyIsFrom ? $toCard['min'] : $fromCard['min']) === 0,
+        );
+    }
+
+    private function createRecursiveOneToOneTable(array &$tables, string $entityId, array $relation): void
+    {
+        $id = 'relation_'.Str::snake((string) $relation['id']);
+        $table = [
+            'id' => $id,
+            'name' => (string) $relation['name'],
+            'kind' => 'recursive',
+            'x' => $tables[$entityId]['x'] + 340,
+            'y' => $tables[$entityId]['y'] + 120,
+            'columns' => [],
+            'primaryKey' => [],
+        ];
+
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $tables[$entityId],
+            $table,
+            [
+                'prefix' => $this->role($relation, 'from'),
+                'primary' => true,
+                'cardinality' => '1:1',
+                'sourceCard' => $relation['childCard'],
+                'targetCard' => $relation['parentCard'],
+                'parentAttributeId' => $relation['fromAttr'] ?? null,
+            ],
+        );
+        $this->foreignKeyBuilder->copyPrimaryKey(
+            $tables[$entityId],
+            $table,
+            [
+                'prefix' => $this->role($relation, 'to'),
+                'unique' => true,
+                'cardinality' => '1:1',
+                'sourceCard' => $relation['parentCard'],
+                'targetCard' => $relation['childCard'],
+                'parentAttributeId' => $relation['toAttr'] ?? null,
+            ],
+        );
+        $this->appendRelationshipAttributes($table, $relation);
+        $tables[$id] = $table;
+    }
+
+    private function createComplexTable(array &$tables, array $entityTable, array $relation): void
+    {
+        $id = 'relation_'.Str::snake((string) $relation['id']);
+        $participants = $relation['participants'] ?? [];
+        $resolved = [];
+
+        foreach ($participants as $participant) {
+            $tableId = $entityTable[$participant['entity']] ?? null;
+            if ($tableId && isset($tables[$tableId])) {
+                $resolved[] = [$tables[$tableId], $participant];
+            }
+        }
+
+        if (count($resolved) < 3) {
+            $this->warnings[] = "Complex relationship {$relation['name']} does not have three valid participants.";
+
+            return;
+        }
+
+        $table = [
+            'id' => $id,
+            'name' => (string) $relation['name'],
+            'kind' => 'complex',
+            'x' => (int) (array_sum(array_column(array_column($resolved, 0), 'x')) / count($resolved)),
+            'y' => (int) (array_sum(array_column(array_column($resolved, 0), 'y')) / count($resolved) + 240),
+            'columns' => [],
+            'primaryKey' => [],
+        ];
+
+        foreach ($resolved as [$participantTable, $participant]) {
+            $this->foreignKeyBuilder->copyPrimaryKey(
+                $participantTable,
+                $table,
+                [
+                    'prefix' => $participant['role'] ?? null,
+                    'primary' => (bool) ($participant['many'] ?? true),
+                ],
+            );
+        }
+
+        $this->appendRelationshipAttributes($table, $relation);
+        $tables[$id] = $table;
+    }
+
+    private function mapMultivaluedAttributes(array &$tables, array $entityTable, array $entity): void
+    {
+        $ownerId = $entityTable[$entity['id']] ?? null;
+        if (! $ownerId || ! isset($tables[$ownerId])) {
+            return;
+        }
+
+        foreach ($entity['attributes'] ?? [] as $attribute) {
+            if (! ($attribute['multivalued'] ?? false)) {
+                continue;
+            }
+
+            $id = $ownerId.'_'.Str::snake($attribute['name']);
+            $column = $this->columnFromAttribute($attribute, $entity['id']);
+            $column['key'] = $attribute['key'] === 'UQ' ? 'UQ' : 'PK';
+
+            $table = [
+                'id' => $id,
+                'name' => Str::headline($attribute['name']),
+                'kind' => 'multivalued',
+                'x' => $tables[$ownerId]['x'] + 300,
+                'y' => $tables[$ownerId]['y'] + 180,
+                'columns' => [$column],
+                'primaryKey' => $column['key'] === 'PK' ? [$column['name']] : [],
+            ];
+
+            $this->foreignKeyBuilder->copyPrimaryKey(
+                $tables[$ownerId],
+                $table,
+                [
+                    'primary' => $column['key'] !== 'UQ',
+                ],
+            );
+            $tables[$id] = $table;
+        }
+    }
+
+    private function appendRelationshipAttributes(array &$table, array $relation, bool $nullable = false): void
+    {
+        foreach ($relation['attributes'] ?? [] as $attribute) {
+            $column = $this->columnFromAttribute($attribute, 'relationship:'.$relation['id']);
+            if ($this->hasColumn($table, $column['name'])) {
+                $base = Str::snake((string) $relation['name']).'_'.Str::snake($column['name']);
+                $candidate = $base;
+                $suffix = 2;
+                while ($this->hasColumn($table, $candidate)) {
+                    $candidate = $base.'_'.$suffix++;
+                }
+                $this->warnings[] = "Attribute {$column['name']} in relationship {$relation['name']} was renamed to {$candidate} in {$table['name']} to avoid a collision.";
+                $column['name'] = $candidate;
+            }
+            $column['nullable'] = $nullable || $column['nullable'];
+            $table['columns'][] = $column;
+        }
+    }
+
+    private function role(array $relation, string $end): string
+    {
+        $role = trim((string) ($relation[$end.'Role'] ?? ''));
+
+        return $role !== '' ? $role : ($end === 'from' ? 'first' : 'second');
+    }
+
+    private function removeDedicatedRelationshipForeignKey(array &$table, ?string $attributeId): void
+    {
+        if (! $attributeId || ($this->relationshipAttributeUsage[$attributeId] ?? 0) !== 1) {
+            return;
+        }
+
+        $table['columns'] = array_values(array_filter(
+            $table['columns'],
+            fn (array $column) => ($column['id'] ?? null) !== $attributeId || ($column['key'] ?? '') !== 'FK',
+        ));
+    }
+
+    private function foreignKeys(array $tables): array
+    {
+        $foreignKeys = [];
+
+        foreach ($tables as $table) {
+            foreach ($table['columns'] as $column) {
+                if (! $column['references']) {
+                    continue;
+                }
+
+                $foreignKeys[] = [
+                    'id' => 'fk_'.$table['id'].'_'.$column['id'],
+                    'fromTable' => $table['id'],
+                    'fromColumn' => $column['name'],
+                    'fromColumnId' => $column['id'],
+                    'toTable' => $column['references']['table'],
+                    'toColumn' => $column['references']['column'],
+                    'toColumnId' => $column['references']['columnId'] ?? null,
+                    'cardinality' => $column['references']['cardinality'] ?? 'N:1',
+                    'sourceCard' => $column['references']['sourceCard'] ?? 'cf-zero-many',
+                    'targetCard' => $column['references']['targetCard'] ?? 'cf-one-one',
+                    'relationshipName' => $column['references']['relationshipName'] ?? null,
+                ];
+            }
+        }
+
+        return $foreignKeys;
+    }
+
+    private function cardinality(string $marker): array
+    {
+        return match ($marker) {
+            'cf-one-one' => ['min' => 1, 'many' => false],
+            'cf-zero-one' => ['min' => 0, 'many' => false],
+            'cf-one-many' => ['min' => 1, 'many' => true],
+            default => ['min' => 0, 'many' => true],
+        };
+    }
+
+    private function hasColumn(array $table, string $name): bool
+    {
+        return collect($table['columns'])->contains('name', $name);
+    }
+}

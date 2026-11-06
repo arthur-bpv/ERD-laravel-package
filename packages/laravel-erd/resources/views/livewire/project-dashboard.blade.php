@@ -69,7 +69,7 @@
                 <div class="er-import-heading">
                     <div>
                         <p class="er-import-kicker">New project</p>
-                        <h2 id="import-project-title">{{ match ($importFormat) { 'sql' => 'Import SQL schema', 'database' => 'Import database connection', default => 'Import ER diagram' } }}</h2>
+                        <h2 id="import-project-title">{{ match ($importFormat) { 'sql' => 'Import SQL schema', 'database' => 'Import database connection', default => 'Import diagram JSON' } }}</h2>
                     </div>
                     <button type="button" wire:click="$set('showImport', false)" aria-label="Close import">✕</button>
                 </div>
@@ -137,6 +137,7 @@
                         </select>
                     </label>
                 @else
+                    <p>Import an ER diagram or a relational model exported as JSON. The format is detected automatically.</p>
                     <label class="er-import-drop">
                         <span>Select JSON file</span>
                         <small>Maximum 2 MB</small>

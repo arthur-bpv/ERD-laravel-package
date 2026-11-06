@@ -620,10 +620,10 @@ class SchemaBoardTest extends TestCase
             ->call('createEntity')
             ->assertSet('relationalIsOutdated', true)
             ->assertSee('board-tab-flag')
-            ->assertSee('Relational model desatualizado')
+            ->assertSee('Relational model is outdated')
             ->call('save')
             ->assertSet('relationalIsOutdated', true)
-            ->assertSee('Relational model desatualizado');
+            ->assertSee('Relational model is outdated');
 
         Livewire::test(RelationalBoard::class, ['diagram' => $relational])
             ->assertViewHas('isOutdated', true)
@@ -762,6 +762,7 @@ class SchemaBoardTest extends TestCase
             ->assertSeeHtml('class="rel-modal"')
             ->assertSeeHtml('class="rel-modal-actions"')
             ->assertSee('Copy')
+            ->assertSee('copyJson().then(() => showNotice(\'JSON copied.\'))', escape: false)
             ->assertSee('Download .json')
             ->assertSee('wire:click="downloadJson"', escape: false);
 

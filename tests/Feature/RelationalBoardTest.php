@@ -549,6 +549,7 @@ class RelationalBoardTest extends TestCase
             ->assertSeeHtml('class="rel-modal"')
             ->assertSeeHtml('class="rel-modal-actions"')
             ->assertSee('Copy')
+            ->assertSee('copyJson().then(() => showNotice(\'JSON copied.\'))', escape: false)
             ->assertSee('Download .json')
             ->assertSee('wire:click="downloadJson"', escape: false)
             ->call('downloadJson')

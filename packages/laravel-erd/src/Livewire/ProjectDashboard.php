@@ -15,6 +15,7 @@ use Makermind\Erd4dev\Services\RelationalDiagramCreator;
 use Makermind\Erd4dev\Services\RelationalDiagramDriftAnalyzer;
 use Makermind\Erd4dev\Support\DatabaseDiagramImporter;
 use Makermind\Erd4dev\Support\ErDiagramImporter;
+use Makermind\Erd4dev\Support\JsonDiagramImporter;
 use Makermind\Erd4dev\Support\SqlDiagramImporter;
 
 #[Layout('erd::layouts.app')]
@@ -160,21 +161,24 @@ class ProjectDashboard extends Component
     {
         $this->validateOnly('importProjectName');
 
+        $this->importError = '';
+
         try {
-            $data = ErDiagramImporter::parse($this->importJson);
+            $data = JsonDiagramImporter::parse($this->importJson);
         } catch (InvalidArgumentException $exception) {
             $this->importError = $exception->getMessage();
 
             return;
         }
 
+        $relational = array_key_exists('tables', $data);
         $diagram = Diagram::create([
             'name' => trim($this->importProjectName),
-            'type' => Diagram::TYPE_ENTITY_RELATIONSHIP,
+            'type' => $relational ? Diagram::TYPE_RELATIONAL : Diagram::TYPE_ENTITY_RELATIONSHIP,
             'data' => $data,
         ]);
 
-        $this->redirectRoute('erd.boards.er', $diagram, navigate: true);
+        $this->redirectRoute($relational ? 'erd.boards.relational' : 'erd.boards.er', $diagram);
     }
 
     public function createAnalysisProject(): void

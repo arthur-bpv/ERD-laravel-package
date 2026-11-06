@@ -138,6 +138,56 @@ class ProjectDashboardTest extends TestCase
         $this->assertSame('sqlite', $source->fresh()->relationalDiagram->data['dialect']);
     }
 
+    public function test_dashboard_imports_exported_relational_json_without_changing_the_model(): void
+    {
+        $json = file_get_contents(base_path('tests/Fixtures/relational-model.json'));
+        $data = json_decode($json, true);
+        unset($data['_comment']);
+
+        Livewire::test(ProjectDashboard::class)
+            ->set('importJson', '{invalid')
+            ->call('importProject')
+            ->set('importJson', $json)
+            ->call('importProject')
+            ->assertSet('importError', '')
+            ->assertRedirect(route('erd.boards.relational', Diagram::sole()));
+
+        $diagram = Diagram::sole();
+        $this->assertSame(Diagram::TYPE_RELATIONAL, $diagram->type);
+        $this->assertNull($diagram->source_diagram_id);
+        $this->assertSame($data, $diagram->data);
+
+        $board = Livewire::test(RelationalBoard::class, ['diagram' => $diagram])
+            ->assertSet('tables', $data['tables'])
+            ->assertSet('foreignKeys', $data['foreignKeys'])
+            ->call('openSqlPreview')
+            ->assertSet('sqlError', null);
+        $export = $board->instance()->getJsonPreviewProperty();
+
+        Livewire::test(ProjectDashboard::class)
+            ->set('importJson', $export)
+            ->call('importProject')
+            ->assertRedirect();
+        $this->assertSame($data, Diagram::latest('id')->first()->data);
+    }
+
+    public function test_invalid_relational_json_does_not_create_a_project(): void
+    {
+        $data = json_decode(file_get_contents(base_path('tests/Fixtures/relational-model.json')), true);
+        $data['foreignKeys'][0]['toTable'] = 'missing';
+        Livewire::test(ProjectDashboard::class)
+            ->set('importJson', json_encode($data))
+            ->call('importProject')
+            ->assertSet('importError', 'A foreign key references a missing table or column.');
+        $this->assertDatabaseCount('diagrams', 0);
+
+        $data['tables'][0]['columns'] = 'invalid';
+        Livewire::test(ProjectDashboard::class)
+            ->set('importJson', json_encode($data))
+            ->call('importProject');
+        $this->assertDatabaseCount('diagrams', 0);
+    }
+
     public function test_dashboard_rejects_an_invalid_import_without_creating_a_project(): void
     {
         Livewire::test(ProjectDashboard::class)

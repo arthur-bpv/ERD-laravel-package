@@ -1,0 +1,889 @@
+{
+    "_comment": "Project: Imported project | Model: Imported project — Relational",
+    "dialect": "mysql",
+    "tables": [
+        {
+            "id": "customers",
+            "name": "Customer",
+            "kind": "strong",
+            "x": 40,
+            "y": 300,
+            "columns": [
+                {
+                    "id": "customers.id",
+                    "name": "customer_id",
+                    "type": "bigint",
+                    "key": "PK",
+                    "nullable": false,
+                    "references": null,
+                    "source": "customers",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "customers.name",
+                    "name": "full_name",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "customers",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "customers.email",
+                    "name": "email",
+                    "type": "varchar",
+                    "key": "UQ",
+                    "nullable": false,
+                    "references": null,
+                    "source": "customers",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "customers.phone",
+                    "name": "phone",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "customers",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "customer_id"
+            ]
+        },
+        {
+            "id": "orders",
+            "name": "Order",
+            "kind": "strong",
+            "x": 400,
+            "y": 300,
+            "columns": [
+                {
+                    "id": "orders.id",
+                    "name": "order_id",
+                    "type": "bigint",
+                    "key": "PK",
+                    "nullable": false,
+                    "references": null,
+                    "source": "orders",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "orders.number",
+                    "name": "order_number",
+                    "type": "varchar",
+                    "key": "UQ",
+                    "nullable": false,
+                    "references": null,
+                    "source": "orders",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "orders.placed_at",
+                    "name": "placed_at",
+                    "type": "datetime",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "orders",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "orders.status",
+                    "name": "status",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "orders",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "orders.customer_id",
+                    "name": "customer_id",
+                    "type": "bigint",
+                    "key": "FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "customers",
+                        "column": "customer_id",
+                        "columnId": "customers.id",
+                        "cardinality": "N:1",
+                        "sourceCard": "cf-zero-many",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "orders.address_id",
+                    "name": "address_id",
+                    "type": "bigint",
+                    "key": "FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "addresses",
+                        "column": "address_id",
+                        "columnId": "addresses.id",
+                        "cardinality": "N:1",
+                        "sourceCard": "cf-zero-many",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "order_delivery_address.instructions",
+                    "name": "delivery_instructions",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:order_delivery_address",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "order_id"
+            ]
+        },
+        {
+            "id": "products",
+            "name": "Product",
+            "kind": "strong",
+            "x": 800,
+            "y": 300,
+            "columns": [
+                {
+                    "id": "products.id",
+                    "name": "product_id",
+                    "type": "bigint",
+                    "key": "PK",
+                    "nullable": false,
+                    "references": null,
+                    "source": "products",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "products.sku",
+                    "name": "sku",
+                    "type": "varchar",
+                    "key": "UQ",
+                    "nullable": false,
+                    "references": null,
+                    "source": "products",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "products.name",
+                    "name": "name",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "products",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "products.price",
+                    "name": "list_price",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "products",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "products.category_id",
+                    "name": "category_id",
+                    "type": "bigint",
+                    "key": "FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "categories",
+                        "column": "category_id",
+                        "columnId": "categories.id",
+                        "cardinality": "N:1",
+                        "sourceCard": "cf-zero-many",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "product_id"
+            ]
+        },
+        {
+            "id": "categories",
+            "name": "Category",
+            "kind": "strong",
+            "x": 1160,
+            "y": 60,
+            "columns": [
+                {
+                    "id": "categories.id",
+                    "name": "category_id",
+                    "type": "bigint",
+                    "key": "PK",
+                    "nullable": false,
+                    "references": null,
+                    "source": "categories",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "categories.name",
+                    "name": "name",
+                    "type": "varchar",
+                    "key": "UQ",
+                    "nullable": false,
+                    "references": null,
+                    "source": "categories",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "category_id"
+            ]
+        },
+        {
+            "id": "addresses",
+            "name": "Delivery Address",
+            "kind": "strong",
+            "x": 40,
+            "y": 680,
+            "columns": [
+                {
+                    "id": "addresses.id",
+                    "name": "address_id",
+                    "type": "bigint",
+                    "key": "PK",
+                    "nullable": false,
+                    "references": null,
+                    "source": "addresses",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "addresses.label",
+                    "name": "label",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "addresses",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "addresses.street",
+                    "name": "street",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "addresses",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "addresses.city",
+                    "name": "city",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "addresses",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "addresses.postal_code",
+                    "name": "postal_code",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "addresses",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "address_id"
+            ]
+        },
+        {
+            "id": "payments",
+            "name": "Payment",
+            "kind": "strong",
+            "x": 400,
+            "y": 680,
+            "columns": [
+                {
+                    "id": "payments.id",
+                    "name": "payment_id",
+                    "type": "bigint",
+                    "key": "PK",
+                    "nullable": false,
+                    "references": null,
+                    "source": "payments",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "payments.reference",
+                    "name": "provider_reference",
+                    "type": "varchar",
+                    "key": "UQ",
+                    "nullable": false,
+                    "references": null,
+                    "source": "payments",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "payments.method",
+                    "name": "method",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "payments",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "payments.amount",
+                    "name": "amount",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "payments",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "payments.paid_at",
+                    "name": "paid_at",
+                    "type": "datetime",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "payments",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "payments.order_id",
+                    "name": "order_id",
+                    "type": "bigint",
+                    "key": "UQ\/FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "orders",
+                        "column": "order_id",
+                        "columnId": "orders.id",
+                        "cardinality": "1:1",
+                        "sourceCard": "cf-zero-one",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "order_payment.authorized_at",
+                    "name": "authorized_at",
+                    "type": "datetime",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:order_payment",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "payment_id"
+            ]
+        },
+        {
+            "id": "suppliers",
+            "name": "Supplier",
+            "kind": "strong",
+            "x": 1160,
+            "y": 680,
+            "columns": [
+                {
+                    "id": "suppliers.id",
+                    "name": "supplier_id",
+                    "type": "bigint",
+                    "key": "PK",
+                    "nullable": false,
+                    "references": null,
+                    "source": "suppliers",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "suppliers.tax_id",
+                    "name": "tax_id",
+                    "type": "varchar",
+                    "key": "UQ",
+                    "nullable": false,
+                    "references": null,
+                    "source": "suppliers",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "suppliers.name",
+                    "name": "legal_name",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "suppliers",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "supplier_id"
+            ]
+        },
+        {
+            "id": "relation_order_items",
+            "name": "contains",
+            "kind": "associative",
+            "x": 600,
+            "y": 520,
+            "columns": [
+                {
+                    "id": "relation_order_items.order_id",
+                    "name": "order_id",
+                    "type": "bigint",
+                    "key": "PK\/FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "orders",
+                        "column": "order_id",
+                        "columnId": "orders.id",
+                        "cardinality": "N:1",
+                        "sourceCard": "cf-zero-many",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "relation_order_items.product_id",
+                    "name": "product_id",
+                    "type": "bigint",
+                    "key": "PK\/FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "products",
+                        "column": "product_id",
+                        "columnId": "products.id",
+                        "cardinality": "N:1",
+                        "sourceCard": "cf-zero-many",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "order_items.quantity",
+                    "name": "quantity",
+                    "type": "integer",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:order_items",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "order_items.unit_price",
+                    "name": "unit_price",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:order_items",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "order_items.discount",
+                    "name": "discount_percent",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:order_items",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "order_id",
+                "product_id"
+            ]
+        },
+        {
+            "id": "relation_supplier_catalog",
+            "name": "supplies",
+            "kind": "associative",
+            "x": 980,
+            "y": 710,
+            "columns": [
+                {
+                    "id": "relation_supplier_catalog.supplier_id",
+                    "name": "supplier_id",
+                    "type": "bigint",
+                    "key": "PK\/FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "suppliers",
+                        "column": "supplier_id",
+                        "columnId": "suppliers.id",
+                        "cardinality": "N:1",
+                        "sourceCard": "cf-zero-many",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "relation_supplier_catalog.product_id",
+                    "name": "product_id",
+                    "type": "bigint",
+                    "key": "PK\/FK",
+                    "nullable": false,
+                    "references": {
+                        "table": "products",
+                        "column": "product_id",
+                        "columnId": "products.id",
+                        "cardinality": "N:1",
+                        "sourceCard": "cf-zero-many",
+                        "targetCard": "cf-one-one",
+                        "relationshipName": null
+                    },
+                    "source": "foreign-key",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "supplier_catalog.sku",
+                    "name": "supplier_sku",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:supplier_catalog",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "supplier_catalog.cost",
+                    "name": "cost_price",
+                    "type": "varchar",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:supplier_catalog",
+                    "length": 255,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                },
+                {
+                    "id": "supplier_catalog.lead_time",
+                    "name": "lead_time_days",
+                    "type": "integer",
+                    "key": "",
+                    "nullable": false,
+                    "references": null,
+                    "source": "relationship:supplier_catalog",
+                    "length": null,
+                    "precision": null,
+                    "scale": null,
+                    "customType": null,
+                    "enumValues": []
+                }
+            ],
+            "primaryKey": [
+                "supplier_id",
+                "product_id"
+            ]
+        }
+    ],
+    "foreignKeys": [
+        {
+            "id": "fk_orders_orders.customer_id",
+            "fromTable": "orders",
+            "fromColumn": "customer_id",
+            "fromColumnId": "orders.customer_id",
+            "toTable": "customers",
+            "toColumn": "customer_id",
+            "toColumnId": "customers.id",
+            "cardinality": "N:1",
+            "sourceCard": "cf-zero-many",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        },
+        {
+            "id": "fk_orders_orders.address_id",
+            "fromTable": "orders",
+            "fromColumn": "address_id",
+            "fromColumnId": "orders.address_id",
+            "toTable": "addresses",
+            "toColumn": "address_id",
+            "toColumnId": "addresses.id",
+            "cardinality": "N:1",
+            "sourceCard": "cf-zero-many",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        },
+        {
+            "id": "fk_products_products.category_id",
+            "fromTable": "products",
+            "fromColumn": "category_id",
+            "fromColumnId": "products.category_id",
+            "toTable": "categories",
+            "toColumn": "category_id",
+            "toColumnId": "categories.id",
+            "cardinality": "N:1",
+            "sourceCard": "cf-zero-many",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        },
+        {
+            "id": "fk_payments_payments.order_id",
+            "fromTable": "payments",
+            "fromColumn": "order_id",
+            "fromColumnId": "payments.order_id",
+            "toTable": "orders",
+            "toColumn": "order_id",
+            "toColumnId": "orders.id",
+            "cardinality": "1:1",
+            "sourceCard": "cf-zero-one",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        },
+        {
+            "id": "fk_relation_order_items_relation_order_items.order_id",
+            "fromTable": "relation_order_items",
+            "fromColumn": "order_id",
+            "fromColumnId": "relation_order_items.order_id",
+            "toTable": "orders",
+            "toColumn": "order_id",
+            "toColumnId": "orders.id",
+            "cardinality": "N:1",
+            "sourceCard": "cf-zero-many",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        },
+        {
+            "id": "fk_relation_order_items_relation_order_items.product_id",
+            "fromTable": "relation_order_items",
+            "fromColumn": "product_id",
+            "fromColumnId": "relation_order_items.product_id",
+            "toTable": "products",
+            "toColumn": "product_id",
+            "toColumnId": "products.id",
+            "cardinality": "N:1",
+            "sourceCard": "cf-zero-many",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        },
+        {
+            "id": "fk_relation_supplier_catalog_relation_supplier_catalog.supplier_id",
+            "fromTable": "relation_supplier_catalog",
+            "fromColumn": "supplier_id",
+            "fromColumnId": "relation_supplier_catalog.supplier_id",
+            "toTable": "suppliers",
+            "toColumn": "supplier_id",
+            "toColumnId": "suppliers.id",
+            "cardinality": "N:1",
+            "sourceCard": "cf-zero-many",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        },
+        {
+            "id": "fk_relation_supplier_catalog_relation_supplier_catalog.product_id",
+            "fromTable": "relation_supplier_catalog",
+            "fromColumn": "product_id",
+            "fromColumnId": "relation_supplier_catalog.product_id",
+            "toTable": "products",
+            "toColumn": "product_id",
+            "toColumnId": "products.id",
+            "cardinality": "N:1",
+            "sourceCard": "cf-zero-many",
+            "targetCard": "cf-one-one",
+            "relationshipName": null
+        }
+    ],
+    "warnings": []
+}
